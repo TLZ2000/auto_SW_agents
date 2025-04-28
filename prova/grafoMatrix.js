@@ -52,12 +52,71 @@ class Queue {
     }
 }
 
+class GraphNode{
+    constructor(type, x, y){
+        this.x = x;
+        this.y = y;
+        this.neighU = undefined;
+        this.neighR = undefined;
+        this.neighD = undefined;
+        this.neighL = undefined;
+        this.type = type;
+        this.nearestDelivery = undefined;
+        this.nearestSpawn = undefined;
+        console.log("creato [" + x + ", " + y + "] type " + type)
+    }
+}
 
-class Mappa{
+class Graph{
+    constructor(currentMap){
+        this.gameMap = currentMap;
+        this.graphMap = [];
+        
+        // Create graph nodes and save them into a matrix
+        for(let x=0; x < this.gameMap.width; x++){
+            this.graphMap[x]=[];
+            for(let y=0; y < this.gameMap.height; y++){
+                if(this.gameMap.map[x][y].type!=0){
+                    this.graphMap[x][y] = new GraphNode(this.gameMap.map[x][y].type, x, y);
+                } else {
+                    this.graphMap[x][y] = undefined;
+                }
+            }
+        }
+
+        // Connect each graph node to its neighbors
+        this.graphMap.forEach((x)=>{
+            x.forEach((y) =>{
+                // if undefined this is unwalkable
+                if(this.graphMap[x][y]!=undefined){
+
+                    // if neighbor in bound
+                    if(0<=y+1 && y+1 < height){
+                        // if neighbor walkable
+                        if(this.graphMap[x][y+1]!=undefined){
+                            // add up neighbor
+                            this.graphMap[x][y].neighU = this.graphMap[x][y+1];
+                        }
+                    }
+
+                    //TODO: controlla altri vicini
+                    let right = [x+1, y];
+                    let down = [x, y-1];
+                    let left = [x-1, y];
+                }
+            })
+        })
+    }
+}
+
+
+class GameMap{
     constructor(width, height, tile){
         // Take map in deliveroo format and convert it into matrix format
+        this.width = width;
+        this.height = height;
         this.map = [];
-        this.delivery_cells = [];
+        this.delivery_cells = []; // {x, y, type}
         this.spawn_cells = [];
         this.walkable_cells = [];
         this.closest_delivery_cell = [];
@@ -91,12 +150,22 @@ class Mappa{
     preProcess(){
         // Pre process the map to add nearest deliver zone and nearest spawn point
         // Add delivery cells to queue
+        let deliverQueue = new Queue()
+        this.delivery_cells.forEach((item) =>{
+            deliverQueue.enqueue(item)
+        })
+
+        // while we have some tiles to explore
+        while(!deliverQueue.isEmpty()){
+            let currentTile = deliverQueue.dequeue()
+        }
 
     }
 }
 
-var currentMappa = 0
+var currentMap = 0
 
 client.onMap( (width, height, tile) => {
-    currentMappa = new Mappa(width, height, tile);
+    currentMap = new GameMap(width, height, tile);
+    let grafo = new Graph(currentMap);
 })
