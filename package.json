@@ -1,0 +1,23 @@
+{
+  "name": "auto_sw_agents",
+  "version": "1.0.0",
+  "description": "Lazzerini and Cappelletti auto. SW agents project",
+  "homepage": "https://github.com/TLZ2000/auto_SW_agents#readme",
+  "bugs": {
+    "url": "https://github.com/TLZ2000/auto_SW_agents/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TLZ2000/auto_SW_agents.git"
+  },
+  "license": "ISC",
+  "author": "Thomas Lazzerini",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@unitn-asa/deliveroo-js-client": "^2.0.2"
+  }
+}
