@@ -6,7 +6,7 @@ const client = new DeliverooApi(
     //'https://deliveroojs2.rtibdi.disi.unitn.it/',
     // 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQyNmQ1NyIsIm5hbWUiOiJtYXJjbyIsInRlYW1JZCI6ImM3ZjgwMCIsInRlYW1OYW1lIjoiZGlzaSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQwMDA3NjIwfQ.1lfKRxSSwj3_a4fWnAV44U1koLrphwLkZ9yZnYQDoSw'
     'http://localhost:8080',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjdmMzMxMCIsIm5hbWUiOiJwcm92YSIsInRlYW1JZCI6IjYyZmQwNCIsInRlYW1OYW1lIjoidGVhbSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ1ODIyNDAwfQ.KR5jRXJIuVo5LnM0JRJjTihfBymefwLMapNxmnR1Jb8'
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFlNTFhZCIsIm5hbWUiOiJtYXJjbyIsInRlYW1JZCI6IjE5NWI1ZSIsInRlYW1OYW1lIjoiZGlzaSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ1OTM1NzczfQ.Vcwbr28RqAjdKtOCEMh5Mx_VhhimIpyPh3qw-5XQlTQ'
 )
 
 function distance( {x:x1, y:y1}, {x:x2, y:y2}) {
