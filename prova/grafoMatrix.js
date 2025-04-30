@@ -6,7 +6,7 @@ const client = new DeliverooApi(
     //'https://deliveroojs2.rtibdi.disi.unitn.it/',
     // 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQyNmQ1NyIsIm5hbWUiOiJtYXJjbyIsInRlYW1JZCI6ImM3ZjgwMCIsInRlYW1OYW1lIjoiZGlzaSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQwMDA3NjIwfQ.1lfKRxSSwj3_a4fWnAV44U1koLrphwLkZ9yZnYQDoSw'
     'http://localhost:8080', 
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjFiYjRjOSIsIm5hbWUiOiJhZG1pbiIsInRlYW1JZCI6IjBiMmE1YSIsInRlYW1OYW1lIjoiYWRtaW4iLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3NDU5MzA5MjZ9.WzJzcSiqqqadyKMZJrutYAHkXKkUmsA-m5BVVEH5pbc"
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjdmMzMxMCIsIm5hbWUiOiJwcm92YSIsInRlYW1JZCI6IjYyZmQwNCIsInRlYW1OYW1lIjoidGVhbSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ1ODIyNDAwfQ.KR5jRXJIuVo5LnM0JRJjTihfBymefwLMapNxmnR1Jb8"
 )
 
 const me = {id: null, name: null, x: null, y: null, score: null};
@@ -279,9 +279,121 @@ class GameMap{
     }
 }
 
-var currentMap = 0
+var currentMap = undefined;
+var grafo = undefined;
+var currentConfig = undefined;
 
-client.onMap( (width, height, tile) => {
-    currentMap = new GameMap(width, height, tile);
-    let grafo = new Graph(currentMap);
-})
+await new Promise( res => {
+
+    // Get the map information
+    client.onMap( (width, height, tile) => {
+        currentMap = new GameMap(width, height, tile);
+        grafo = new Graph(currentMap);
+        res();
+    });
+
+    // Get the configuration
+    client.onConfig(config => {
+        currentConfig = config;
+        res();
+    });
+});
+
+//**********************************************************************/
+
+
+// Parcels belief set
+const parcels = new Map();
+
+client.onParcelsSensing( async ( pp ) => {
+
+    // Add the sensed parcels to the parcel belief set
+    for (const p of pp) {
+        parcels.set( p.id, p);
+        //console.log("Parcel id: " + p.id + ", reward: " + p.reward + ", x: " + p.x+ ", y: " + p.y);
+    }
+    //console.log("------------------------");
+
+    // DA MODIFICARE
+    for ( const p of parcels.values() ) {
+        if ( pp.map( p => p.id ).find( id => id == p.id ) == undefined ) {
+            parcels.delete( p.id );
+        }
+    }
+});
+
+function navigateBFS (initialPos, finalPos) {
+
+    let queue = new Queue();
+    let explored = new Set();
+    let finalPath = undefined;
+
+    // Add initial node to the queue
+    queue.enqueue({currentNode: grafo.graphMap[initialPos[0]][initialPos[1]], path: []});
+
+    // Cycle until the queue is empty or a valid path has been found
+    while (!queue.isEmpty()) {
+
+        // Take the item from the queue
+        let {currentNode, path} = queue.dequeue();
+
+        // If the current position is the final position return the path
+        if(currentNode.x == finalPos[0] && currentNode.y == finalPos[1]){
+            finalPath = path;
+            break;
+        }
+
+        let currentNodeId = currentNode.x + " " + currentNode.y;
+
+        // If the node not has not been visited
+        if (!explored.has(currentNodeId)) {
+
+            // Visit it
+            explored.add(currentNodeId);
+
+            // Explore its neighbors
+            // Up
+            if(currentNode.neighU != null) {
+                let tmp = path.slice();
+                tmp.push("U");
+                queue.enqueue({currentNode: currentNode.neighU, path: tmp});
+                console.log("U");
+            }
+
+            // Right
+            if(currentNode.neighR != null) {
+                let tmp = path.slice();
+                tmp.push("R");
+                queue.enqueue({currentNode: currentNode.neighR, path: tmp});
+                console.log("R");
+            }
+
+            // Down
+            if(currentNode.neighD != null) {
+                let tmp = path.slice();
+                tmp.push("D");
+                queue.enqueue({currentNode: currentNode.neighD, path: tmp});
+                console.log("D");
+            }
+
+            // Left
+            if(currentNode.neighL != null) {
+                let tmp = path.slice();
+                tmp.push("L");
+                queue.enqueue({currentNode: currentNode.neighL, path: tmp});
+                console.log("L");
+            }
+            console.log("------------------");
+        }
+    }
+
+    // If there exists a path from the initial to the final tile
+    if(finalPath != undefined) {
+        return finalPath;
+    } else {
+        console.log("No path found!");
+        return undefined;
+    }
+}
+
+console.log(navigateBFS([2,2], [5,5]));
