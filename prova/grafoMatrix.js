@@ -442,13 +442,22 @@ function optionsGeneration () {
             if(current_d!=undefined){
                 current_d=current_d.length;
                 if ( current_d < nearest ) {
-                    best_option = option
-                    nearest = current_d
+                    if(best_option == undefined || best_option[0] != "go_deliver"){
+                        best_option = option;
+                        nearest = current_d;
+                    } else {
+                        if(current_d < 10){
+                            option[0]="emergency_go_pick_up"
+                            best_option = option;
+                            nearest = current_d;
+                        }
+                    }
+                    
                 }
             }            
         } else if (option[0] == "go_deliver"){
+            if(best_option == undefined || best_option[0] != "emergency_go_pick_up")
             best_option = option;
-            break;
         }
     }
 
@@ -530,6 +539,21 @@ class IntentionRevisionReplace extends IntentionRevision {
         if ( last ) {
             last.stop();
         }
+    }
+
+}
+
+class IntentionRevisionQueue extends IntentionRevision {
+
+    async push ( predicate ) {
+        
+        // Check if already queued
+        if ( this.intention_queue.find( (i) => i.predicate.join(' ') == predicate.join(' ') ) )
+            return; // intention is already queued
+
+        console.log( 'IntentionRevisionReplace.push', predicate );
+        const intention = new Intention( this, predicate );
+        this.intention_queue.push( intention );
     }
 
 }
@@ -680,7 +704,7 @@ class Plan {
 class GoPickUp extends Plan {
 
     static isApplicableTo ( go_pick_up, x, y, id ) {
-        return go_pick_up == 'go_pick_up';
+        return go_pick_up == 'go_pick_up' || go_pick_up == 'emergency_go_pick_up';
     }
 
     async execute ( go_pick_up, x, y ) {
