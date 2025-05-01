@@ -366,10 +366,6 @@ client.onAgentsSensing( async ( aa ) => {
     }
 });
 
-client.onParcelsSensing( optionsGeneration )
-client.onAgentsSensing( optionsGeneration )
-client.onYou( optionsGeneration )
-
 function navigateBFS (initialPos, finalPos) {
     
     let queue = new Queue();
@@ -458,7 +454,7 @@ function navigateBFS (initialPos, finalPos) {
     if(finalPath != undefined) {
         return finalPath;
     } else {
-        console.log("No path found!");
+        console.log("No path found to [" + finalPos[0] + "," + finalPos[1] + "]!");
         return undefined;
     }
 }
@@ -520,9 +516,15 @@ function optionsGeneration () {
     /**
      * Best option is selected
      */
-    if ( best_option )
+    if ( best_option ){
         //console.log(best_option[1] + " "+ best_option[2])
         myAgent.push( best_option )
+    } else {
+        // If we don't have a valid best option, then explore until you find one
+        console.log("PUSHING EXPLORE")
+        myAgent.push(['explore'])
+    }
+        
 
 }
 
@@ -583,7 +585,7 @@ class IntentionRevisionReplace extends IntentionRevision {
 
         // Check if already queued
         const last = this.intention_queue.at( this.intention_queue.length - 1 );
-        if ( last && last.predicate.join(' ') == predicate.join(' ') ) {
+        if ( (last && last.predicate.join(' ') == predicate.join(' '))) {
             return; // intention is already being achieved
         }
         
@@ -613,10 +615,6 @@ class IntentionRevisionQueue extends IntentionRevision {
     }
 
 }
-
-const myAgent = new IntentionRevisionReplace();
-myAgent.loop();
-
 
 /**
  * Intention
@@ -794,10 +792,38 @@ class GoDeliver extends Plan {
 
 }
 
+class RandomExplore extends Plan {
+
+    static isApplicableTo (explore) {
+        return explore == 'explore';
+    }
+
+    async execute (explore) {
+        if ( this.stopped ) throw ['stopped']; // if stopped then quit
+
+        // Select random cell
+        let randX;
+        let randY;
+
+        do{
+            randX = Math.floor(Math.random() * grafo.gameMap.width);
+            randY = Math.floor(Math.random() * grafo.gameMap.height);
+            console.log("RANDOM COORDS: " + randX + " - " + randY);
+            // Repeat until you find a walkable, spawnable, free cell
+        } while( grafo.gameMap.getItem(randX,randY)==0 || grafo.gameMap.getItem(randX,randY)==3)        
+
+        // When a valid cell has been found, move to it (and hope to find something interesting)
+        await this.subIntention( ['go_to_explore', randX, randY] );
+        if ( this.stopped ) throw ['stopped']; // if stopped then quit
+        return true;
+    }
+
+}
+
 class BlindBFSmove extends Plan {
 
     static isApplicableTo ( go_to, x, y ) {
-        return go_to == 'go_to';
+        return go_to == 'go_to' || go_to == 'go_to_explore';
     }
 
     async execute ( go_to, x, y ) {
@@ -855,7 +881,17 @@ class BlindBFSmove extends Plan {
     }
 }
 
+
+
+const myAgent = new IntentionRevisionReplace();
+myAgent.loop();
+
+client.onParcelsSensing( optionsGeneration )
+client.onAgentsSensing( optionsGeneration )
+client.onYou( optionsGeneration )
+
 // plan classes are added to plan library 
 planLibrary.push( GoPickUp )
 planLibrary.push( BlindBFSmove )
 planLibrary.push( GoDeliver )
+planLibrary.push( RandomExplore )
