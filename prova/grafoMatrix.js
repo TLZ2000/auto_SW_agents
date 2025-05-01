@@ -1,12 +1,13 @@
 import { DeliverooApi } from "@unitn-asa/deliveroo-js-client";
 
+const DISTANCE_NEAREST_PARCEL = 5;
+
 const client = new DeliverooApi(
     // 'https://deliveroojs25.azurewebsites.net',
     // 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjJjOTQyMSIsIm5hbWUiOiJtYXJjbyIsInRlYW1JZCI6IjViMTVkMSIsInRlYW1OYW1lIjoiZGlzaSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQyNTY3NDE4fQ.5m8St0OZo_DCXCriYkLtsguOm1e20-IAN2JNgXL7iUQ'
     //'https://deliveroojs2.rtibdi.disi.unitn.it/',
     // 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQyNmQ1NyIsIm5hbWUiOiJtYXJjbyIsInRlYW1JZCI6ImM3ZjgwMCIsInRlYW1OYW1lIjoiZGlzaSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQwMDA3NjIwfQ.1lfKRxSSwj3_a4fWnAV44U1koLrphwLkZ9yZnYQDoSw'
-    'http://localhost:8080', 
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImNkNjU1NCIsIm5hbWUiOiJBZ2VudCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ2MDE4MzU1fQ.Qj5XIXCpnxv4ibSukP8xL0oTz6X6v7_3ouKZiVBHJl8"
+    'http://localhost:8080'
 )
 
 const me = {id: null, name: null, x: null, y: null, score: null};
@@ -72,6 +73,15 @@ class Graph{
     constructor(currentMap){
         this.gameMap = currentMap;
         this.graphMap = [];
+        this.nearbyAgents = [];
+
+        // Initialize matrix containing all the agents positions (0 -> no agent, 1 -> agent)
+        for(let x = 0; x < this.graphMap.width; x++) {
+            this.agentsNearby[x] = [];
+            for(let y = 0; y < this.graphMap.height; y++) {
+                this.agentsNearby[x][y] = 0;
+            }
+        }
         
         // Create graph nodes and save them into a matrix
         for(let x=0; x < this.gameMap.width; x++){
@@ -310,6 +320,7 @@ await new Promise( res => {
 
 // Parcels belief set
 const parcels = new Map();
+const agents = new Map();
 
 client.onParcelsSensing( async ( pp ) => {
 
@@ -322,8 +333,35 @@ client.onParcelsSensing( async ( pp ) => {
 
     // DA MODIFICARE
     for ( const p of parcels.values() ) {
-        if ( pp.map( p => p.id ).find( id => id == p.id ) == undefined ) {
+        if ( pp.map( p => p.id ).find( id => id == p.id ) == undefined || (p.carriedBy != undefined && p.carriedBy != me.id)) {
             parcels.delete( p.id );
+        }
+    }
+});
+
+client.onAgentsSensing( async ( aa ) => {
+
+    // Add the sensed agents to the agent belief set
+    for (const a of aa) {
+        agents.set( a.id, a);
+    }
+
+    // DA MODIFICARE
+    for ( const a of agents.values() ) {
+        if ( aa.map( a => a.id ).find( id => id == a.id ) == undefined ) {
+            agents.delete( a.id );
+            if(grafo.agentsNearby != undefined) {
+                console.log("ciao2");
+                grafo.agentsNearby[Math.round(a.x)][Math.round(a.y)] = 0;
+            }
+        }
+    }
+
+    // Add the agents to the matrix
+    for (const a of agents) {
+        if(grafo.agentsNearby != undefined) {
+            console.log("ciao");
+            grafo.agentsNearby[Math.round(a.x)][Math.round(a.y)] = 1;
         }
     }
 });
@@ -355,7 +393,15 @@ function navigateBFS (initialPos, finalPos) {
 
         // If the current position is the final position return the path
         if(currentNode.x == finalPos[0] && currentNode.y == finalPos[1]){
-            finalPath = path;
+            
+            // Check if in the final node there is no other agent
+            if(grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
+                // Agent
+                finalPath = undefined;
+            } else {
+                // No agent
+                finalPath = path;
+            }
             break;
         }
 
@@ -366,6 +412,11 @@ function navigateBFS (initialPos, finalPos) {
 
             // Visit it
             explored.add(currentNodeId);
+
+            // If node is occupied, ignore its neighbors
+            if(grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
+                continue;
+            }
 
             // Explore its neighbors
             // Up
@@ -435,6 +486,9 @@ function optionsGeneration () {
      */
     let best_option;
     let nearest = Number.MAX_VALUE;
+    let delivery_d;
+    let nearest_delivery;
+
     for (const option of options) {
         if ( option[0] == 'go_pick_up' ) {
             let [go_pick_up,x,y,id] = option;
@@ -442,11 +496,12 @@ function optionsGeneration () {
             if(current_d!=undefined){
                 current_d=current_d.length;
                 if ( current_d < nearest ) {
-                    if(best_option == undefined || best_option[0] != "go_deliver"){
+                    if(best_option == undefined || (best_option[0] != "go_deliver" && best_option[0] != "emergency_go_pick_up")){
                         best_option = option;
                         nearest = current_d;
                     } else {
-                        if(current_d < 10){
+                        delivery_d = grafo.graphMap[Math.round(me.x)][Math.round(me.y)].visitedDeliveries[0].distance;
+                        if(current_d < DISTANCE_NEAREST_PARCEL && current_d < delivery_d){
                             option[0]="emergency_go_pick_up"
                             best_option = option;
                             nearest = current_d;
@@ -456,8 +511,9 @@ function optionsGeneration () {
                 }
             }            
         } else if (option[0] == "go_deliver"){
-            if(best_option == undefined || best_option[0] != "emergency_go_pick_up")
-            best_option = option;
+            if(best_option == undefined || best_option[0] != "emergency_go_pick_up") {
+                best_option = option;
+            }
         }
     }
 
