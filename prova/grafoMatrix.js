@@ -7,7 +7,8 @@ const client = new DeliverooApi(
     // 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjJjOTQyMSIsIm5hbWUiOiJtYXJjbyIsInRlYW1JZCI6IjViMTVkMSIsInRlYW1OYW1lIjoiZGlzaSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQyNTY3NDE4fQ.5m8St0OZo_DCXCriYkLtsguOm1e20-IAN2JNgXL7iUQ'
     //'https://deliveroojs2.rtibdi.disi.unitn.it/',
     // 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQyNmQ1NyIsIm5hbWUiOiJtYXJjbyIsInRlYW1JZCI6ImM3ZjgwMCIsInRlYW1OYW1lIjoiZGlzaSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQwMDA3NjIwfQ.1lfKRxSSwj3_a4fWnAV44U1koLrphwLkZ9yZnYQDoSw'
-    'http://localhost:8080'
+    'http://localhost:8080',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImNkNjU1NCIsIm5hbWUiOiJBZ2VudCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ2MDE4MzU1fQ.Qj5XIXCpnxv4ibSukP8xL0oTz6X6v7_3ouKZiVBHJl8'
 )
 
 const me = {id: null, name: null, x: null, y: null, score: null};
@@ -586,6 +587,7 @@ class IntentionRevisionReplace extends IntentionRevision {
         // Check if already queued
         const last = this.intention_queue.at( this.intention_queue.length - 1 );
         if ( (last && last.predicate.join(' ') == predicate.join(' '))) {
+            console.log("REJECTED")
             return; // intention is already being achieved
         }
         
@@ -801,19 +803,43 @@ class RandomExplore extends Plan {
     async execute (explore) {
         if ( this.stopped ) throw ['stopped']; // if stopped then quit
 
-        // Select random cell
-        let randX;
-        let randY;
+        // Recover all suitable tiles for explore (spawning)
+        let suitableCells = grafo.gameMap.spawnZones;
+        let totalDistance = 0;
+        let randX = undefined;
+        let randY = undefined;
 
-        do{
-            randX = Math.floor(Math.random() * grafo.gameMap.width);
-            randY = Math.floor(Math.random() * grafo.gameMap.height);
-            console.log("RANDOM COORDS: " + randX + " - " + randY);
-            // Repeat until you find a walkable, spawnable, free cell
-        } while( grafo.gameMap.getItem(randX,randY)==0 || grafo.gameMap.getItem(randX,randY)==3)        
+        // Compute distances
+        suitableCells.forEach(element => {
+            element.distance = distance({x:me.x, y:me.y}, {x:element.x, y:element.y});
+            totalDistance += element.distance;
+        });
+
+        // Normalize distances
+        suitableCells.forEach(element => {
+            element.distance = element.distance/totalDistance;
+        });
+
+        let randomValue = Math.random();
+
+        // Recover selected element
+        suitableCells.forEach(element => {
+            // If we haven't selected a suitable cell
+            if(!randX){
+                // Try to find one with a probability proportional to its distance (distant cells are more probable)
+                randomValue -= element.distance;
+                if(randomValue <= 0){
+                    // Recover the element
+                    randX = element.x;
+                    randY = element.y;
+                    return;
+                }
+            }
+            
+        });    
 
         // When a valid cell has been found, move to it (and hope to find something interesting)
-        await this.subIntention( ['go_to_explore', randX, randY] );
+        await this.subIntention( ['go_to', randX, randY] );
         if ( this.stopped ) throw ['stopped']; // if stopped then quit
         return true;
     }
@@ -823,7 +849,7 @@ class RandomExplore extends Plan {
 class BlindBFSmove extends Plan {
 
     static isApplicableTo ( go_to, x, y ) {
-        return go_to == 'go_to' || go_to == 'go_to_explore';
+        return go_to == 'go_to';
     }
 
     async execute ( go_to, x, y ) {
@@ -876,6 +902,8 @@ class BlindBFSmove extends Plan {
             
         }
 
+        // At the end of the movement we might want to explore, so generate options
+        optionsGeneration();
         return true;
 
     }
