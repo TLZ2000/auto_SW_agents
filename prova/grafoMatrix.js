@@ -3,6 +3,7 @@ import { DeliverooApi } from "@unitn-asa/deliveroo-js-client";
 const DISTANCE_NEAREST_PARCEL = 5;
 const SPAWN_NON_SPAWN_RATIO = 0.5;
 const DELIVERY_AREA_EXPLORE = 0.1;
+const TIMED_EXPLORE = 1;
 
 const client = new DeliverooApi(
     // 'https://deliveroojs25.azurewebsites.net',
@@ -76,15 +77,15 @@ class Graph{
     constructor(currentMap){
         this.gameMap = currentMap;
         this.graphMap = [];
-        this.nearbyAgents = [];
+        this.agentsNearby = [];
 
         // Initialize matrix containing all the agents positions (0 -> no agent, 1 -> agent)
-        for(let x = 0; x < this.graphMap.width; x++) {
+        for(let x = 0; x < this.gameMap.width; x++) {
             this.agentsNearby[x] = [];
-            for(let y = 0; y < this.graphMap.height; y++) {
+            for(let y = 0; y < this.gameMap.height; y++) {
                 this.agentsNearby[x][y] = 0;
             }
-        }
+        }       
         
         // Create graph nodes and save them into a matrix
         for(let x=0; x < this.gameMap.width; x++){
@@ -141,71 +142,8 @@ class Graph{
                 }
             }
         }
-
-        /*
-        for (let i = this.gameMap.width - 1; i >= 0; i--) {
-            for (let j = 0; j < this.gameMap.height; j++) {
-                if(this.graphMap[i][j] == null){
-                    console.log("[" + i + "][" + j + "]=0");
-                } else {
-                    console.log("[" + i + "][" + j + "]");
-                        if(this.graphMap[i][j].neighU == null){
-                            console.log("U=0")
-                        } else {
-                            console.log("U=[" + this.graphMap[i][j].neighU.x + "][" + this.graphMap[i][j].neighU.y + "]");
-                        }
-                        if(this.graphMap[i][j].neighR == null){
-                            console.log("R=0")
-                        } else {
-                            console.log("R=[" + this.graphMap[i][j].neighR.x + "][" + this.graphMap[i][j].neighR.y + "]");
-                        }
-                        if(this.graphMap[i][j].neighD == null){
-                            console.log("D=0")
-                        } else {
-                            console.log("D=[" + this.graphMap[i][j].neighD.x + "][" + this.graphMap[i][j].neighD.y + "]");
-                        }
-                        if(this.graphMap[i][j].neighL == null){
-                            console.log("L=0")
-                        } else {
-                            console.log("L=[" + this.graphMap[i][j].neighL.x + "][" + this.graphMap[i][j].neighL.y + "]");
-                        }
-                }
-                console.log("\n----------------------\n")                
-            }
-        }*/
-
         this.preprocess();
 
-        console.log("DONE");
-
-        /*
-        let X = 34;
-        let Y = 32;
-        let node = this.graphMap[X][Y];
-        while(true) {
-            if(node.type == 2) {
-                console.log("ARRIVATO");
-                break;
-            }
-            let delivery = node.visitedDeliveries[0];
-            //node.visitedDeliveries.forEach(element => {
-            //    console.log(element.distance)
-            //})
-            console.log("DELIVERY: [" + delivery.deliveryNode.x + ", " + delivery.deliveryNode.y + "], " + delivery.direction + ", " + delivery.distance);
-            if(delivery.direction == "U") {
-                node = node.neighU;
-            }
-            else if(delivery.direction == "R") {
-                node = node.neighR;
-            }
-            else if(delivery.direction == "D") {
-                node = node.neighD;
-            }
-            else if(delivery.direction == "L") {
-                node = node.neighL;
-            }
-        }
-        */
     }
 
     // Compute nearest delivery/spawn
@@ -264,6 +202,58 @@ class Graph{
             })
         })
     }
+
+    // Update the timestamp of the last visit for the visible cells at this location
+    updateTimeMap(x, y){
+        let range = currentConfig.PARCELS_OBSERVATION_DISTANCE;
+        let currentNode = this.graphMap[x][y];
+        let time = Date.now();
+
+        this.#recursiveTimeMap(currentNode, time, range);
+    }
+
+    resetAgentsNearby(){
+        // Initialize matrix containing all the agents positions (0 -> no agent, 1 -> agent)
+        for(let x = 0; x < this.gameMap.width; x++) {
+            this.agentsNearby[x] = [];
+            for(let y = 0; y < this.gameMap.height; y++) {
+                this.agentsNearby[x][y] = 0;
+            }
+        }
+    }
+
+    #recursiveTimeMap(node, time, remainingRange){
+        // If not node already explored (same timestamp) and remaining range
+        if(this.gameMap.timeMap[node.x][node.y] != time && remainingRange > 0){
+            // Explore it
+            this.gameMap.timeMap[node.x][node.y] = time;
+            remainingRange--;
+
+            //console.log(node.x + " - " + node.y + " - " +this.gameMap.timeMap[node.x][node.y]);
+
+            // Explore neighbors
+            // Explore its neighbors
+                    // Up
+                    if(node.neighU != null) {
+                        this.#recursiveTimeMap(node.neighU, time, remainingRange);
+                    }
+
+                    // Right
+                    if(node.neighR != null) {
+                        this.#recursiveTimeMap(node.neighR, time, remainingRange);
+                    }
+
+                    // Down
+                    if(node.neighD != null) {
+                        this.#recursiveTimeMap(node.neighD, time, remainingRange);
+                    }
+
+                    // Left
+                    if(node.neighL != null) {
+                        this.#recursiveTimeMap(node.neighL, time, remainingRange);
+                    }
+        }
+    }
 }
 
 class GameMap{
@@ -272,6 +262,7 @@ class GameMap{
         this.width = width;
         this.height = height;
         this.map = [];
+        this.timeMap = [];              // Timestamp of last visit to the tile
         this.deliveryZones = [];
         this.deliveryZonesCounter = 0;
         this.spawnZones = [];
@@ -281,16 +272,17 @@ class GameMap{
 
         for (let i = 0; i < width; i++) {
             this.map[i] = [];
+            this.timeMap[i] = [];
         }
 
         for(let i = 0; i < (width*height); i++){
             let currentItem = tile[i];
             this.map[currentItem.x][currentItem.y]=currentItem;           
+            this.timeMap[currentItem.x][currentItem.y]=0;           
         }
 
         for(let x=0; x < width; x++){
             for(let y=0; y < height; y++){
-                console.log(x + " - " + y);
                 let valid = false;
                 // check up
                 if(y+1<height){
@@ -305,13 +297,13 @@ class GameMap{
                     }
                 }
                 // check down
-                if(y-1>0){
+                if(y-1>=0){
                     if(this.map[x][y-1].type!=0){
                         valid = true;
                     }
                 }
                 // check left
-                if(x-1>0){
+                if(x-1>=0){
                     if(this.map[x-1][y].type!=0){
                         valid = true;
                     }
@@ -369,7 +361,7 @@ await new Promise( res => {
     client.onConfig(config => {
         currentConfig = config;
         res();
-    });
+    });    
 });
 
 //**********************************************************************/
@@ -397,11 +389,12 @@ client.onParcelsSensing( async ( pp ) => {
 });
 
 client.onAgentsSensing( async ( aa ) => {
-
     // Add the sensed agents to the agent belief set
-    for (const a of aa) {
+    
+    
+    aa.forEach(a => {        
         agents.set( a.id, a);
-    }
+    })
 
     // DA MODIFICARE
     for ( const a of agents.values() ) {
@@ -414,17 +407,17 @@ client.onAgentsSensing( async ( aa ) => {
         }
     }
 
+    grafo.resetAgentsNearby();
+
     // Add the agents to the matrix
     for (const a of agents) {
         if(grafo.agentsNearby != undefined) {
-            console.log("ciao");
-            grafo.agentsNearby[Math.round(a.x)][Math.round(a.y)] = 1;
+            grafo.agentsNearby[Math.round(a[1].x)][Math.round(a[1].y)] = 1;
         }
     }
 });
 
 function navigateBFS (initialPos, finalPos) {
-    
     let queue = new Queue();
     let explored = new Set();
     let finalPath = undefined;
@@ -467,7 +460,9 @@ function navigateBFS (initialPos, finalPos) {
             explored.add(currentNodeId);
 
             // If node is occupied, ignore its neighbors
+            //console.log(grafo.agentsNearby);
             if(grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
+                console.log("occupied node -----------------------------");
                 continue;
             }
 
@@ -576,8 +571,15 @@ function optionsGeneration () {
         //console.log(best_option[1] + " "+ best_option[2])
         myAgent.push( best_option )
     } else {
-        // If we don't have a valid best option, then explore until you find one
-        myAgent.push(['explore'])
+        // If we don't have a valid best option, then explore
+        if(Math.random()<TIMED_EXPLORE){
+            // Explore oldest tiles
+            myAgent.push(['explore', "timed"]);
+        } else {
+            // Explore distant tiles
+            myAgent.push(['explore', "distance"]);
+        }
+        
     }
         
 
@@ -833,75 +835,160 @@ class GoDeliver extends Plan {
 
 }
 
-class RandomExplore extends Plan {
+class Explore extends Plan {
 
     static isApplicableTo (explore) {
         return explore == 'explore';
     }
 
-    async execute (explore) {
+    async execute (explore, type) {
         if ( this.stopped ) throw ['stopped']; // if stopped then quit
+        let coords;
 
-        let suitableCells = undefined;
-        // Check spawn/non spawn ratio, if larger than SPAWN_NON_SPAWN_RATIO
-        if(grafo.gameMap.spawnZonesCounter/grafo.gameMap.nonSpawnZonesCounter > SPAWN_NON_SPAWN_RATIO){
-            // Consider also delivery zones for the explore
-            let deliveryOrSpawn = Math.random();
-            if(deliveryOrSpawn<DELIVERY_AREA_EXPLORE){
-                // Explore only deliveries zones
-                suitableCells = grafo.gameMap.deliveryZones;
-                console.log("EXPLORE DELIVERY")
-            } else {
-                // Explore only spawning zones
-                suitableCells = grafo.gameMap.spawnZones;
-                console.log("EXPLORE SPAWN")
-            }           
-
-        } else {
-            // Consider only spawning tiles for explore
-            suitableCells = grafo.gameMap.spawnZones;
+        if(type == "timed"){
+            console.log("timed");
+            coords = timedExplore();
+        } else if (type == "distance"){
+            console.log("distance");
+            coords = distanceExplore();
         }
 
-        // Recover all suitable tiles for explore (spawning)
-        let totalDistance = 0;
-        let randX = undefined;
-        let randY = undefined;
-
-        // Compute distances
-        suitableCells.forEach(element => {
-            element.distance = distance({x:me.x, y:me.y}, {x:element.x, y:element.y});
-            totalDistance += element.distance;
-        });
-
-        // Normalize distances
-        suitableCells.forEach(element => {
-            element.distance = element.distance/totalDistance;
-        });
-
-        let randomValue = Math.random();
-
-        // Recover selected element
-        suitableCells.forEach(element => {
-            // If we haven't selected a suitable cell
-            if(!randX){
-                // Try to find one with a probability proportional to its distance (distant cells are more probable)
-                randomValue -= element.distance;
-                if(randomValue <= 0){
-                    // Recover the element
-                    randX = element.x;
-                    randY = element.y;
-                    return;
-                }
-            }
-            
-        });    
-
         // When a valid cell has been found, move to it (and hope to find something interesting)
-        await this.subIntention( ['go_to', randX, randY] );
+        await this.subIntention( ['go_to', coords[0], coords[1]] );
         if ( this.stopped ) throw ['stopped']; // if stopped then quit
         return true;
     }
 
+}
+
+function distanceExplore(){
+    let suitableCells = undefined;
+    // Check spawn/non spawn ratio, if larger than SPAWN_NON_SPAWN_RATIO
+    if(grafo.gameMap.spawnZonesCounter/grafo.gameMap.nonSpawnZonesCounter > SPAWN_NON_SPAWN_RATIO){
+        // Consider also delivery zones for the explore
+        let deliveryOrSpawn = Math.random();
+        if(deliveryOrSpawn<DELIVERY_AREA_EXPLORE){
+            // Explore only deliveries zones
+            suitableCells = grafo.gameMap.deliveryZones;
+            //console.log("EXPLORE DELIVERY")
+        } else {
+            // Explore only spawning zones
+            suitableCells = grafo.gameMap.spawnZones;
+            //console.log("EXPLORE SPAWN")
+        }           
+
+    } else {
+        // Consider only spawning tiles for explore
+        suitableCells = grafo.gameMap.spawnZones;
+    }
+
+    // Recover all suitable tiles for explore (spawning)
+    let totalDistance = 0;
+    let randX = undefined;
+    let randY = undefined;
+
+    // Compute distances
+    suitableCells.forEach(element => {
+        element.distance = distance({x:me.x, y:me.y}, {x:element.x, y:element.y});
+        totalDistance += element.distance;
+    });
+
+    // Normalize distances
+    suitableCells.forEach(element => {
+        element.distance = element.distance/totalDistance;
+    });
+
+    let randomValue = Math.random();
+
+    // Recover selected element
+    suitableCells.forEach(element => {
+        // If we haven't selected a suitable cell
+        if(!randX){
+            // Try to find one with a probability proportional to its distance (distant cells are more probable)
+            randomValue -= element.distance;
+            if(randomValue <= 0){
+                // Recover the element
+                randX = element.x;
+                randY = element.y;
+                return;
+            }
+        }
+        
+    });
+
+    return [randX, randY];
+}
+
+function timedExplore(){
+    let suitableCells = undefined;
+    // Check spawn/non spawn ratio, if larger than SPAWN_NON_SPAWN_RATIO
+    if(grafo.gameMap.spawnZonesCounter/grafo.gameMap.nonSpawnZonesCounter > SPAWN_NON_SPAWN_RATIO){
+        // Consider also delivery zones for the explore
+        let deliveryOrSpawn = Math.random();
+        if(deliveryOrSpawn<DELIVERY_AREA_EXPLORE){
+            // Explore only deliveries zones
+            suitableCells = grafo.gameMap.deliveryZones;
+            console.log("EXPLORE DELIVERY")
+        } else {
+            // Explore only spawning zones
+            suitableCells = grafo.gameMap.spawnZones;
+            console.log("EXPLORE SPAWN")
+        }           
+
+    } else {
+        // Consider only spawning tiles for explore
+        suitableCells = grafo.gameMap.spawnZones;
+    }
+
+    // Recover all suitable tiles for explore
+    let totalTime = 0;
+    let now = Date.now();
+    let randX = undefined;
+    let randY = undefined;
+
+    // Compute the last time a tile was visited
+    suitableCells.forEach(element => {
+        element.timestamp = now - grafo.gameMap.timeMap[element.x][element.y];
+        element.distance = distance({x:me.x, y:me.y}, {x:element.x, y:element.y});
+        totalTime += element.timestamp;
+    });
+
+    // Normalize timestamp
+    suitableCells.forEach(element => {
+        element.timestamp /= totalTime;     // First normalization
+        element.timestamp /= (element.distance*element.distance);  // Penalize distant cells         
+    });
+
+    // Second normalization
+    totalTime = 0;
+    suitableCells.forEach(element => {
+        totalTime += element.timestamp;
+    });
+
+    suitableCells.forEach(element => {
+        element.timestamp/=totalTime;
+    });
+
+    let randomValue = Math.random();
+
+    // Recover selected element
+    suitableCells.forEach(element => {
+        // If we haven't selected a suitable cell
+        if(!randX){
+            // Try to find one with a probability proportional to its its timestamp (the bigger the time the more probable)
+            randomValue -= element.timestamp;
+            if(randomValue <= 0){
+                // Recover the element
+                randX = element.x;
+                randY = element.y;
+                return;
+            }
+        }
+        
+    });    
+
+    console.log("Exploring [" + randX + "][" + randY + "] with time " + (now - grafo.gameMap.timeMap[randX][randY]));
+    return [randX, randY];
 }
 
 class BlindBFSmove extends Plan {
@@ -915,7 +1002,6 @@ class BlindBFSmove extends Plan {
 
         let i = 0;
         while ( i < path.length ) {
-
             if ( this.stopped ) throw ['stopped']; // if stopped then quit
 
             let moved_horizontally;
@@ -923,12 +1009,17 @@ class BlindBFSmove extends Plan {
             
             // this.log('me', me, 'xy', x, y);
 
-            if ( path[i]=="R" )
+            if ( path[i]=="R" ){
+                //console.log("I GO RIGHT");
                 moved_horizontally = await client.emitMove('right')
                 // status_x = await this.subIntention( 'go_to', {x: me.x+1, y: me.y} );
-            else if ( path[i]=="L" )
+            }                
+            else if ( path[i]=="L" ){
+                //console.log("I GO LEFT");
                 moved_horizontally = await client.emitMove('left')
                 // status_x = await this.subIntention( 'go_to', {x: me.x-1, y: me.y} );
+            }
+                
 
             if (moved_horizontally) {
                 me.x = moved_horizontally.x;
@@ -937,30 +1028,36 @@ class BlindBFSmove extends Plan {
 
             if ( this.stopped ) throw ['stopped']; // if stopped then quit
 
-            if ( path[i]=="U" )
+            if ( path[i]=="U" ){
+                //console.log("I GO UP");
                 moved_vertically = await client.emitMove('up')
                 // status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y+1} );
-            else if ( path[i]=="D" )
+            }                
+            else if ( path[i]=="D" ){
+                //console.log("I GO DOWN");
                 moved_vertically = await client.emitMove('down')
                 // status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y-1} );
+            }
+                
 
             if (moved_vertically) {
                 me.x = moved_vertically.x;
-                me.y = moved_vertically.y;
+                me.y = moved_vertically.y; 
             }
             
             if ( ! moved_horizontally && ! moved_vertically) {
-                this.log('stucked');
-                throw 'stucked';
+                console.log('stucked_---------------------------------------------------------------------------------');
+                console.log(path[i])
+                return true;
+                //throw 'stucked';
             } else if ( me.x == x && me.y == y ) {
                 // this.log('target reached');
             }
 
             i++;
-            
-        }
-
-        // At the end of the movement we might want to explore, so generate options
+            // After motion update the timestamp of the visited cells
+            grafo.updateTimeMap(me.x, me.y);
+        }        
         return true;
 
     }
@@ -969,6 +1066,7 @@ class BlindBFSmove extends Plan {
 
 
 const myAgent = new IntentionRevisionReplace();
+console.log(currentConfig);
 myAgent.loop();
 
 client.onParcelsSensing( optionsGeneration )
@@ -979,4 +1077,4 @@ client.onYou( optionsGeneration )
 planLibrary.push( GoPickUp )
 planLibrary.push( BlindBFSmove )
 planLibrary.push( GoDeliver )
-planLibrary.push( RandomExplore )
+planLibrary.push( Explore )
