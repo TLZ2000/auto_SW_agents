@@ -1,6 +1,8 @@
 import { DeliverooApi } from "@unitn-asa/deliveroo-js-client";
 
 const DISTANCE_NEAREST_PARCEL = 5;
+const SPAWN_NON_SPAWN_RATIO = 0.5;
+const DELIVERY_AREA_EXPLORE = 0.1;
 
 const client = new DeliverooApi(
     // 'https://deliveroojs25.azurewebsites.net',
@@ -8,7 +10,7 @@ const client = new DeliverooApi(
     //'https://deliveroojs2.rtibdi.disi.unitn.it/',
     // 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQyNmQ1NyIsIm5hbWUiOiJtYXJjbyIsInRlYW1JZCI6ImM3ZjgwMCIsInRlYW1OYW1lIjoiZGlzaSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQwMDA3NjIwfQ.1lfKRxSSwj3_a4fWnAV44U1koLrphwLkZ9yZnYQDoSw'
     'http://localhost:8080',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImNkNjU1NCIsIm5hbWUiOiJBZ2VudCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ2MDE4MzU1fQ.Qj5XIXCpnxv4ibSukP8xL0oTz6X6v7_3ouKZiVBHJl8'
+    //'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImNkNjU1NCIsIm5hbWUiOiJBZ2VudCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ2MDE4MzU1fQ.Qj5XIXCpnxv4ibSukP8xL0oTz6X6v7_3ouKZiVBHJl8'
 )
 
 const me = {id: null, name: null, x: null, y: null, score: null};
@@ -271,7 +273,11 @@ class GameMap{
         this.height = height;
         this.map = [];
         this.deliveryZones = [];
+        this.deliveryZonesCounter = 0;
         this.spawnZones = [];
+        this.spawnZonesCounter = 0;
+        this.nonSpawnZones = [];
+        this.nonSpawnZonesCounter = 0;
 
         for (let i = 0; i < width; i++) {
             this.map[i] = [];
@@ -279,14 +285,64 @@ class GameMap{
 
         for(let i = 0; i < (width*height); i++){
             let currentItem = tile[i];
-            this.map[currentItem.x][currentItem.y]=currentItem.type;
+            this.map[currentItem.x][currentItem.y]=currentItem;           
+        }
 
-            if(currentItem.type == 1){
-                // Spawn zone
-                this.spawnZones.push(currentItem);
-            } else if (currentItem.type == 2){
-                // Delivery zone
-                this.deliveryZones.push(currentItem);
+        for(let x=0; x < width; x++){
+            for(let y=0; y < height; y++){
+                console.log(x + " - " + y);
+                let valid = false;
+                // check up
+                if(y+1<height){
+                    if(this.map[x][y+1].type!=0){
+                        valid = true;
+                    }
+                }
+                // check right
+                if(x+1<width){
+                    if(this.map[x+1][y].type!=0){
+                        valid = true;
+                    }
+                }
+                // check down
+                if(y-1>0){
+                    if(this.map[x][y-1].type!=0){
+                        valid = true;
+                    }
+                }
+                // check left
+                if(x-1>0){
+                    if(this.map[x-1][y].type!=0){
+                        valid = true;
+                    }
+                }
+
+                // If tile has no neighbors, then remove it as invalid
+                if(valid){
+                    if(this.map[x][y].type == 1){
+                        // Spawn zone
+                        this.spawnZones.push({...this.map[x][y]});
+                        this.spawnZonesCounter++;
+                    } else if (this.map[x][y].type == 2){
+                        // Delivery zone
+                        this.deliveryZones.push({...this.map[x][y]});
+                        this.deliveryZonesCounter++;
+                    } else if  (this.map[x][y].type == 3){
+                        // Delivery zone
+                        // this.nonSpawnZones.push({...this.map[x][y]});
+                        this.nonSpawnZonesCounter++;
+                    }
+                } else {
+                    // Non walkable tile because no neighbors
+                    this.map[x][y].type = 0;
+                }
+            }
+        }
+
+        // Replace the whole tile item in the map with only the type for consistency
+        for(let x=0; x < width; x++){
+            for(let y=0; y < height; y++){
+                this.map[x][y] = this.map[x][y].type;
             }
         }
     }
@@ -484,7 +540,6 @@ function optionsGeneration () {
     let best_option;
     let nearest = Number.MAX_VALUE;
     let delivery_d;
-    let nearest_delivery;
 
     for (const option of options) {
         if ( option[0] == 'go_pick_up' ) {
@@ -522,7 +577,6 @@ function optionsGeneration () {
         myAgent.push( best_option )
     } else {
         // If we don't have a valid best option, then explore until you find one
-        console.log("PUSHING EXPLORE")
         myAgent.push(['explore'])
     }
         
@@ -566,6 +620,7 @@ class IntentionRevision {
 
                 // Remove from the queue
                 this.intention_queue.shift();
+                optionsGeneration();
             }
             // Postpone next iteration at setImmediate
             await new Promise( res => setImmediate( res ) );
@@ -587,7 +642,6 @@ class IntentionRevisionReplace extends IntentionRevision {
         // Check if already queued
         const last = this.intention_queue.at( this.intention_queue.length - 1 );
         if ( (last && last.predicate.join(' ') == predicate.join(' '))) {
-            console.log("REJECTED")
             return; // intention is already being achieved
         }
         
@@ -599,21 +653,6 @@ class IntentionRevisionReplace extends IntentionRevision {
         if ( last ) {
             last.stop();
         }
-    }
-
-}
-
-class IntentionRevisionQueue extends IntentionRevision {
-
-    async push ( predicate ) {
-        
-        // Check if already queued
-        if ( this.intention_queue.find( (i) => i.predicate.join(' ') == predicate.join(' ') ) )
-            return; // intention is already queued
-
-        console.log( 'IntentionRevisionReplace.push', predicate );
-        const intention = new Intention( this, predicate );
-        this.intention_queue.push( intention );
     }
 
 }
@@ -803,8 +842,27 @@ class RandomExplore extends Plan {
     async execute (explore) {
         if ( this.stopped ) throw ['stopped']; // if stopped then quit
 
+        let suitableCells = undefined;
+        // Check spawn/non spawn ratio, if larger than SPAWN_NON_SPAWN_RATIO
+        if(grafo.gameMap.spawnZonesCounter/grafo.gameMap.nonSpawnZonesCounter > SPAWN_NON_SPAWN_RATIO){
+            // Consider also delivery zones for the explore
+            let deliveryOrSpawn = Math.random();
+            if(deliveryOrSpawn<DELIVERY_AREA_EXPLORE){
+                // Explore only deliveries zones
+                suitableCells = grafo.gameMap.deliveryZones;
+                console.log("EXPLORE DELIVERY")
+            } else {
+                // Explore only spawning zones
+                suitableCells = grafo.gameMap.spawnZones;
+                console.log("EXPLORE SPAWN")
+            }           
+
+        } else {
+            // Consider only spawning tiles for explore
+            suitableCells = grafo.gameMap.spawnZones;
+        }
+
         // Recover all suitable tiles for explore (spawning)
-        let suitableCells = grafo.gameMap.spawnZones;
         let totalDistance = 0;
         let randX = undefined;
         let randY = undefined;
@@ -903,7 +961,6 @@ class BlindBFSmove extends Plan {
         }
 
         // At the end of the movement we might want to explore, so generate options
-        optionsGeneration();
         return true;
 
     }
