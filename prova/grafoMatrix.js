@@ -5,39 +5,6 @@ const SPAWN_NON_SPAWN_RATIO = 0.5;
 const DELIVERY_AREA_EXPLORE = 0.1;
 const TIMED_EXPLORE = 1;
 
-const client = new DeliverooApi(
-  // 'https://deliveroojs25.azurewebsites.net',
-  // 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjJjOTQyMSIsIm5hbWUiOiJtYXJjbyIsInRlYW1JZCI6IjViMTVkMSIsInRlYW1OYW1lIjoiZGlzaSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQyNTY3NDE4fQ.5m8St0OZo_DCXCriYkLtsguOm1e20-IAN2JNgXL7iUQ'
-  //'https://deliveroojs2.rtibdi.disi.unitn.it/',
-  // 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQyNmQ1NyIsIm5hbWUiOiJtYXJjbyIsInRlYW1JZCI6ImM3ZjgwMCIsInRlYW1OYW1lIjoiZGlzaSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQwMDA3NjIwfQ.1lfKRxSSwj3_a4fWnAV44U1koLrphwLkZ9yZnYQDoSw'
-  "http://localhost:8080"
-  //'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImNkNjU1NCIsIm5hbWUiOiJBZ2VudCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ2MDE4MzU1fQ.Qj5XIXCpnxv4ibSukP8xL0oTz6X6v7_3ouKZiVBHJl8'
-);
-
-const me = { id: null, name: null, x: null, y: null, score: null };
-
-// Parcels belief set
-const parcels = new Map();
-const agents = new Map();
-
-var currentMap = undefined;
-var grafo = undefined;
-var currentConfig = undefined;
-
-client.onYou(({ id, name, x, y, score }) => {
-  me.id = id;
-  me.name = name;
-  me.x = x;
-  me.y = y;
-  me.score = score;
-});
-
-function distance({ x: x1, y: y1 }, { x: x2, y: y2 }) {
-  const dx = Math.abs(Math.round(x1) - Math.round(x2));
-  const dy = Math.abs(Math.round(y1) - Math.round(y2));
-  return dx + dy;
-}
-
 class Queue {
   constructor() {
     this.items = [];
@@ -380,52 +347,500 @@ class GameMap {
   }
 }
 
-client.onParcelsSensing(async (pp) => {
-  // Add the sensed parcels to the parcel belief set
-  for (const p of pp) {
-    parcels.set(p.id, p);
-    //console.log("Parcel id: " + p.id + ", reward: " + p.reward + ", x: " + p.x+ ", y: " + p.y);
+class IntentionRevision {
+  #intention_queue = new Array();
+  get intention_queue() {
+    return this.#intention_queue;
   }
-  //console.log("------------------------");
 
-  // DA MODIFICARE
-  for (const p of parcels.values()) {
-    if (
-      pp.map((p) => p.id).find((id) => id == p.id) == undefined ||
-      (p.carriedBy != undefined && p.carriedBy != me.id)
-    ) {
-      parcels.delete(p.id);
+  async loop() {
+    while (true) {
+      // Consumes intention_queue if not empty
+      if (this.intention_queue.length > 0) {
+        console.log(
+          "intentionRevision.loop",
+          this.intention_queue.map((i) => i.predicate)
+        );
+
+        // Current intention
+        const intention = this.intention_queue[0];
+
+        // Is queued intention still valid? Do I still want to achieve it?
+        // TODO this hard-coded implementation is an example
+        let id = intention.predicate[2];
+        let p = parcels.get(id);
+        if (p && p.carriedBy) {
+          console.log(
+            "Skipping intention because no more valid",
+            intention.predicate
+          );
+          continue;
+        }
+
+        // Start achieving intention
+        await intention
+          .achieve()
+          // Catch eventual error and continue
+          .catch((error) => {
+            // console.log( 'Failed intention', ...intention.predicate, 'with error:', ...error )
+          });
+
+        // Remove from the queue
+        this.intention_queue.shift();
+        optionsGeneration();
+      }
+      // Postpone next iteration at setImmediate
+      await new Promise((res) => setImmediate(res));
     }
   }
-});
 
-client.onAgentsSensing(async (aa) => {
-  // Add the sensed agents to the agent belief set
+  // async push ( predicate ) { }
 
-  aa.forEach((a) => {
-    agents.set(a.id, a);
-  });
+  log(...args) {
+    console.log(...args);
+  }
+}
 
-  // DA MODIFICARE
-  for (const a of agents.values()) {
-    if (aa.map((a) => a.id).find((id) => id == a.id) == undefined) {
-      agents.delete(a.id);
-      if (grafo.agentsNearby != undefined) {
-        console.log("ciao2");
-        grafo.agentsNearby[Math.round(a.x)][Math.round(a.y)] = 0;
+class IntentionRevisionReplace extends IntentionRevision {
+  async push(predicate) {
+    // Check if already queued
+    const last = this.intention_queue.at(this.intention_queue.length - 1);
+    if (last && last.predicate.join(" ") == predicate.join(" ")) {
+      return; // intention is already being achieved
+    }
+
+    console.log("IntentionRevisionReplace.push", predicate);
+    const intention = new Intention(this, predicate);
+    this.intention_queue.push(intention);
+
+    // Force current intention stop
+    if (last) {
+      last.stop();
+    }
+  }
+}
+
+class Intention {
+  // Plan currently used for achieving the intention
+  #current_plan;
+
+  // This is used to stop the intention
+  #stopped = false;
+  get stopped() {
+    return this.#stopped;
+  }
+  stop() {
+    // this.log( 'stop intention', ...this.#predicate );
+    this.#stopped = true;
+    if (this.#current_plan) this.#current_plan.stop();
+  }
+
+  /**
+   * #parent refers to caller
+   */
+  #parent;
+
+  /**
+   * @type { any[] } predicate is in the form ['go_to', x, y]
+   */
+  get predicate() {
+    return this.#predicate;
+  }
+  /**
+   * @type { any[] } predicate is in the form ['go_to', x, y]
+   */
+  #predicate;
+
+  constructor(parent, predicate) {
+    this.#parent = parent;
+    this.#predicate = predicate;
+  }
+
+  log(...args) {
+    if (this.#parent && this.#parent.log) this.#parent.log("\t", ...args);
+    else console.log(...args);
+  }
+
+  #started = false;
+  /**
+   * Using the plan library to achieve an intention
+   */
+  async achieve() {
+    // Cannot start twice
+    if (this.#started) return this;
+    else this.#started = true;
+
+    // Trying all plans in the library
+    for (const planClass of planLibrary) {
+      // if stopped then quit
+      if (this.stopped) throw ["stopped intention", ...this.predicate];
+
+      // if plan is 'statically' applicable
+      if (planClass.isApplicableTo(...this.predicate)) {
+        // plan is instantiated
+        this.#current_plan = new planClass(this.#parent);
+        this.log(
+          "achieving intention",
+          ...this.predicate,
+          "with plan",
+          planClass.name
+        );
+        // and plan is executed and result returned
+        try {
+          const plan_res = await this.#current_plan.execute(...this.predicate);
+          this.log(
+            "successful intention",
+            ...this.predicate,
+            "with plan",
+            planClass.name,
+            "with result:",
+            plan_res
+          );
+          return plan_res;
+          // or errors are caught so to continue with next plan
+        } catch (error) {
+          this.log(
+            "failed intention",
+            ...this.predicate,
+            "with plan",
+            planClass.name,
+            "with error:",
+            error
+          );
+        }
       }
     }
+
+    // if stopped then quit
+    if (this.stopped) throw ["stopped intention", ...this.predicate];
+
+    // no plans have been found to satisfy the intention
+    // this.log( 'no plan satisfied the intention ', ...this.predicate );
+    throw ["no plan satisfied the intention ", ...this.predicate];
   }
+}
 
-  grafo.resetAgentsNearby();
-
-  // Add the agents to the matrix
-  for (const a of agents) {
-    if (grafo.agentsNearby != undefined) {
-      grafo.agentsNearby[Math.round(a[1].x)][Math.round(a[1].y)] = 1;
+class Plan {
+  // This is used to stop the plan
+  #stopped = false;
+  stop() {
+    // this.log( 'stop plan' );
+    this.#stopped = true;
+    for (const i of this.#sub_intentions) {
+      i.stop();
     }
   }
-});
+  get stopped() {
+    return this.#stopped;
+  }
+
+  /**
+   * #parent refers to caller
+   */
+  #parent;
+
+  constructor(parent) {
+    this.#parent = parent;
+  }
+
+  log(...args) {
+    if (this.#parent && this.#parent.log) this.#parent.log("\t", ...args);
+    else console.log(...args);
+  }
+
+  // this is an array of sub intention. Multiple ones could eventually being achieved in parallel.
+  #sub_intentions = [];
+
+  async subIntention(predicate) {
+    const sub_intention = new Intention(this, predicate);
+    this.#sub_intentions.push(sub_intention);
+    return sub_intention.achieve();
+  }
+}
+
+class GoPickUp extends Plan {
+  static isApplicableTo(go_pick_up, x, y, id) {
+    return go_pick_up == "go_pick_up" || go_pick_up == "emergency_go_pick_up";
+  }
+
+  async execute(go_pick_up, x, y) {
+    if (this.stopped) throw ["stopped"]; // if stopped then quit
+    await this.subIntention(["go_to", x, y]);
+    if (this.stopped) throw ["stopped"]; // if stopped then quit
+    await client.emitPickup();
+    if (this.stopped) throw ["stopped"]; // if stopped then quit
+    return true;
+  }
+}
+
+class GoDeliver extends Plan {
+  static isApplicableTo(go_deliver) {
+    return go_deliver == "go_deliver";
+  }
+
+  async execute(go_deliver) {
+    if (this.stopped) throw ["stopped"]; // if stopped then quit
+
+    let nearestDelivery =
+      grafo.graphMap[Math.round(me.x)][Math.round(me.y)].visitedDeliveries[0]
+        .deliveryNode;
+
+    await this.subIntention(["go_to", nearestDelivery.x, nearestDelivery.y]);
+    if (this.stopped) throw ["stopped"]; // if stopped then quit
+    await client.emitPutdown();
+    if (this.stopped) throw ["stopped"]; // if stopped then quit
+    return true;
+  }
+}
+
+class Explore extends Plan {
+  static isApplicableTo(explore) {
+    return explore == "explore";
+  }
+
+  async execute(explore, type) {
+    if (this.stopped) throw ["stopped"]; // if stopped then quit
+    let coords;
+
+    if (type == "timed") {
+      console.log("timed");
+      coords = timedExplore();
+    } else if (type == "distance") {
+      console.log("distance");
+      coords = distanceExplore();
+    }
+
+    // When a valid cell has been found, move to it (and hope to find something interesting)
+    await this.subIntention(["go_to", coords[0], coords[1]]);
+    if (this.stopped) throw ["stopped"]; // if stopped then quit
+    return true;
+  }
+}
+
+class BlindBFSmove extends Plan {
+  static isApplicableTo(go_to, x, y) {
+    return go_to == "go_to";
+  }
+
+  async execute(go_to, x, y) {
+    let path = navigateBFS([Math.round(me.x), Math.round(me.y)], [x, y]);
+
+    // If no path applicable, then select another cell and go to explore (to not remain still)
+    if (path == undefined) {
+      path = navigateBFS(
+        [Math.round(me.x), Math.round(me.y)],
+        distanceExplore()
+      );
+    }
+
+    let i = 0;
+    while (i < path.length) {
+      if (this.stopped) throw ["stopped"]; // if stopped then quit
+
+      let moved_horizontally;
+      let moved_vertically;
+
+      // this.log('me', me, 'xy', x, y);
+
+      if (path[i] == "R") {
+        //console.log("I GO RIGHT");
+        moved_horizontally = await client.emitMove("right");
+        // status_x = await this.subIntention( 'go_to', {x: me.x+1, y: me.y} );
+      } else if (path[i] == "L") {
+        //console.log("I GO LEFT");
+        moved_horizontally = await client.emitMove("left");
+        // status_x = await this.subIntention( 'go_to', {x: me.x-1, y: me.y} );
+      }
+
+      if (moved_horizontally) {
+        me.x = moved_horizontally.x;
+        me.y = moved_horizontally.y;
+      }
+
+      if (this.stopped) throw ["stopped"]; // if stopped then quit
+
+      if (path[i] == "U") {
+        //console.log("I GO UP");
+        moved_vertically = await client.emitMove("up");
+        // status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y+1} );
+      } else if (path[i] == "D") {
+        //console.log("I GO DOWN");
+        moved_vertically = await client.emitMove("down");
+        // status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y-1} );
+      }
+
+      if (moved_vertically) {
+        me.x = moved_vertically.x;
+        me.y = moved_vertically.y;
+      }
+
+      // If stucked
+      if (!moved_horizontally && !moved_vertically) {
+        return true;
+        //throw 'stucked';
+      } else if (me.x == x && me.y == y) {
+        // this.log('target reached');
+      }
+
+      i++;
+      // After motion update the timestamp of the visited cells
+      grafo.updateTimeMap(me.x, me.y);
+    }
+    return true;
+  }
+}
+
+function distanceExplore() {
+  let suitableCells = undefined;
+  // Check spawn/non spawn ratio, if larger than SPAWN_NON_SPAWN_RATIO
+  if (
+    grafo.gameMap.spawnZonesCounter / grafo.gameMap.nonSpawnZonesCounter >
+    SPAWN_NON_SPAWN_RATIO
+  ) {
+    // Consider also delivery zones for the explore
+    let deliveryOrSpawn = Math.random();
+    if (deliveryOrSpawn < DELIVERY_AREA_EXPLORE) {
+      // Explore only deliveries zones
+      suitableCells = grafo.gameMap.deliveryZones;
+      //console.log("EXPLORE DELIVERY")
+    } else {
+      // Explore only spawning zones
+      suitableCells = grafo.gameMap.spawnZones;
+      //console.log("EXPLORE SPAWN")
+    }
+  } else {
+    // Consider only spawning tiles for explore
+    suitableCells = grafo.gameMap.spawnZones;
+  }
+
+  // Recover all suitable tiles for explore (spawning)
+  let totalDistance = 0;
+  let randX = undefined;
+  let randY = undefined;
+
+  // Compute distances
+  suitableCells.forEach((element) => {
+    element.distance = distance(
+      { x: me.x, y: me.y },
+      { x: element.x, y: element.y }
+    );
+    totalDistance += element.distance;
+  });
+
+  // Normalize distances
+  suitableCells.forEach((element) => {
+    element.distance = element.distance / totalDistance;
+  });
+
+  let randomValue = Math.random();
+
+  // Recover selected element
+  suitableCells.forEach((element) => {
+    // If we haven't selected a suitable cell
+    if (!randX) {
+      // Try to find one with a probability proportional to its distance (distant cells are more probable)
+      randomValue -= element.distance;
+      if (randomValue <= 0) {
+        // Recover the element
+        randX = element.x;
+        randY = element.y;
+        return;
+      }
+    }
+  });
+  return [randX, randY];
+}
+
+function timedExplore() {
+  let suitableCells = undefined;
+  // Check spawn/non spawn ratio, if larger than SPAWN_NON_SPAWN_RATIO
+  if (
+    grafo.gameMap.spawnZonesCounter / grafo.gameMap.nonSpawnZonesCounter >
+    SPAWN_NON_SPAWN_RATIO
+  ) {
+    // Consider also delivery zones for the explore
+    let deliveryOrSpawn = Math.random();
+    if (deliveryOrSpawn < DELIVERY_AREA_EXPLORE) {
+      // Explore only deliveries zones
+      suitableCells = grafo.gameMap.deliveryZones;
+      console.log("EXPLORE DELIVERY");
+    } else {
+      // Explore only spawning zones
+      suitableCells = grafo.gameMap.spawnZones;
+      console.log("EXPLORE SPAWN");
+    }
+  } else {
+    // Consider only spawning tiles for explore
+    suitableCells = grafo.gameMap.spawnZones;
+  }
+
+  // Recover all suitable tiles for explore
+  let totalTime = 0;
+  let now = Date.now();
+  let randX = undefined;
+  let randY = undefined;
+
+  // Compute the last time a tile was visited
+  suitableCells.forEach((element) => {
+    element.timestamp = now - grafo.gameMap.timeMap[element.x][element.y];
+    element.distance = distance(
+      { x: me.x, y: me.y },
+      { x: element.x, y: element.y }
+    );
+    totalTime += element.timestamp;
+  });
+
+  // Normalize timestamp
+  suitableCells.forEach((element) => {
+    element.timestamp /= totalTime; // First normalization
+    element.timestamp /= element.distance * element.distance; // Penalize distant cells
+  });
+
+  // Second normalization
+  totalTime = 0;
+  suitableCells.forEach((element) => {
+    totalTime += element.timestamp;
+  });
+
+  suitableCells.forEach((element) => {
+    element.timestamp /= totalTime;
+  });
+
+  console.log(suitableCells);
+  let randomValue = Math.random();
+
+  // Recover selected element
+  suitableCells.forEach((element) => {
+    // If we haven't selected a suitable cell
+    if (!randX) {
+      // Try to find one with a probability proportional to its its timestamp (the bigger the time the more probable)
+      randomValue -= element.timestamp;
+      console.log(randomValue + " - " + element.timestamp);
+      if (randomValue <= 0) {
+        // Recover the element
+        randX = element.x;
+        randY = element.y;
+        return;
+      }
+    }
+  });
+
+  // If timed explore failed (sometimes happens a NaN error somewhere and we don't know why)
+  if (randX == undefined || randY == undefined) {
+    // If this happens, select a random cell to explore based on distance
+    return distanceExplore();
+  }
+
+  console.log(
+    "Exploring [" +
+      randX +
+      "][" +
+      randY +
+      "] with time " +
+      (now - grafo.gameMap.timeMap[randX][randY])
+  );
+  return [randX, randY];
+}
 
 function navigateBFS(initialPos, finalPos) {
   let queue = new Queue();
@@ -601,511 +1016,91 @@ function optionsGeneration() {
   }
 }
 
-/**
- * Intention revision loop
- */
-class IntentionRevision {
-  #intention_queue = new Array();
-  get intention_queue() {
-    return this.#intention_queue;
-  }
-
-  async loop() {
-    while (true) {
-      // Consumes intention_queue if not empty
-      if (this.intention_queue.length > 0) {
-        console.log(
-          "intentionRevision.loop",
-          this.intention_queue.map((i) => i.predicate)
-        );
-
-        // Current intention
-        const intention = this.intention_queue[0];
-
-        // Is queued intention still valid? Do I still want to achieve it?
-        // TODO this hard-coded implementation is an example
-        let id = intention.predicate[2];
-        let p = parcels.get(id);
-        if (p && p.carriedBy) {
-          console.log(
-            "Skipping intention because no more valid",
-            intention.predicate
-          );
-          continue;
-        }
-
-        // Start achieving intention
-        await intention
-          .achieve()
-          // Catch eventual error and continue
-          .catch((error) => {
-            // console.log( 'Failed intention', ...intention.predicate, 'with error:', ...error )
-          });
-
-        // Remove from the queue
-        this.intention_queue.shift();
-        optionsGeneration();
-      }
-      // Postpone next iteration at setImmediate
-      await new Promise((res) => setImmediate(res));
-    }
-  }
-
-  // async push ( predicate ) { }
-
-  log(...args) {
-    console.log(...args);
-  }
+function distance({ x: x1, y: y1 }, { x: x2, y: y2 }) {
+  const dx = Math.abs(Math.round(x1) - Math.round(x2));
+  const dy = Math.abs(Math.round(y1) - Math.round(y2));
+  return dx + dy;
 }
 
-class IntentionRevisionReplace extends IntentionRevision {
-  async push(predicate) {
-    // Check if already queued
-    const last = this.intention_queue.at(this.intention_queue.length - 1);
-    if (last && last.predicate.join(" ") == predicate.join(" ")) {
-      return; // intention is already being achieved
-    }
-
-    console.log("IntentionRevisionReplace.push", predicate);
-    const intention = new Intention(this, predicate);
-    this.intention_queue.push(intention);
-
-    // Force current intention stop
-    if (last) {
-      last.stop();
-    }
-  }
-}
-
-/**
- * Intention
- */
-class Intention {
-  // Plan currently used for achieving the intention
-  #current_plan;
-
-  // This is used to stop the intention
-  #stopped = false;
-  get stopped() {
-    return this.#stopped;
-  }
-  stop() {
-    // this.log( 'stop intention', ...this.#predicate );
-    this.#stopped = true;
-    if (this.#current_plan) this.#current_plan.stop();
-  }
-
-  /**
-   * #parent refers to caller
-   */
-  #parent;
-
-  /**
-   * @type { any[] } predicate is in the form ['go_to', x, y]
-   */
-  get predicate() {
-    return this.#predicate;
-  }
-  /**
-   * @type { any[] } predicate is in the form ['go_to', x, y]
-   */
-  #predicate;
-
-  constructor(parent, predicate) {
-    this.#parent = parent;
-    this.#predicate = predicate;
-  }
-
-  log(...args) {
-    if (this.#parent && this.#parent.log) this.#parent.log("\t", ...args);
-    else console.log(...args);
-  }
-
-  #started = false;
-  /**
-   * Using the plan library to achieve an intention
-   */
-  async achieve() {
-    // Cannot start twice
-    if (this.#started) return this;
-    else this.#started = true;
-
-    // Trying all plans in the library
-    for (const planClass of planLibrary) {
-      // if stopped then quit
-      if (this.stopped) throw ["stopped intention", ...this.predicate];
-
-      // if plan is 'statically' applicable
-      if (planClass.isApplicableTo(...this.predicate)) {
-        // plan is instantiated
-        this.#current_plan = new planClass(this.#parent);
-        this.log(
-          "achieving intention",
-          ...this.predicate,
-          "with plan",
-          planClass.name
-        );
-        // and plan is executed and result returned
-        try {
-          const plan_res = await this.#current_plan.execute(...this.predicate);
-          this.log(
-            "successful intention",
-            ...this.predicate,
-            "with plan",
-            planClass.name,
-            "with result:",
-            plan_res
-          );
-          return plan_res;
-          // or errors are caught so to continue with next plan
-        } catch (error) {
-          this.log(
-            "failed intention",
-            ...this.predicate,
-            "with plan",
-            planClass.name,
-            "with error:",
-            error
-          );
-        }
-      }
-    }
-
-    // if stopped then quit
-    if (this.stopped) throw ["stopped intention", ...this.predicate];
-
-    // no plans have been found to satisfy the intention
-    // this.log( 'no plan satisfied the intention ', ...this.predicate );
-    throw ["no plan satisfied the intention ", ...this.predicate];
-  }
-}
-
-/**
- * Plan library
- */
+const client = new DeliverooApi("http://localhost:8080");
+const me = { id: null, name: null, x: null, y: null, score: null };
+const myAgent = new IntentionRevisionReplace();
 const planLibrary = [];
 
-class Plan {
-  // This is used to stop the plan
-  #stopped = false;
-  stop() {
-    // this.log( 'stop plan' );
-    this.#stopped = true;
-    for (const i of this.#sub_intentions) {
-      i.stop();
+// Parcels belief set
+const parcels = new Map();
+const agents = new Map();
+
+var currentMap = undefined;
+var grafo = undefined;
+var currentConfig = undefined;
+
+// Plan classes are added to plan library
+planLibrary.push(GoPickUp);
+planLibrary.push(BlindBFSmove);
+planLibrary.push(GoDeliver);
+planLibrary.push(Explore);
+
+client.onParcelsSensing(async (pp) => {
+  // Add the sensed parcels to the parcel belief set
+  for (const p of pp) {
+    parcels.set(p.id, p);
+    //console.log("Parcel id: " + p.id + ", reward: " + p.reward + ", x: " + p.x+ ", y: " + p.y);
+  }
+  //console.log("------------------------");
+
+  // DA MODIFICARE
+  for (const p of parcels.values()) {
+    if (
+      pp.map((p) => p.id).find((id) => id == p.id) == undefined ||
+      (p.carriedBy != undefined && p.carriedBy != me.id)
+    ) {
+      parcels.delete(p.id);
     }
   }
-  get stopped() {
-    return this.#stopped;
-  }
+});
 
-  /**
-   * #parent refers to caller
-   */
-  #parent;
+client.onAgentsSensing(async (aa) => {
+  // Add the sensed agents to the agent belief set
 
-  constructor(parent) {
-    this.#parent = parent;
-  }
-
-  log(...args) {
-    if (this.#parent && this.#parent.log) this.#parent.log("\t", ...args);
-    else console.log(...args);
-  }
-
-  // this is an array of sub intention. Multiple ones could eventually being achieved in parallel.
-  #sub_intentions = [];
-
-  async subIntention(predicate) {
-    const sub_intention = new Intention(this, predicate);
-    this.#sub_intentions.push(sub_intention);
-    return sub_intention.achieve();
-  }
-}
-
-class GoPickUp extends Plan {
-  static isApplicableTo(go_pick_up, x, y, id) {
-    return go_pick_up == "go_pick_up" || go_pick_up == "emergency_go_pick_up";
-  }
-
-  async execute(go_pick_up, x, y) {
-    if (this.stopped) throw ["stopped"]; // if stopped then quit
-    await this.subIntention(["go_to", x, y]);
-    if (this.stopped) throw ["stopped"]; // if stopped then quit
-    await client.emitPickup();
-    if (this.stopped) throw ["stopped"]; // if stopped then quit
-    return true;
-  }
-}
-
-class GoDeliver extends Plan {
-  static isApplicableTo(go_deliver) {
-    return go_deliver == "go_deliver";
-  }
-
-  async execute(go_deliver) {
-    if (this.stopped) throw ["stopped"]; // if stopped then quit
-
-    let nearestDelivery =
-      grafo.graphMap[Math.round(me.x)][Math.round(me.y)].visitedDeliveries[0]
-        .deliveryNode;
-
-    await this.subIntention(["go_to", nearestDelivery.x, nearestDelivery.y]);
-    if (this.stopped) throw ["stopped"]; // if stopped then quit
-    await client.emitPutdown();
-    if (this.stopped) throw ["stopped"]; // if stopped then quit
-    return true;
-  }
-}
-
-class Explore extends Plan {
-  static isApplicableTo(explore) {
-    return explore == "explore";
-  }
-
-  async execute(explore, type) {
-    if (this.stopped) throw ["stopped"]; // if stopped then quit
-    let coords;
-
-    if (type == "timed") {
-      console.log("timed");
-      coords = timedExplore();
-    } else if (type == "distance") {
-      console.log("distance");
-      coords = distanceExplore();
-    }
-
-    // When a valid cell has been found, move to it (and hope to find something interesting)
-    await this.subIntention(["go_to", coords[0], coords[1]]);
-    if (this.stopped) throw ["stopped"]; // if stopped then quit
-    return true;
-  }
-}
-
-function distanceExplore() {
-  let suitableCells = undefined;
-  // Check spawn/non spawn ratio, if larger than SPAWN_NON_SPAWN_RATIO
-  if (
-    grafo.gameMap.spawnZonesCounter / grafo.gameMap.nonSpawnZonesCounter >
-    SPAWN_NON_SPAWN_RATIO
-  ) {
-    // Consider also delivery zones for the explore
-    let deliveryOrSpawn = Math.random();
-    if (deliveryOrSpawn < DELIVERY_AREA_EXPLORE) {
-      // Explore only deliveries zones
-      suitableCells = grafo.gameMap.deliveryZones;
-      //console.log("EXPLORE DELIVERY")
-    } else {
-      // Explore only spawning zones
-      suitableCells = grafo.gameMap.spawnZones;
-      //console.log("EXPLORE SPAWN")
-    }
-  } else {
-    // Consider only spawning tiles for explore
-    suitableCells = grafo.gameMap.spawnZones;
-  }
-
-  // Recover all suitable tiles for explore (spawning)
-  let totalDistance = 0;
-  let randX = undefined;
-  let randY = undefined;
-
-  // Compute distances
-  suitableCells.forEach((element) => {
-    element.distance = distance(
-      { x: me.x, y: me.y },
-      { x: element.x, y: element.y }
-    );
-    totalDistance += element.distance;
+  aa.forEach((a) => {
+    agents.set(a.id, a);
   });
 
-  // Normalize distances
-  suitableCells.forEach((element) => {
-    element.distance = element.distance / totalDistance;
-  });
-
-  let randomValue = Math.random();
-
-  // Recover selected element
-  suitableCells.forEach((element) => {
-    // If we haven't selected a suitable cell
-    if (!randX) {
-      // Try to find one with a probability proportional to its distance (distant cells are more probable)
-      randomValue -= element.distance;
-      if (randomValue <= 0) {
-        // Recover the element
-        randX = element.x;
-        randY = element.y;
-        return;
+  // DA MODIFICARE
+  for (const a of agents.values()) {
+    if (aa.map((a) => a.id).find((id) => id == a.id) == undefined) {
+      agents.delete(a.id);
+      if (grafo.agentsNearby != undefined) {
+        console.log("ciao2");
+        grafo.agentsNearby[Math.round(a.x)][Math.round(a.y)] = 0;
       }
     }
-  });
-  return [randX, randY];
-}
-
-function timedExplore() {
-  let suitableCells = undefined;
-  // Check spawn/non spawn ratio, if larger than SPAWN_NON_SPAWN_RATIO
-  if (
-    grafo.gameMap.spawnZonesCounter / grafo.gameMap.nonSpawnZonesCounter >
-    SPAWN_NON_SPAWN_RATIO
-  ) {
-    // Consider also delivery zones for the explore
-    let deliveryOrSpawn = Math.random();
-    if (deliveryOrSpawn < DELIVERY_AREA_EXPLORE) {
-      // Explore only deliveries zones
-      suitableCells = grafo.gameMap.deliveryZones;
-      console.log("EXPLORE DELIVERY");
-    } else {
-      // Explore only spawning zones
-      suitableCells = grafo.gameMap.spawnZones;
-      console.log("EXPLORE SPAWN");
-    }
-  } else {
-    // Consider only spawning tiles for explore
-    suitableCells = grafo.gameMap.spawnZones;
   }
 
-  // Recover all suitable tiles for explore
-  let totalTime = 0;
-  let now = Date.now();
-  let randX = undefined;
-  let randY = undefined;
+  grafo.resetAgentsNearby();
 
-  // Compute the last time a tile was visited
-  suitableCells.forEach((element) => {
-    element.timestamp = now - grafo.gameMap.timeMap[element.x][element.y];
-    element.distance = distance(
-      { x: me.x, y: me.y },
-      { x: element.x, y: element.y }
-    );
-    totalTime += element.timestamp;
-  });
-
-  // Normalize timestamp
-  suitableCells.forEach((element) => {
-    element.timestamp /= totalTime; // First normalization
-    element.timestamp /= element.distance * element.distance; // Penalize distant cells
-  });
-
-  // Second normalization
-  totalTime = 0;
-  suitableCells.forEach((element) => {
-    totalTime += element.timestamp;
-  });
-
-  suitableCells.forEach((element) => {
-    element.timestamp /= totalTime;
-  });
-
-  console.log(suitableCells);
-  let randomValue = Math.random();
-
-  // Recover selected element
-  suitableCells.forEach((element) => {
-    // If we haven't selected a suitable cell
-    if (!randX) {
-      // Try to find one with a probability proportional to its its timestamp (the bigger the time the more probable)
-      randomValue -= element.timestamp;
-      console.log(randomValue + " - " + element.timestamp);
-      if (randomValue <= 0) {
-        // Recover the element
-        randX = element.x;
-        randY = element.y;
-        return;
-      }
+  // Add the agents to the matrix
+  for (const a of agents) {
+    if (grafo.agentsNearby != undefined) {
+      grafo.agentsNearby[Math.round(a[1].x)][Math.round(a[1].y)] = 1;
     }
-  });
-
-  // If timed explore failed (sometimes happens a NaN error somewhere and we don't know why)
-  if (randX == undefined || randY == undefined) {
-    // If this happens, select a random cell to explore based on distance
-    return distanceExplore();
   }
+});
 
-  console.log(
-    "Exploring [" +
-      randX +
-      "][" +
-      randY +
-      "] with time " +
-      (now - grafo.gameMap.timeMap[randX][randY])
-  );
-  return [randX, randY];
-}
+client.onYou(({ id, name, x, y, score }) => {
+  me.id = id;
+  me.name = name;
+  me.x = x;
+  me.y = y;
+  me.score = score;
+});
 
-class BlindBFSmove extends Plan {
-  static isApplicableTo(go_to, x, y) {
-    return go_to == "go_to";
-  }
+client.onParcelsSensing(optionsGeneration);
+client.onAgentsSensing(optionsGeneration);
+client.onYou(optionsGeneration);
 
-  async execute(go_to, x, y) {
-    let path = navigateBFS([Math.round(me.x), Math.round(me.y)], [x, y]);
-
-    // If no path applicable, then select another cell and go to explore (to not remain still)
-    if (path == undefined) {
-      path = navigateBFS(
-        [Math.round(me.x), Math.round(me.y)],
-        distanceExplore()
-      );
-    }
-
-    let i = 0;
-    while (i < path.length) {
-      if (this.stopped) throw ["stopped"]; // if stopped then quit
-
-      let moved_horizontally;
-      let moved_vertically;
-
-      // this.log('me', me, 'xy', x, y);
-
-      if (path[i] == "R") {
-        //console.log("I GO RIGHT");
-        moved_horizontally = await client.emitMove("right");
-        // status_x = await this.subIntention( 'go_to', {x: me.x+1, y: me.y} );
-      } else if (path[i] == "L") {
-        //console.log("I GO LEFT");
-        moved_horizontally = await client.emitMove("left");
-        // status_x = await this.subIntention( 'go_to', {x: me.x-1, y: me.y} );
-      }
-
-      if (moved_horizontally) {
-        me.x = moved_horizontally.x;
-        me.y = moved_horizontally.y;
-      }
-
-      if (this.stopped) throw ["stopped"]; // if stopped then quit
-
-      if (path[i] == "U") {
-        //console.log("I GO UP");
-        moved_vertically = await client.emitMove("up");
-        // status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y+1} );
-      } else if (path[i] == "D") {
-        //console.log("I GO DOWN");
-        moved_vertically = await client.emitMove("down");
-        // status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y-1} );
-      }
-
-      if (moved_vertically) {
-        me.x = moved_vertically.x;
-        me.y = moved_vertically.y;
-      }
-
-      // If stucked
-      if (!moved_horizontally && !moved_vertically) {
-        return true;
-        //throw 'stucked';
-      } else if (me.x == x && me.y == y) {
-        // this.log('target reached');
-      }
-
-      i++;
-      // After motion update the timestamp of the visited cells
-      grafo.updateTimeMap(me.x, me.y);
-    }
-    return true;
-  }
-}
+myAgent.loop();
 
 await new Promise((res) => {
   // Get the map information
@@ -1121,17 +1116,3 @@ await new Promise((res) => {
     res();
   });
 });
-
-const myAgent = new IntentionRevisionReplace();
-console.log(currentConfig);
-myAgent.loop();
-
-client.onParcelsSensing(optionsGeneration);
-client.onAgentsSensing(optionsGeneration);
-client.onYou(optionsGeneration);
-
-// plan classes are added to plan library
-planLibrary.push(GoPickUp);
-planLibrary.push(BlindBFSmove);
-planLibrary.push(GoDeliver);
-planLibrary.push(Explore);
