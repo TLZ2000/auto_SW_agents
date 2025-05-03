@@ -915,7 +915,6 @@ function distanceExplore(){
         }
         
     });
-
     return [randX, randY];
 }
 
@@ -969,6 +968,7 @@ function timedExplore(){
         element.timestamp/=totalTime;
     });
 
+    console.log(suitableCells)
     let randomValue = Math.random();
 
     // Recover selected element
@@ -977,6 +977,7 @@ function timedExplore(){
         if(!randX){
             // Try to find one with a probability proportional to its its timestamp (the bigger the time the more probable)
             randomValue -= element.timestamp;
+            console.log(randomValue +" - "+element.timestamp);
             if(randomValue <= 0){
                 // Recover the element
                 randX = element.x;
@@ -985,7 +986,13 @@ function timedExplore(){
             }
         }
         
-    });    
+    });
+
+    // If timed explore failed (sometimes happens a NaN error somewhere and we don't know why)
+    if(randX == undefined || randY == undefined){
+        // If this happens, select a random cell to explore based on distance
+        return distanceExplore();
+    }    
 
     console.log("Exploring [" + randX + "][" + randY + "] with time " + (now - grafo.gameMap.timeMap[randX][randY]));
     return [randX, randY];
@@ -999,6 +1006,11 @@ class BlindBFSmove extends Plan {
 
     async execute ( go_to, x, y ) {
         let path = navigateBFS([Math.round(me.x), Math.round(me.y)], [x,y]);
+
+        // If no path applicable, then select another cell and go to explore (to not remain still)
+        if(path == undefined){
+            path = navigateBFS([Math.round(me.x), Math.round(me.y)], distanceExplore());
+        }
 
         let i = 0;
         while ( i < path.length ) {
@@ -1044,10 +1056,9 @@ class BlindBFSmove extends Plan {
                 me.x = moved_vertically.x;
                 me.y = moved_vertically.y; 
             }
-            
+
+            // If stucked
             if ( ! moved_horizontally && ! moved_vertically) {
-                console.log('stucked_---------------------------------------------------------------------------------');
-                console.log(path[i])
                 return true;
                 //throw 'stucked';
             } else if ( me.x == x && me.y == y ) {
