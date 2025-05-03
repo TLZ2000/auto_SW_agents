@@ -16,6 +16,14 @@ const client = new DeliverooApi(
 
 const me = { id: null, name: null, x: null, y: null, score: null };
 
+// Parcels belief set
+const parcels = new Map();
+const agents = new Map();
+
+var currentMap = undefined;
+var grafo = undefined;
+var currentConfig = undefined;
+
 client.onYou(({ id, name, x, y, score }) => {
   me.id = id;
   me.name = name;
@@ -371,31 +379,6 @@ class GameMap {
     return this.map[x][y];
   }
 }
-
-var currentMap = undefined;
-var grafo = undefined;
-var currentConfig = undefined;
-
-await new Promise((res) => {
-  // Get the map information
-  client.onMap((width, height, tile) => {
-    currentMap = new GameMap(width, height, tile);
-    grafo = new Graph(currentMap);
-    res();
-  });
-
-  // Get the configuration
-  client.onConfig((config) => {
-    currentConfig = config;
-    res();
-  });
-});
-
-//**********************************************************************/
-
-// Parcels belief set
-const parcels = new Map();
-const agents = new Map();
 
 client.onParcelsSensing(async (pp) => {
   // Add the sensed parcels to the parcel belief set
@@ -1123,6 +1106,21 @@ class BlindBFSmove extends Plan {
     return true;
   }
 }
+
+await new Promise((res) => {
+  // Get the map information
+  client.onMap((width, height, tile) => {
+    currentMap = new GameMap(width, height, tile);
+    grafo = new Graph(currentMap);
+    res();
+  });
+
+  // Get the configuration
+  client.onConfig((config) => {
+    currentConfig = config;
+    res();
+  });
+});
 
 const myAgent = new IntentionRevisionReplace();
 console.log(currentConfig);
