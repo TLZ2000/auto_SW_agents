@@ -4,6 +4,7 @@ const DISTANCE_NEAREST_PARCEL = 5;
 const SPAWN_NON_SPAWN_RATIO = 0.5;
 const DELIVERY_AREA_EXPLORE = 0.1;
 const TIMED_EXPLORE = 1;
+const TIMED_MUL_FACTOR = 1000000; //Used to avoind NaN approximation errors
 
 class Queue {
   constructor() {
@@ -231,8 +232,6 @@ class Graph {
       // Explore it
       this.gameMap.timeMap[node.x][node.y] = time;
       remainingRange--;
-
-      //console.log(node.x + " - " + node.y + " - " +this.gameMap.timeMap[node.x][node.y]);
 
       // Explore neighbors
       // Explore its neighbors
@@ -603,10 +602,8 @@ class Explore extends Plan {
     let coords;
 
     if (type == "timed") {
-      console.log("timed");
       coords = timedExplore();
     } else if (type == "distance") {
-      console.log("distance");
       coords = distanceExplore();
     }
 
@@ -643,11 +640,9 @@ class BlindBFSmove extends Plan {
       // this.log('me', me, 'xy', x, y);
 
       if (path[i] == "R") {
-        //console.log("I GO RIGHT");
         moved_horizontally = await client.emitMove("right");
         // status_x = await this.subIntention( 'go_to', {x: me.x+1, y: me.y} );
       } else if (path[i] == "L") {
-        //console.log("I GO LEFT");
         moved_horizontally = await client.emitMove("left");
         // status_x = await this.subIntention( 'go_to', {x: me.x-1, y: me.y} );
       }
@@ -660,11 +655,9 @@ class BlindBFSmove extends Plan {
       if (this.stopped) throw ["stopped"]; // if stopped then quit
 
       if (path[i] == "U") {
-        //console.log("I GO UP");
         moved_vertically = await client.emitMove("up");
         // status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y+1} );
       } else if (path[i] == "D") {
-        //console.log("I GO DOWN");
         moved_vertically = await client.emitMove("down");
         // status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y-1} );
       }
@@ -702,11 +695,9 @@ function distanceExplore() {
     if (deliveryOrSpawn < DELIVERY_AREA_EXPLORE) {
       // Explore only deliveries zones
       suitableCells = grafo.gameMap.deliveryZones;
-      //console.log("EXPLORE DELIVERY")
     } else {
       // Explore only spawning zones
       suitableCells = grafo.gameMap.spawnZones;
-      //console.log("EXPLORE SPAWN")
     }
   } else {
     // Consider only spawning tiles for explore
@@ -763,11 +754,9 @@ function timedExplore() {
     if (deliveryOrSpawn < DELIVERY_AREA_EXPLORE) {
       // Explore only deliveries zones
       suitableCells = grafo.gameMap.deliveryZones;
-      console.log("EXPLORE DELIVERY");
     } else {
       // Explore only spawning zones
       suitableCells = grafo.gameMap.spawnZones;
-      console.log("EXPLORE SPAWN");
     }
   } else {
     // Consider only spawning tiles for explore
@@ -793,7 +782,7 @@ function timedExplore() {
   // Normalize timestamp
   suitableCells.forEach((element) => {
     element.timestamp /= totalTime; // First normalization
-    element.timestamp /= element.distance * element.distance; // Penalize distant cells
+    element.timestamp /= element.distance * element.distance + 1; // Penalize distant cells
   });
 
   // Second normalization
@@ -805,8 +794,6 @@ function timedExplore() {
   suitableCells.forEach((element) => {
     element.timestamp /= totalTime;
   });
-
-  console.log(suitableCells);
   let randomValue = Math.random();
 
   // Recover selected element
@@ -815,7 +802,6 @@ function timedExplore() {
     if (!randX) {
       // Try to find one with a probability proportional to its its timestamp (the bigger the time the more probable)
       randomValue -= element.timestamp;
-      console.log(randomValue + " - " + element.timestamp);
       if (randomValue <= 0) {
         // Recover the element
         randX = element.x;
@@ -885,12 +871,10 @@ function navigateBFS(initialPos, finalPos) {
       explored.add(currentNodeId);
 
       // If node is occupied, ignore its neighbors
-      //console.log(grafo.agentsNearby);
       if (
         grafo.agentsNearby != undefined &&
         grafo.agentsNearby[currentNode.x][currentNode.y] == 1
       ) {
-        console.log("occupied node -----------------------------");
         continue;
       }
 
@@ -900,7 +884,6 @@ function navigateBFS(initialPos, finalPos) {
         let tmp = path.slice();
         tmp.push("U");
         queue.enqueue({ currentNode: currentNode.neighU, path: tmp });
-        //console.log("U");
       }
 
       // Right
@@ -908,7 +891,6 @@ function navigateBFS(initialPos, finalPos) {
         let tmp = path.slice();
         tmp.push("R");
         queue.enqueue({ currentNode: currentNode.neighR, path: tmp });
-        //console.log("R");
       }
 
       // Down
@@ -916,7 +898,6 @@ function navigateBFS(initialPos, finalPos) {
         let tmp = path.slice();
         tmp.push("D");
         queue.enqueue({ currentNode: currentNode.neighD, path: tmp });
-        //console.log("D");
       }
 
       // Left
@@ -924,9 +905,7 @@ function navigateBFS(initialPos, finalPos) {
         let tmp = path.slice();
         tmp.push("L");
         queue.enqueue({ currentNode: currentNode.neighL, path: tmp });
-        //console.log("L");
       }
-      //console.log("------------------");
     }
   }
 
@@ -1002,7 +981,6 @@ function optionsGeneration() {
    * Best option is selected
    */
   if (best_option) {
-    //console.log(best_option[1] + " "+ best_option[2])
     myAgent.push(best_option);
   } else {
     // If we don't have a valid best option, then explore
@@ -1045,9 +1023,7 @@ client.onParcelsSensing(async (pp) => {
   // Add the sensed parcels to the parcel belief set
   for (const p of pp) {
     parcels.set(p.id, p);
-    //console.log("Parcel id: " + p.id + ", reward: " + p.reward + ", x: " + p.x+ ", y: " + p.y);
   }
-  //console.log("------------------------");
 
   // DA MODIFICARE
   for (const p of parcels.values()) {
@@ -1072,7 +1048,6 @@ client.onAgentsSensing(async (aa) => {
     if (aa.map((a) => a.id).find((id) => id == a.id) == undefined) {
       agents.delete(a.id);
       if (grafo.agentsNearby != undefined) {
-        console.log("ciao2");
         grafo.agentsNearby[Math.round(a.x)][Math.round(a.y)] = 0;
       }
     }
