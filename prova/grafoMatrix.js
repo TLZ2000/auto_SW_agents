@@ -3,7 +3,8 @@ import { DeliverooApi } from "@unitn-asa/deliveroo-js-client";
 const DISTANCE_NEAREST_PARCEL = 5;
 const SPAWN_NON_SPAWN_RATIO = 0.5;
 const DELIVERY_AREA_EXPLORE = 0.1;
-const TIMED_EXPLORE = 1;
+const TIMED_EXPLORE = 0.99;
+const MEMORY_DIFFERENCE_THRESHOLD = 2000;
 
 class Queue {
 	constructor() {
@@ -408,6 +409,12 @@ class IntentionRevision {
 	log(...args) {
 		console.log(...args);
 	}
+
+	stopCurrentTask() {
+		let last = this.intention_queue.at(this.intention_queue.length - 1);
+		console.log("MANUALLY STOPPED TASK");
+		last.stop();
+	}
 }
 
 class IntentionRevisionReplace extends IntentionRevision {
@@ -572,7 +579,8 @@ class Plan {
 class GoPickUp extends Plan {
 	static isApplicableTo(go_pick_up, x, y, id) {
 		return (
-			go_pick_up == "go_pick_up" || go_pick_up == "emergency_go_pick_up"
+			go_pick_up ==
+			"go_pick_up" /*|| go_pick_up == "emergency_go_pick_up"*/
 		);
 	}
 
@@ -581,6 +589,7 @@ class GoPickUp extends Plan {
 		await this.subIntention(["go_to", x, y]);
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		await client.emitPickup();
+		reviseMemory();
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		return true;
 	}
@@ -605,6 +614,7 @@ class GoDeliver extends Plan {
 		]);
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		await client.emitPutdown();
+		reviseMemory();
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		return true;
 	}
@@ -782,6 +792,19 @@ function timedExplore() {
 		// Consider only spawning tiles for explore
 		suitableCells = grafo.gameMap.spawnZones;
 	}
+	let tmp = [];
+	// Do not consider current cell
+	for (let i = 0; i < suitableCells.length; i++) {
+		if (
+			suitableCells[i].x == Math.round(me.x) &&
+			suitableCells[i].y == Math.round(me.y)
+		) {
+			continue;
+		}
+
+		tmp.push(suitableCells[i]);
+	}
+	suitableCells = tmp;
 
 	// Recover all suitable tiles for explore
 	let totalTime = 0;
@@ -802,7 +825,12 @@ function timedExplore() {
 	// Normalize timestamp
 	suitableCells.forEach((element) => {
 		element.timestamp /= totalTime; // First normalization
-		element.timestamp /= element.distance * element.distance + 1; // Penalize distant cells
+		element.timestamp /=
+			element.distance *
+				element.distance *
+				element.distance *
+				element.distance +
+			1; // Penalize distant cells
 	});
 
 	// Second normalization
@@ -836,15 +864,6 @@ function timedExplore() {
 		// If this happens, select a random cell to explore based on distance
 		return distanceExplore();
 	}
-
-	console.log(
-		"Exploring [" +
-			randX +
-			"][" +
-			randY +
-			"] with time " +
-			(now - grafo.gameMap.timeMap[randX][randY])
-	);
 	return [randX, randY];
 }
 
@@ -946,25 +965,121 @@ function navigateBFS(initialPos, finalPos) {
 	}
 }
 
-function optionsGeneration() {
-	// TODO revisit beliefset revision so to trigger option generation only in the case a new parcel is observed
+function expectedRewardOfCarriedParcels(carriedParcels, path) {
+	let totalScore = 0;
+	carriedParcels.forEach((parcel) => {
+		totalScore += parcelScoreAfterMsPath(path, parcel.reward, Date.now());
+	});
+	return totalScore;
+}
 
+function expectedRewardCarriedAndPickup(carriedParcels, parcel2Pickup) {
+	let pickUpReward = parcelCostReward(parcel2Pickup);
+
+	// If we can reach the parcel to pickup
+	if (
+		pickUpReward.pathToDeliver != Infinity &&
+		pickUpReward.pathToParcel != Infinity &&
+		pickUpReward != 0
+	) {
+		// Compute expected reward for the carried parcels
+		let totalScore =
+			pickUpReward.expectedReward +
+			expectedRewardOfCarriedParcels(
+				carriedParcels,
+				pickUpReward.pathToParcel.concat(pickUpReward.pathToDeliver)
+			);
+
+		// Return the final expected score
+		return totalScore;
+	} else {
+		// Else no reward
+		return 0;
+	}
+}
+
+function optionsGeneration() {
 	/**
 	 * Options generation
 	 */
+	// Recover all the parcels I am carrying and the path to the nearest delivery
+	let carriedParcels = [];
+	parcels.forEach((parcel) => {
+		if (parcel.carriedBy == me.id) {
+			carriedParcels.push(parcel);
+		}
+	});
+
+	let pathNearestDelivery = navigateBFS(
+		[Math.round(me.x), Math.round(me.y)],
+		[
+			grafo.graphMap[Math.round(me.x)][Math.round(me.y)]
+				.visitedDeliveries[0].deliveryNode.x,
+			grafo.graphMap[Math.round(me.x)][Math.round(me.y)]
+				.visitedDeliveries[0].deliveryNode.y,
+		]
+	);
+
 	const options = [];
 	for (const parcel of parcels.values()) {
 		if (!parcel.carriedBy) {
-			options.push(["go_pick_up", parcel.x, parcel.y, parcel.id]);
-			// myAgent.push( [ 'go_pick_up', parcel.x, parcel.y, parcel.id ] )
-		} else if (parcel.carriedBy == me.id) {
-			options.push(["go_deliver"]);
+			if (parcel.x == Math.round(me.x) && parcel.y == Math.round(me.y)) {
+				options.push([
+					"go_pick_up",
+					parcel.x, // X coord
+					parcel.y, // Y coord
+					parcel.id, // ID
+					Infinity, // Expected reward if picked up
+				]);
+			} else {
+				options.push([
+					"go_pick_up",
+					parcel.x, // X coord
+					parcel.y, // Y coord
+					parcel.id, // ID
+					expectedRewardCarriedAndPickup(carriedParcels, parcel), // Expected reward if picked up
+				]);
+			}
+		}
+	}
+
+	if (carriedParcels.length != 0) {
+		if (
+			grafo.gameMap.getItem(Math.round(me.x), Math.round(me.y)).type == 2
+		) {
+			options.push(["go_deliver", Infinity]);
+		} else {
+			options.push([
+				"go_deliver",
+				expectedRewardOfCarriedParcels(
+					carriedParcels,
+					pathNearestDelivery
+				),
+			]);
 		}
 	}
 
 	/**
 	 * Options filtering
 	 */
+	let best_option = undefined;
+	let maxExpectedScore = 0;
+
+	options.forEach((option) => {
+		let currentExpectedScore = 0;
+		if (option[0] == "go_pick_up") {
+			currentExpectedScore = option[4];
+		} else if (option[0] == "go_deliver") {
+			currentExpectedScore = option[1];
+		}
+
+		if (currentExpectedScore > maxExpectedScore) {
+			maxExpectedScore = currentExpectedScore;
+			best_option = option;
+		}
+	});
+
+	/*
 	let best_option;
 	let nearest = Number.MAX_VALUE;
 	let delivery_d;
@@ -1010,7 +1125,7 @@ function optionsGeneration() {
 			}
 		}
 	}
-
+	*/
 	/**
 	 * Best option is selected
 	 */
@@ -1028,7 +1143,12 @@ function optionsGeneration() {
 	}
 }
 
-function parcelCostReward(parX, parY, parScore) {
+function parcelCostReward(parcel) {
+	let parX = parcel.x;
+	let parY = parcel.y;
+	let parScore = parcel.reward;
+	let lastVisitTime = parcel.time;
+
 	// Compute distance agent -> parcel
 	let pathToParcel = navigateBFS(
 		[Math.round(me.x), Math.round(me.y)],
@@ -1036,7 +1156,11 @@ function parcelCostReward(parX, parY, parScore) {
 	);
 
 	if (pathToParcel == undefined) {
-		return [undefined, undefined, 0];
+		return {
+			pathToParcel: undefined,
+			pathToDeliver: undefined,
+			expectedReward: 0,
+		};
 	}
 
 	// Compute distance parcel -> nearest delivery
@@ -1049,37 +1173,61 @@ function parcelCostReward(parX, parY, parScore) {
 	);
 
 	if (pathToDeliver == undefined) {
-		return [undefined, undefined, 0];
+		return {
+			pathToParcel: undefined,
+			pathToDeliver: undefined,
+			expectedReward: 0,
+		};
 	}
 
 	// Compute expected reward for [parX, parY] parcel
 	let expectedReward = parcelScoreAfterMsPath(
 		pathToParcel.concat(pathToDeliver),
-		parScore
+		parScore,
+		lastVisitTime
 	);
 
 	// Return paths a->p, p->d, expected reward
-	return [pathToParcel, pathToDeliver, expectedReward];
+	return {
+		pathToParcel: pathToParcel,
+		pathToDeliver: pathToDeliver,
+		expectedReward: expectedReward,
+	};
 }
 
-function parcelScoreAfterMs(time, parcelScore) {
+function parcelScoreAfterMs(time, parcelScore, lastVisitTime) {
 	let decadeInterval = currentConfig.PARCEL_DECADING_INTERVAL; //Seconds
-	let scoreCost = Math.round(
-		(time + currentConfig.MOVEMENT_DURATION) / (decadeInterval * 1000)
-	);
+
+	if (decadeInterval == "infinite") {
+		decadeInterval = Infinity;
+	} else {
+		decadeInterval = Number(
+			decadeInterval.substring(0, decadeInterval.length - 1)
+		);
+	}
+	decadeInterval *= 1000; // Converte to ms
+	let marginedTime = time + Number(currentConfig.MOVEMENT_DURATION); // Add some additional time margin
+	let scoreCost = Math.round(marginedTime / decadeInterval);
+
+	// Compute last visit time
+	let timeDifference = Date.now() - lastVisitTime;
+
+	// Compute approximate score difference from lastVisitTime
+	let scoreDiff = Math.round(timeDifference / decadeInterval);
 
 	// Return expected reward for parcel
-	let expected = parcelScore - scoreCost;
+	let expected = parcelScore - scoreCost - scoreDiff;
 	if (expected < 0) {
 		expected = 0;
 	}
 	return expected;
 }
 
-function parcelScoreAfterMsPath(path, parcelScore) {
+function parcelScoreAfterMsPath(path, parcelScore, lastVisitTime) {
 	return parcelScoreAfterMs(
 		path.length * currentConfig.MOVEMENT_DURATION,
-		parcelScore
+		parcelScore,
+		lastVisitTime
 	);
 }
 
@@ -1087,6 +1235,43 @@ function distance({ x: x1, y: y1 }, { x: x2, y: y2 }) {
 	const dx = Math.abs(Math.round(x1) - Math.round(x2));
 	const dy = Math.abs(Math.round(y1) - Math.round(y2));
 	return dx + dy;
+}
+
+function reviseMemory() {
+	let parcels2 = new Map();
+	let stopFlag = false;
+
+	// Revise memory information
+	parcels.forEach((parcel) => {
+		// Check if I see old parcels position
+		if (
+			distance({ x: parcel.x, y: parcel.y }, { x: me.x, y: me.y }) <
+			currentConfig.PARCELS_OBSERVATION_DISTANCE
+		) {
+			// Check if I saw the parcel recently (aka. the onParcelSensing was called by it)
+			if (Date.now() - parcel.time < MEMORY_DIFFERENCE_THRESHOLD) {
+				// If so, preserve it
+				parcels2.set(parcel.id, parcel);
+			} else {
+				stopFlag = true;
+			}
+		} else {
+			parcels2.set(parcel.id, parcel);
+		}
+	});
+	parcels = parcels2;
+
+	// Check if I see old agents position
+	// Check if agent is still there
+	// If not, remove, stop current intent
+
+	// If the memory has been updated
+	if (stopFlag) {
+		// Stop current intention and revise
+		// myAgent.stopCurrentTask();
+	}
+
+	optionsGeneration();
 }
 /*
 // NAME: random
@@ -1102,13 +1287,19 @@ const client = new DeliverooApi(
 	"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZlMTFlZCIsIm5hbWUiOiJUSU1FRCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ2NDM1MDE4fQ.cut9jChHGlJhpuR94h9x1H71mNGFQ6Bt-q76uX_wlrA"
 );
 
-const me = { id: null, name: null, x: null, y: null, score: null };
+const me = {
+	id: null,
+	name: null,
+	x: null,
+	y: null,
+	score: null,
+};
 const myAgent = new IntentionRevisionReplace();
 const planLibrary = [];
 
 // Parcels belief set
-const parcels = new Map();
-const agents = new Map();
+var parcels = new Map();
+var agents = new Map();
 
 var currentMap = undefined;
 var grafo = undefined;
@@ -1122,17 +1313,21 @@ planLibrary.push(Explore);
 
 client.onParcelsSensing(async (pp) => {
 	// Add the sensed parcels to the parcel belief set
+	let now = Date.now();
 	for (const p of pp) {
-		parcels.set(p.id, p);
+		parcels.set(p.id, {
+			id: p.id,
+			x: p.x,
+			y: p.y,
+			carriedBy: p.carriedBy,
+			reward: p.reward,
+			time: now,
+		});
 	}
 
-	// DA MODIFICARE
-	for (const p of parcels.values()) {
-		if (
-			pp.map((p) => p.id).find((id) => id == p.id) == undefined ||
-			(p.carriedBy != undefined && p.carriedBy != me.id)
-		) {
-			parcels.delete(p.id);
+	for (const [id, parcel] of parcels) {
+		if (parcel.carriedBy == me.id && parcel.time != now) {
+			parcels.delete(id);
 		}
 	}
 });
@@ -1165,16 +1360,18 @@ client.onAgentsSensing(async (aa) => {
 });
 
 client.onYou(({ id, name, x, y, score }) => {
+	// Set agent information
 	me.id = id;
 	me.name = name;
 	me.x = x;
 	me.y = y;
 	me.score = score;
+
+	reviseMemory();
 });
 
 client.onParcelsSensing(optionsGeneration);
 client.onAgentsSensing(optionsGeneration);
-client.onYou(optionsGeneration);
 
 myAgent.loop();
 
