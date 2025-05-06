@@ -669,7 +669,7 @@ class BlindBFSmove extends Plan {
 		}
 
 		let i = 0;
-		while (i < path.length) {
+		while (path != undefined && i < path.length) {
 			if (this.stopped) throw ["stopped"]; // if stopped then quit
 
 			let moved_horizontally;
@@ -979,6 +979,11 @@ function navigateBFS(initialPos, finalPos) {
 
 function expectedRewardOfCarriedParcels(carriedParcels, path) {
 	let totalScore = 0;
+
+	if (path == undefined) {
+		return 0;
+	}
+
 	carriedParcels.forEach((parcel) => {
 		totalScore += parcelScoreAfterMsPath(path, parcel.reward, Date.now());
 	});
@@ -992,7 +997,9 @@ function expectedRewardCarriedAndPickup(carriedParcels, parcel2Pickup) {
 	if (
 		pickUpReward.pathToDeliver != Infinity &&
 		pickUpReward.pathToParcel != Infinity &&
-		pickUpReward != 0
+		pickUpReward != 0 &&
+		pickUpReward.pathToDeliver != undefined &&
+		pickUpReward.pathToParcel != undefined
 	) {
 		// Compute expected reward for the carried parcels
 		let totalScore =
@@ -1290,6 +1297,7 @@ function distance({ x: x1, y: y1 }, { x: x2, y: y2 }) {
 
 function reviseMemory() {
 	let parcels2 = new Map();
+	let agents2 = new Map();
 	let stopFlag = false;
 
 	// Revise memory information
@@ -1312,9 +1320,34 @@ function reviseMemory() {
 	});
 	parcels = parcels2;
 
-	// Check if I see old agents position
-	// Check if agent is still there
-	// If not, remove, stop current intent
+	agents.forEach((agent) => {
+		// Check if I see old agents position
+		if (
+			distance({ x: agent.x, y: agent.y }, { x: me.x, y: me.y }) <
+			currentConfig.AGENTS_OBSERVATION_DISTANCE
+		) {
+			// Check if I saw the agent recently (aka. the onAgentSensing was called by it)
+			if (Date.now() - agent.time < MEMORY_DIFFERENCE_THRESHOLD) {
+				// If so, preserve it
+				agents2.set(agent.id, agent);
+			} else {
+				stopFlag = true;
+			}
+		} else {
+			agents2.set(agent.id, agent);
+		}
+	});
+
+	agents = agents2;
+
+	grafo.resetAgentsNearby();
+
+	// Add the agents to the matrix
+	for (const a of agents) {
+		if (grafo.agentsNearby != undefined) {
+			grafo.agentsNearby[Math.round(a[1].x)][Math.round(a[1].y)] = 1;
+		}
+	}
 
 	// If the memory has been updated
 	if (stopFlag) {
@@ -1332,10 +1365,17 @@ const client = new DeliverooApi(
 );
 */
 
+/* 
 // NAME: timed
 const client = new DeliverooApi(
 	"http://localhost:8080",
 	"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFlNTFhZCIsIm5hbWUiOiJtYXJjbyIsInRlYW1JZCI6IjE5NWI1ZSIsInRlYW1OYW1lIjoiZGlzaSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ1OTM1NzczfQ.Vcwbr28RqAjdKtOCEMh5Mx_VhhimIpyPh3qw-5XQlTQ"
+); */
+
+// Connect to server
+const client = new DeliverooApi(
+	"https://deliveroojs25.azurewebsites.net",
+	"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhjMDliOSIsIm5hbWUiOiJzYW11ZWxlIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDY1MTY2MDZ9.H868uR1qcs-53OjmjnnHXKnfTugHdw9BmLkEWPy1H7w"
 );
 
 const me = {
@@ -1387,10 +1427,13 @@ client.onParcelsSensing(async (pp) => {
 client.onAgentsSensing(async (aa) => {
 	// Add the sensed agents to the agent belief set
 
+	let now = Date.now();
 	aa.forEach((a) => {
+		a.time = now;
 		agents.set(a.id, a);
 	});
 
+	/*
 	// DA MODIFICARE
 	for (const a of agents.values()) {
 		if (aa.map((a) => a.id).find((id) => id == a.id) == undefined) {
@@ -1400,6 +1443,7 @@ client.onAgentsSensing(async (aa) => {
 			}
 		}
 	}
+  
 
 	grafo.resetAgentsNearby();
 
@@ -1409,6 +1453,7 @@ client.onAgentsSensing(async (aa) => {
 			grafo.agentsNearby[Math.round(a[1].x)][Math.round(a[1].y)] = 1;
 		}
 	}
+  */
 });
 
 client.onYou(({ id, name, x, y, score }) => {
