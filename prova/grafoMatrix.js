@@ -5,6 +5,7 @@ const SPAWN_NON_SPAWN_RATIO = 0.5;
 const DELIVERY_AREA_EXPLORE = 0.1;
 const TIMED_EXPLORE = 0.99;
 const MEMORY_DIFFERENCE_THRESHOLD = 2000;
+const MOVES_SCALE_FACTOR = 50;
 
 class Queue {
 	constructor() {
@@ -434,6 +435,14 @@ class IntentionRevisionReplace extends IntentionRevision {
 			last.stop();
 		}
 	}
+
+	getCurrentIntention() {
+		if (this.intention_queue.at(this.intention_queue.length - 1)) {
+			return this.intention_queue.at(this.intention_queue.length - 1)
+				.predicate;
+		}
+		return undefined;
+	}
 }
 
 class Intention {
@@ -615,6 +624,7 @@ class GoDeliver extends Plan {
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		await client.emitPutdown();
 		reviseMemory();
+		me.moves = 0;
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		return true;
 	}
@@ -678,6 +688,7 @@ class BlindBFSmove extends Plan {
 			if (moved_horizontally) {
 				me.x = moved_horizontally.x;
 				me.y = moved_horizontally.y;
+				me.moves += 1;
 			}
 
 			if (this.stopped) throw ["stopped"]; // if stopped then quit
@@ -693,6 +704,7 @@ class BlindBFSmove extends Plan {
 			if (moved_vertically) {
 				me.x = moved_vertically.x;
 				me.y = moved_vertically.y;
+				me.moves += 1;
 			}
 
 			// If stucked
@@ -1054,7 +1066,8 @@ function optionsGeneration() {
 				expectedRewardOfCarriedParcels(
 					carriedParcels,
 					pathNearestDelivery
-				),
+				) *
+					(me.moves / MOVES_SCALE_FACTOR + 1),
 			]);
 		}
 	}
@@ -1129,8 +1142,46 @@ function optionsGeneration() {
 	/**
 	 * Best option is selected
 	 */
+	let push = false;
+
 	if (best_option) {
-		myAgent.push(best_option);
+		// Get current intention
+		let currentIntention = myAgent.getCurrentIntention();
+		if (currentIntention == undefined) {
+			push = true;
+		} else {
+			// Check if the best option reward is better than the current intention reward
+			if (best_option[0] == "go_pick_up") {
+				if (currentIntention[0] == "go_pick_up") {
+					if (best_option[4] > currentIntention[4]) {
+						push = true;
+					}
+				} else if (currentIntention[0] == "go_deliver") {
+					if (best_option[4] > currentIntention[1]) {
+						push = true;
+					}
+				} else {
+					push = true;
+				}
+			} else if (best_option[0] == "go_deliver") {
+				if (currentIntention[0] == "go_pick_up") {
+					if (best_option[1] > currentIntention[4]) {
+						push = true;
+					}
+				} else if (currentIntention[0] == "go_deliver") {
+					if (best_option[1] > currentIntention[1]) {
+						push = true;
+					}
+				} else {
+					push = true;
+				}
+			}
+		}
+
+		// If yes, push the best option
+		if (push) {
+			myAgent.push(best_option);
+		}
 	} else {
 		// If we don't have a valid best option, then explore
 		if (Math.random() < TIMED_EXPLORE) {
@@ -1284,7 +1335,7 @@ const client = new DeliverooApi(
 // NAME: timed
 const client = new DeliverooApi(
 	"http://localhost:8080",
-	"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZlMTFlZCIsIm5hbWUiOiJUSU1FRCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ2NDM1MDE4fQ.cut9jChHGlJhpuR94h9x1H71mNGFQ6Bt-q76uX_wlrA"
+	"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFlNTFhZCIsIm5hbWUiOiJtYXJjbyIsInRlYW1JZCI6IjE5NWI1ZSIsInRlYW1OYW1lIjoiZGlzaSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ1OTM1NzczfQ.Vcwbr28RqAjdKtOCEMh5Mx_VhhimIpyPh3qw-5XQlTQ"
 );
 
 const me = {
@@ -1293,6 +1344,7 @@ const me = {
 	x: null,
 	y: null,
 	score: null,
+	moves: 0,
 };
 const myAgent = new IntentionRevisionReplace();
 const planLibrary = [];
