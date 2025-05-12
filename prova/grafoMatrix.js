@@ -5,7 +5,8 @@ const SPAWN_NON_SPAWN_RATIO = 0.5;
 const DELIVERY_AREA_EXPLORE = 0.1;
 const TIMED_EXPLORE = 0.99;
 const MEMORY_DIFFERENCE_THRESHOLD = 2000;
-const MOVES_SCALE_FACTOR = 50;
+const MOVES_SCALE_FACTOR = 100;
+const WAIT_TIMEOUT = 1000;
 
 class Queue {
 	constructor() {
@@ -71,11 +72,7 @@ class Graph {
 				if (this.gameMap.getItem(x, y) == 0) {
 					this.graphMap[x][y] = null;
 				} else {
-					this.graphMap[x][y] = new GraphNode(
-						this.gameMap.getItem(x, y),
-						x,
-						y
-					);
+					this.graphMap[x][y] = new GraphNode(this.gameMap.getItem(x, y), x, y);
 				}
 			}
 		}
@@ -89,8 +86,7 @@ class Graph {
 						// if neighbor walkable
 						if (this.graphMap[x][y + 1] != null) {
 							// add up neighbor
-							this.graphMap[x][y].neighU =
-								this.graphMap[x][y + 1];
+							this.graphMap[x][y].neighU = this.graphMap[x][y + 1];
 						}
 					}
 
@@ -99,8 +95,7 @@ class Graph {
 						// if neighbor walkable
 						if (this.graphMap[x + 1][y] != null) {
 							// add right neighbor
-							this.graphMap[x][y].neighR =
-								this.graphMap[x + 1][y];
+							this.graphMap[x][y].neighR = this.graphMap[x + 1][y];
 						}
 					}
 
@@ -109,8 +104,7 @@ class Graph {
 						// if neighbor walkable
 						if (this.graphMap[x][y - 1] != null) {
 							// add down neighbor
-							this.graphMap[x][y].neighD =
-								this.graphMap[x][y - 1];
+							this.graphMap[x][y].neighD = this.graphMap[x][y - 1];
 						}
 					}
 
@@ -119,8 +113,7 @@ class Graph {
 						// if neighbor walkable
 						if (this.graphMap[x - 1][y] != null) {
 							// add left neighbor
-							this.graphMap[x][y].neighL =
-								this.graphMap[x - 1][y];
+							this.graphMap[x][y].neighL = this.graphMap[x - 1][y];
 						}
 					}
 				}
@@ -237,10 +230,7 @@ class Graph {
 
 	#recursiveTimeMap(node, time, remainingRange) {
 		// If not node already explored (same timestamp) and remaining range
-		if (
-			this.gameMap.timeMap[node.x][node.y] != time &&
-			remainingRange > 0
-		) {
+		if (this.gameMap.timeMap[node.x][node.y] != time && remainingRange > 0) {
 			// Explore it
 			this.gameMap.timeMap[node.x][node.y] = time;
 			remainingRange--;
@@ -381,10 +371,7 @@ class IntentionRevision {
 				let id = intention.predicate[2];
 				let p = parcels.get(id);
 				if (p && p.carriedBy) {
-					console.log(
-						"Skipping intention because no more valid",
-						intention.predicate
-					);
+					console.log("Skipping intention because no more valid", intention.predicate);
 					continue;
 				}
 
@@ -422,6 +409,12 @@ class IntentionRevisionReplace extends IntentionRevision {
 	async push(predicate) {
 		// Check if already queued
 		const last = this.intention_queue.at(this.intention_queue.length - 1);
+
+		if (last) {
+			console.log("LAST: " + last.predicate.join(" "));
+			console.log("NOW: " + predicate.join(" "));
+		}
+
 		if (last && last.predicate.join(" ") == predicate.join(" ")) {
 			return; // intention is already being achieved
 		}
@@ -438,8 +431,7 @@ class IntentionRevisionReplace extends IntentionRevision {
 
 	getCurrentIntention() {
 		if (this.intention_queue.at(this.intention_queue.length - 1)) {
-			return this.intention_queue.at(this.intention_queue.length - 1)
-				.predicate;
+			return this.intention_queue.at(this.intention_queue.length - 1).predicate;
 		}
 		return undefined;
 	}
@@ -504,36 +496,15 @@ class Intention {
 			if (planClass.isApplicableTo(...this.predicate)) {
 				// plan is instantiated
 				this.#current_plan = new planClass(this.#parent);
-				this.log(
-					"achieving intention",
-					...this.predicate,
-					"with plan",
-					planClass.name
-				);
+				this.log("achieving intention", ...this.predicate, "with plan", planClass.name);
 				// and plan is executed and result returned
 				try {
-					const plan_res = await this.#current_plan.execute(
-						...this.predicate
-					);
-					this.log(
-						"successful intention",
-						...this.predicate,
-						"with plan",
-						planClass.name,
-						"with result:",
-						plan_res
-					);
+					const plan_res = await this.#current_plan.execute(...this.predicate);
+					this.log("successful intention", ...this.predicate, "with plan", planClass.name, "with result:", plan_res);
 					return plan_res;
 					// or errors are caught so to continue with next plan
 				} catch (error) {
-					this.log(
-						"failed intention",
-						...this.predicate,
-						"with plan",
-						planClass.name,
-						"with error:",
-						error
-					);
+					this.log("failed intention", ...this.predicate, "with plan", planClass.name, "with error:", error);
 				}
 			}
 		}
@@ -587,10 +558,7 @@ class Plan {
 
 class GoPickUp extends Plan {
 	static isApplicableTo(go_pick_up, x, y, id) {
-		return (
-			go_pick_up ==
-			"go_pick_up" /*|| go_pick_up == "emergency_go_pick_up"*/
-		);
+		return go_pick_up == "go_pick_up" /*|| go_pick_up == "emergency_go_pick_up"*/;
 	}
 
 	async execute(go_pick_up, x, y) {
@@ -598,7 +566,7 @@ class GoPickUp extends Plan {
 		await this.subIntention(["go_to", x, y]);
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		await client.emitPickup();
-		reviseMemory();
+		reviseMemory(true);
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		return true;
 	}
@@ -612,18 +580,12 @@ class GoDeliver extends Plan {
 	async execute(go_deliver) {
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 
-		let nearestDelivery =
-			grafo.graphMap[Math.round(me.x)][Math.round(me.y)]
-				.visitedDeliveries[0].deliveryNode;
+		let nearestDelivery = grafo.graphMap[Math.round(me.x)][Math.round(me.y)].visitedDeliveries[0].deliveryNode;
 
-		await this.subIntention([
-			"go_to",
-			nearestDelivery.x,
-			nearestDelivery.y,
-		]);
+		await this.subIntention(["go_to", nearestDelivery.x, nearestDelivery.y]);
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		await client.emitPutdown();
-		reviseMemory();
+		reviseMemory(true);
 		me.moves = 0;
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		return true;
@@ -658,14 +620,44 @@ class BlindBFSmove extends Plan {
 	}
 
 	async execute(go_to, x, y) {
-		let path = navigateBFS([Math.round(me.x), Math.round(me.y)], [x, y]);
+		let path = [];
+		let pathOK = false;
+
+		console.log("TRIGGERED MOVE");
+
+		/*
+		// Keep cycling until we get a valid path
+		while (!pathOK) {
+			path = navigateBFS([Math.round(me.x), Math.round(me.y)], [x, y]);
+
+			// If no path applicable, then select another cell and go to explore (to not remain still)
+			if (path == undefined) {
+				path = navigateBFS([Math.round(me.x), Math.round(me.y)], distanceExplore());
+			}
+
+			// If no path applicable, then select a close cell and go to explore
+			if (path == undefined) {
+				path = nearExplore();
+			}
+
+			if (path.length == 0) {
+				// If we are stuck, wait and hope that some other agents move
+				//await new Promise((res) => setTimeout(res, WAIT_TIMEOUT));
+
+				// After waiting, revise the memory to see if some agent moved
+				reviseMemory(false);
+			} else {
+				// We found a valid path, so we move
+				pathOK = true;
+			}
+		}
+			*/
+
+		path = navigateBFS([Math.round(me.x), Math.round(me.y)], [x, y]);
 
 		// If no path applicable, then select another cell and go to explore (to not remain still)
 		if (path == undefined) {
-			path = navigateBFS(
-				[Math.round(me.x), Math.round(me.y)],
-				distanceExplore()
-			);
+			path = navigateBFS([Math.round(me.x), Math.round(me.y)], distanceExplore());
 		}
 
 		let i = 0;
@@ -685,10 +677,15 @@ class BlindBFSmove extends Plan {
 				// status_x = await this.subIntention( 'go_to', {x: me.x-1, y: me.y} );
 			}
 
+			let carriedParcels = carryingParcels();
+
 			if (moved_horizontally) {
 				me.x = moved_horizontally.x;
 				me.y = moved_horizontally.y;
-				me.moves += 1;
+
+				if (carriedParcels.length > 0) {
+					me.moves += 1;
+				}
 			}
 
 			if (this.stopped) throw ["stopped"]; // if stopped then quit
@@ -704,7 +701,10 @@ class BlindBFSmove extends Plan {
 			if (moved_vertically) {
 				me.x = moved_vertically.x;
 				me.y = moved_vertically.y;
-				me.moves += 1;
+
+				if (carriedParcels.length > 0) {
+					me.moves += 1;
+				}
 			}
 
 			// If stucked
@@ -723,13 +723,35 @@ class BlindBFSmove extends Plan {
 	}
 }
 
+function nearExplore() {
+	let currentNode = grafo.graphMap[Math.round(me.x)][Math.round(me.y)];
+
+	// Check which neighbors are available to move to
+	let possibleNeighbors = [];
+	if (currentNode.neighU != undefined && grafo.agentsNearby[Math.round(me.x)][Math.round(me.y) + 1] != 1) {
+		possibleNeighbors.push(["U"]);
+	}
+	if (currentNode.neighR != undefined && grafo.agentsNearby[Math.round(me.x) + 1][Math.round(me.y)] != 1) {
+		possibleNeighbors.push(["R"]);
+	}
+	if (currentNode.neighD != undefined && grafo.agentsNearby[Math.round(me.x)][Math.round(me.y) - 1] != 1) {
+		possibleNeighbors.push(["D"]);
+	}
+	if (currentNode.neighL != undefined && grafo.agentsNearby[Math.round(me.x) - 1][Math.round(me.y)] != 1) {
+		possibleNeighbors.push(["L"]);
+	}
+
+	if (possibleNeighbors.length == 0) {
+		return possibleNeighbors;
+	}
+
+	return possibleNeighbors[Math.floor(Math.random() * possibleNeighbors.length)];
+}
+
 function distanceExplore() {
 	let suitableCells = undefined;
 	// Check spawn/non spawn ratio, if larger than SPAWN_NON_SPAWN_RATIO
-	if (
-		grafo.gameMap.spawnZonesCounter / grafo.gameMap.nonSpawnZonesCounter >
-		SPAWN_NON_SPAWN_RATIO
-	) {
+	if (grafo.gameMap.spawnZonesCounter / grafo.gameMap.nonSpawnZonesCounter > SPAWN_NON_SPAWN_RATIO) {
 		// Consider also delivery zones for the explore
 		let deliveryOrSpawn = Math.random();
 		if (deliveryOrSpawn < DELIVERY_AREA_EXPLORE) {
@@ -751,10 +773,7 @@ function distanceExplore() {
 
 	// Compute distances
 	suitableCells.forEach((element) => {
-		element.distance = distance(
-			{ x: me.x, y: me.y },
-			{ x: element.x, y: element.y }
-		);
+		element.distance = distance({ x: me.x, y: me.y }, { x: element.x, y: element.y });
 		totalDistance += element.distance;
 	});
 
@@ -785,10 +804,7 @@ function distanceExplore() {
 function timedExplore() {
 	let suitableCells = undefined;
 	// Check spawn/non spawn ratio, if larger than SPAWN_NON_SPAWN_RATIO
-	if (
-		grafo.gameMap.spawnZonesCounter / grafo.gameMap.nonSpawnZonesCounter >
-		SPAWN_NON_SPAWN_RATIO
-	) {
+	if (grafo.gameMap.spawnZonesCounter / grafo.gameMap.nonSpawnZonesCounter > SPAWN_NON_SPAWN_RATIO) {
 		// Explore only spawning zones
 		suitableCells = grafo.gameMap.spawnZones;
 		/*
@@ -807,10 +823,7 @@ function timedExplore() {
 	let tmp = [];
 	// Do not consider current cell
 	for (let i = 0; i < suitableCells.length; i++) {
-		if (
-			suitableCells[i].x == Math.round(me.x) &&
-			suitableCells[i].y == Math.round(me.y)
-		) {
+		if (suitableCells[i].x == Math.round(me.x) && suitableCells[i].y == Math.round(me.y)) {
 			continue;
 		}
 
@@ -827,22 +840,14 @@ function timedExplore() {
 	// Compute the last time a tile was visited
 	suitableCells.forEach((element) => {
 		element.timestamp = now - grafo.gameMap.timeMap[element.x][element.y];
-		element.distance = distance(
-			{ x: me.x, y: me.y },
-			{ x: element.x, y: element.y }
-		);
+		element.distance = distance({ x: me.x, y: me.y }, { x: element.x, y: element.y });
 		totalTime += element.timestamp;
 	});
 
 	// Normalize timestamp
 	suitableCells.forEach((element) => {
 		element.timestamp /= totalTime; // First normalization
-		element.timestamp /=
-			element.distance *
-				element.distance *
-				element.distance *
-				element.distance +
-			1; // Penalize distant cells
+		element.timestamp /= element.distance * element.distance * element.distance * element.distance + 1; // Penalize distant cells
 	});
 
 	// Second normalization
@@ -907,10 +912,7 @@ function navigateBFS(initialPos, finalPos) {
 		// If the current position is the final position return the path
 		if (currentNode.x == finalPos[0] && currentNode.y == finalPos[1]) {
 			// Check if in the final node there is no other agent
-			if (
-				grafo.agentsNearby != undefined &&
-				grafo.agentsNearby[currentNode.x][currentNode.y] == 1
-			) {
+			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
 				// Agent
 				finalPath = undefined;
 			} else {
@@ -928,10 +930,7 @@ function navigateBFS(initialPos, finalPos) {
 			explored.add(currentNodeId);
 
 			// If node is occupied, ignore its neighbors
-			if (
-				grafo.agentsNearby != undefined &&
-				grafo.agentsNearby[currentNode.x][currentNode.y] == 1
-			) {
+			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
 				continue;
 			}
 
@@ -970,9 +969,7 @@ function navigateBFS(initialPos, finalPos) {
 	if (finalPath != undefined) {
 		return finalPath;
 	} else {
-		console.log(
-			"No path found to [" + finalPos[0] + "," + finalPos[1] + "]!"
-		);
+		console.log("No path found to [" + finalPos[0] + "," + finalPos[1] + "]!");
 		return undefined;
 	}
 }
@@ -994,20 +991,9 @@ function expectedRewardCarriedAndPickup(carriedParcels, parcel2Pickup) {
 	let pickUpReward = parcelCostReward(parcel2Pickup);
 
 	// If we can reach the parcel to pickup
-	if (
-		pickUpReward.pathToDeliver != Infinity &&
-		pickUpReward.pathToParcel != Infinity &&
-		pickUpReward != 0 &&
-		pickUpReward.pathToDeliver != undefined &&
-		pickUpReward.pathToParcel != undefined
-	) {
+	if (pickUpReward.pathToDeliver != Infinity && pickUpReward.pathToParcel != Infinity && pickUpReward != 0 && pickUpReward.pathToDeliver != undefined && pickUpReward.pathToParcel != undefined) {
 		// Compute expected reward for the carried parcels
-		let totalScore =
-			pickUpReward.expectedReward +
-			expectedRewardOfCarriedParcels(
-				carriedParcels,
-				pickUpReward.pathToParcel.concat(pickUpReward.pathToDeliver)
-			);
+		let totalScore = pickUpReward.expectedReward + expectedRewardOfCarriedParcels(carriedParcels, pickUpReward.pathToParcel.concat(pickUpReward.pathToDeliver));
 
 		// Return the final expected score
 		return totalScore;
@@ -1017,27 +1003,32 @@ function expectedRewardCarriedAndPickup(carriedParcels, parcel2Pickup) {
 	}
 }
 
-function optionsGeneration() {
-	/**
-	 * Options generation
-	 */
-	// Recover all the parcels I am carrying and the path to the nearest delivery
-	let carriedParcels = [];
+/**
+ *
+ * @returns {List} list of parcels carried by me
+ */
+function carryingParcels() {
+	// Compute the set of parcels carried by me
+	var carriedParcels = [];
 	parcels.forEach((parcel) => {
 		if (parcel.carriedBy == me.id) {
 			carriedParcels.push(parcel);
 		}
 	});
 
-	let pathNearestDelivery = navigateBFS(
-		[Math.round(me.x), Math.round(me.y)],
-		[
-			grafo.graphMap[Math.round(me.x)][Math.round(me.y)]
-				.visitedDeliveries[0].deliveryNode.x,
-			grafo.graphMap[Math.round(me.x)][Math.round(me.y)]
-				.visitedDeliveries[0].deliveryNode.y,
-		]
-	);
+	return carriedParcels;
+}
+
+function optionsGeneration() {
+	/**
+	 * Options generation
+	 */
+	// Recover all the parcels I am carrying and the path to the nearest delivery
+	let carriedParcels = carryingParcels();
+
+	let pathNearestDelivery = navigateBFS([Math.round(me.x), Math.round(me.y)], [grafo.graphMap[Math.round(me.x)][Math.round(me.y)].visitedDeliveries[0].deliveryNode.x, grafo.graphMap[Math.round(me.x)][Math.round(me.y)].visitedDeliveries[0].deliveryNode.y]);
+
+	// TODO: mettere undefined
 
 	const options = [];
 	for (const parcel of parcels.values()) {
@@ -1063,19 +1054,10 @@ function optionsGeneration() {
 	}
 
 	if (carriedParcels.length != 0) {
-		if (
-			grafo.gameMap.getItem(Math.round(me.x), Math.round(me.y)).type == 2
-		) {
+		if (grafo.gameMap.getItem(Math.round(me.x), Math.round(me.y)).type == 2) {
 			options.push(["go_deliver", Infinity]);
 		} else {
-			options.push([
-				"go_deliver",
-				expectedRewardOfCarriedParcels(
-					carriedParcels,
-					pathNearestDelivery
-				) *
-					(me.moves / MOVES_SCALE_FACTOR + 1),
-			]);
+			options.push(["go_deliver", expectedRewardOfCarriedParcels(carriedParcels, pathNearestDelivery) * (me.moves / MOVES_SCALE_FACTOR + 1)]);
 		}
 	}
 
@@ -1099,53 +1081,6 @@ function optionsGeneration() {
 		}
 	});
 
-	/*
-	let best_option;
-	let nearest = Number.MAX_VALUE;
-	let delivery_d;
-
-	for (const option of options) {
-		if (option[0] == "go_pick_up") {
-			let [go_pick_up, x, y, id] = option;
-			let current_d = navigateBFS(
-				[Math.round(me.x), Math.round(me.y)],
-				[x, y]
-			);
-			if (current_d != undefined) {
-				current_d = current_d.length;
-				if (current_d < nearest) {
-					if (
-						best_option == undefined ||
-						(best_option[0] != "go_deliver" &&
-							best_option[0] != "emergency_go_pick_up")
-					) {
-						best_option = option;
-						nearest = current_d;
-					} else {
-						delivery_d =
-							grafo.graphMap[Math.round(me.x)][Math.round(me.y)]
-								.visitedDeliveries[0].distance;
-						if (
-							current_d < DISTANCE_NEAREST_PARCEL &&
-							current_d < delivery_d
-						) {
-							option[0] = "emergency_go_pick_up";
-							best_option = option;
-							nearest = current_d;
-						}
-					}
-				}
-			}
-		} else if (option[0] == "go_deliver") {
-			if (
-				best_option == undefined ||
-				best_option[0] != "emergency_go_pick_up"
-			) {
-				best_option = option;
-			}
-		}
-	}
-	*/
 	/**
 	 * Best option is selected
 	 */
@@ -1208,10 +1143,7 @@ function parcelCostReward(parcel) {
 	let lastVisitTime = parcel.time;
 
 	// Compute distance agent -> parcel
-	let pathToParcel = navigateBFS(
-		[Math.round(me.x), Math.round(me.y)],
-		[parX, parY]
-	);
+	let pathToParcel = navigateBFS([Math.round(me.x), Math.round(me.y)], [parX, parY]);
 
 	if (pathToParcel == undefined) {
 		return {
@@ -1222,13 +1154,9 @@ function parcelCostReward(parcel) {
 	}
 
 	// Compute distance parcel -> nearest delivery
-	let nearestDelivery =
-		grafo.graphMap[parX][parY].visitedDeliveries[0].deliveryNode;
+	let nearestDelivery = grafo.graphMap[parX][parY].visitedDeliveries[0].deliveryNode;
 
-	let pathToDeliver = navigateBFS(
-		[parX, parY],
-		[nearestDelivery.x, nearestDelivery.y]
-	);
+	let pathToDeliver = navigateBFS([parX, parY], [nearestDelivery.x, nearestDelivery.y]);
 
 	if (pathToDeliver == undefined) {
 		return {
@@ -1239,11 +1167,7 @@ function parcelCostReward(parcel) {
 	}
 
 	// Compute expected reward for [parX, parY] parcel
-	let expectedReward = parcelScoreAfterMsPath(
-		pathToParcel.concat(pathToDeliver),
-		parScore,
-		lastVisitTime
-	);
+	let expectedReward = parcelScoreAfterMsPath(pathToParcel.concat(pathToDeliver), parScore, lastVisitTime);
 
 	// Return paths a->p, p->d, expected reward
 	return {
@@ -1259,9 +1183,7 @@ function parcelScoreAfterMs(time, parcelScore, lastVisitTime) {
 	if (decadeInterval == "infinite") {
 		decadeInterval = Infinity;
 	} else {
-		decadeInterval = Number(
-			decadeInterval.substring(0, decadeInterval.length - 1)
-		);
+		decadeInterval = Number(decadeInterval.substring(0, decadeInterval.length - 1));
 	}
 	decadeInterval *= 1000; // Converte to ms
 	let marginedTime = time + Number(currentConfig.MOVEMENT_DURATION); // Add some additional time margin
@@ -1282,11 +1204,7 @@ function parcelScoreAfterMs(time, parcelScore, lastVisitTime) {
 }
 
 function parcelScoreAfterMsPath(path, parcelScore, lastVisitTime) {
-	return parcelScoreAfterMs(
-		path.length * currentConfig.MOVEMENT_DURATION,
-		parcelScore,
-		lastVisitTime
-	);
+	return parcelScoreAfterMs(path.length * currentConfig.MOVEMENT_DURATION, parcelScore, lastVisitTime);
 }
 
 function distance({ x: x1, y: y1 }, { x: x2, y: y2 }) {
@@ -1295,7 +1213,7 @@ function distance({ x: x1, y: y1 }, { x: x2, y: y2 }) {
 	return dx + dy;
 }
 
-function reviseMemory() {
+function reviseMemory(generateOptions) {
 	let parcels2 = new Map();
 	let agents2 = new Map();
 	let stopFlag = false;
@@ -1303,10 +1221,7 @@ function reviseMemory() {
 	// Revise memory information
 	parcels.forEach((parcel) => {
 		// Check if I see old parcels position
-		if (
-			distance({ x: parcel.x, y: parcel.y }, { x: me.x, y: me.y }) <
-			currentConfig.PARCELS_OBSERVATION_DISTANCE
-		) {
+		if (distance({ x: parcel.x, y: parcel.y }, { x: me.x, y: me.y }) < currentConfig.PARCELS_OBSERVATION_DISTANCE) {
 			// Check if I saw the parcel recently (aka. the onParcelSensing was called by it)
 			if (Date.now() - parcel.time < MEMORY_DIFFERENCE_THRESHOLD) {
 				// If so, preserve it
@@ -1322,10 +1237,7 @@ function reviseMemory() {
 
 	agents.forEach((agent) => {
 		// Check if I see old agents position
-		if (
-			distance({ x: agent.x, y: agent.y }, { x: me.x, y: me.y }) <
-			currentConfig.AGENTS_OBSERVATION_DISTANCE
-		) {
+		if (distance({ x: agent.x, y: agent.y }, { x: me.x, y: me.y }) < currentConfig.AGENTS_OBSERVATION_DISTANCE) {
 			// Check if I saw the agent recently (aka. the onAgentSensing was called by it)
 			if (Date.now() - agent.time < MEMORY_DIFFERENCE_THRESHOLD) {
 				// If so, preserve it
@@ -1355,8 +1267,11 @@ function reviseMemory() {
 		// myAgent.stopCurrentTask();
 	}
 
-	optionsGeneration();
+	if (generateOptions) {
+		optionsGeneration();
+	}
 }
+
 /*
 // NAME: random
 const client = new DeliverooApi(
@@ -1365,18 +1280,11 @@ const client = new DeliverooApi(
 );
 */
 
-/* 
 // NAME: timed
-const client = new DeliverooApi(
-	"http://localhost:8080",
-	"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFlNTFhZCIsIm5hbWUiOiJtYXJjbyIsInRlYW1JZCI6IjE5NWI1ZSIsInRlYW1OYW1lIjoiZGlzaSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ1OTM1NzczfQ.Vcwbr28RqAjdKtOCEMh5Mx_VhhimIpyPh3qw-5XQlTQ"
-); */
+const client = new DeliverooApi("http://localhost:8080", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFlNTFhZCIsIm5hbWUiOiJtYXJjbyIsInRlYW1JZCI6IjE5NWI1ZSIsInRlYW1OYW1lIjoiZGlzaSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ1OTM1NzczfQ.Vcwbr28RqAjdKtOCEMh5Mx_VhhimIpyPh3qw-5XQlTQ");
 
 // Connect to server
-const client = new DeliverooApi(
-	"https://deliveroojs25.azurewebsites.net",
-	"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhjMDliOSIsIm5hbWUiOiJzYW11ZWxlIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDY1MTY2MDZ9.H868uR1qcs-53OjmjnnHXKnfTugHdw9BmLkEWPy1H7w"
-);
+//const client = new DeliverooApi("https://deliveroojs.rtibdi.disi.unitn.it/", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjE4OTUyMSIsIm5hbWUiOiJUaGUgUm9ib1NhcGllbnMiLCJ0ZWFtSWQiOiJkMzkwNTgiLCJ0ZWFtTmFtZSI6IlRoZSBSb2JvU2FwaWVucyIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ2NTI0OTE4fQ.ldgQdobvrC-JuTBzhOdP4M96y6wC9EToaaQGXjoMzXQ");
 
 const me = {
 	id: null,
@@ -1464,7 +1372,7 @@ client.onYou(({ id, name, x, y, score }) => {
 	me.y = y;
 	me.score = score;
 
-	reviseMemory();
+	reviseMemory(true);
 });
 
 client.onParcelsSensing(optionsGeneration);
