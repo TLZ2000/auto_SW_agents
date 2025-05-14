@@ -5,7 +5,7 @@ const SPAWN_NON_SPAWN_RATIO = 0.5;
 const DELIVERY_AREA_EXPLORE = 0.1;
 const TIMED_EXPLORE = 0.99;
 const MEMORY_DIFFERENCE_THRESHOLD = 2000;
-
+const MOVES_SCALE_FACTOR = 100;
 const MEMORY_REVISION_TIMER = 10000;
 /**
  * Queue class
@@ -709,40 +709,7 @@ class BlindBFSmove extends Plan {
 	}
 
 	async execute(go_to, x, y) {
-		let path = [];
-		let pathOK = false;
-
-		console.log("TRIGGERED MOVE");
-
-		/*
-		// Keep cycling until we get a valid path
-		while (!pathOK) {
-			path = navigateBFS([Math.round(me.x), Math.round(me.y)], [x, y]);
-
-			// If no path applicable, then select another cell and go to explore (to not remain still)
-			if (path == undefined) {
-				path = navigateBFS([Math.round(me.x), Math.round(me.y)], distanceExplore());
-			}
-
-			// If no path applicable, then select a close cell and go to explore
-			if (path == undefined) {
-				path = nearExplore();
-			}
-
-			if (path.length == 0) {
-				// If we are stuck, wait and hope that some other agents move
-				//await new Promise((res) => setTimeout(res, WAIT_TIMEOUT));
-
-				// After waiting, revise the memory to see if some agent moved
-				reviseMemory(false);
-			} else {
-				// We found a valid path, so we move
-				pathOK = true;
-			}
-		}
-			*/
-
-		path = navigateBFS([Math.round(me.x), Math.round(me.y)], [x, y]);
+		let path = navigateBFS([Math.round(me.x), Math.round(me.y)], [x, y]);
 
 		// If no path applicable, then select another cell and go to explore (to not remain still)
 		if (path == undefined) {
@@ -813,37 +780,8 @@ class BlindBFSmove extends Plan {
 }
 
 /**
- *
- * @returns
- */
-function nearExplore() {
-	let currentNode = grafo.graphMap[Math.round(me.x)][Math.round(me.y)];
-
-	// Check which neighbors are available to move to
-	let possibleNeighbors = [];
-	if (currentNode.neighU != undefined && grafo.agentsNearby[Math.round(me.x)][Math.round(me.y) + 1] != 1) {
-		possibleNeighbors.push(["U"]);
-	}
-	if (currentNode.neighR != undefined && grafo.agentsNearby[Math.round(me.x) + 1][Math.round(me.y)] != 1) {
-		possibleNeighbors.push(["R"]);
-	}
-	if (currentNode.neighD != undefined && grafo.agentsNearby[Math.round(me.x)][Math.round(me.y) - 1] != 1) {
-		possibleNeighbors.push(["D"]);
-	}
-	if (currentNode.neighL != undefined && grafo.agentsNearby[Math.round(me.x) - 1][Math.round(me.y)] != 1) {
-		possibleNeighbors.push(["L"]);
-	}
-
-	if (possibleNeighbors.length == 0) {
-		return possibleNeighbors;
-	}
-
-	return possibleNeighbors[Math.floor(Math.random() * possibleNeighbors.length)];
-}
-
-/**
- *
- * @returns
+ * Randomly select a cell to explore using the "distance" criterion (distant cells are more probable), if the ratio of spawn/non spawn cells is greater than SPAWN_NON_SPAWN_RATIO, consider also delivery zones
+ * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "distance" criterion
  */
 function distanceExplore() {
 	let suitableCells = undefined;
@@ -899,8 +837,8 @@ function distanceExplore() {
 }
 
 /**
- *
- * @returns
+ * Randomly select a cell to explore using the "timed" criterion (cells explored long ago and near to the agent's current position are more probable)
+ * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "timed" criterion
  */
 function timedExplore() {
 	let suitableCells = undefined;
