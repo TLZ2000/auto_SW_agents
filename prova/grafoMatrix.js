@@ -5,9 +5,11 @@ const SPAWN_NON_SPAWN_RATIO = 0.5;
 const DELIVERY_AREA_EXPLORE = 0.1;
 const TIMED_EXPLORE = 0.99;
 const MEMORY_DIFFERENCE_THRESHOLD = 2000;
-const MOVES_SCALE_FACTOR = 100;
-const MEMORY_REVISION_TIMER = 10000;
 
+const MEMORY_REVISION_TIMER = 10000;
+/**
+ * Queue class
+ */
 class Queue {
 	constructor() {
 		this.items = [];
@@ -15,10 +17,18 @@ class Queue {
 		this.tail = 0;
 	}
 
+	/**
+	 * Enqueue the specific item
+	 * @param {*} item - item to enqueue
+	 */
 	enqueue(item) {
 		this.items[this.tail++] = item;
 	}
 
+	/**
+	 * Remove the first item from the queue and return it
+	 * @returns popped item from the queue
+	 */
 	dequeue() {
 		if (this.isEmpty()) return undefined;
 		const item = this.items[this.head];
@@ -27,31 +37,54 @@ class Queue {
 		return item;
 	}
 
+	/**
+	 * Whether the queue is empty or not
+	 * @returns
+	 */
 	isEmpty() {
 		return this.head === this.tail;
 	}
 
+	/**
+	 * Current size of the queue
+	 * @returns
+	 */
 	size() {
 		return this.tail - this.head;
 	}
 }
 
+/**
+ * Node item that will represent the single map cells
+ */
 class GraphNode {
+	/**
+	 * @param {BigInt} type - type of the cell the node will represent
+	 * @param {BigInt} x - x coordinate of the cell the node will represent
+	 * @param {BigInt} y - y coordinate of the cell the node will represent
+	 */
 	constructor(type, x, y) {
-		this.x = x;
-		this.y = y;
-		this.neighU = undefined;
-		this.neighR = undefined;
-		this.neighD = undefined;
-		this.neighL = undefined;
-		this.type = type;
+		this.x = x; // x position of the cell
+		this.y = y; // y position of the cell
+		this.neighU = undefined; // Up neighbor
+		this.neighR = undefined; // Right neighbor
+		this.neighD = undefined; // Down neighbor
+		this.neighL = undefined; // Left neighbor
+		this.type = type; // Node type
 		this.visitedDeliveries = []; // List of dictionaries containing {deliveryNode, distance, direction}
 		this.nearestSpawn = undefined; // Nearest spawn area
 		this.visitedSet = new Set(); // Set containing the delivery nodes that already visited this node
 	}
 }
 
+/**
+ *
+ */
 class Graph {
+	/**
+	 *
+	 * @param {*} currentMap
+	 */
 	constructor(currentMap) {
 		this.gameMap = currentMap;
 		this.graphMap = [];
@@ -123,6 +156,9 @@ class Graph {
 	}
 
 	// Compute nearest delivery/spawn
+	/**
+	 *
+	 */
 	preprocess() {
 		// Compute nearest delivery
 		let queue = new Queue();
@@ -210,6 +246,11 @@ class Graph {
 	}
 
 	// Update the timestamp of the last visit for the visible cells at this location
+	/**
+	 *
+	 * @param {*} x
+	 * @param {*} y
+	 */
 	updateTimeMap(x, y) {
 		let range = currentConfig.PARCELS_OBSERVATION_DISTANCE;
 		let currentNode = this.graphMap[x][y];
@@ -218,6 +259,9 @@ class Graph {
 		this.#recursiveTimeMap(currentNode, time, range);
 	}
 
+	/**
+	 *
+	 */
 	resetAgentsNearby() {
 		// Initialize matrix containing all the agents positions (0 -> no agent, 1 -> agent)
 		for (let x = 0; x < this.gameMap.width; x++) {
@@ -228,6 +272,12 @@ class Graph {
 		}
 	}
 
+	/**
+	 *
+	 * @param {*} node
+	 * @param {*} time
+	 * @param {*} remainingRange
+	 */
 	#recursiveTimeMap(node, time, remainingRange) {
 		// If not node already explored (same timestamp) and remaining range
 		if (this.gameMap.timeMap[node.x][node.y] != time && remainingRange > 0) {
@@ -260,7 +310,16 @@ class Graph {
 	}
 }
 
+/**
+ *
+ */
 class GameMap {
+	/**
+	 *
+	 * @param {*} width
+	 * @param {*} height
+	 * @param {*} tile
+	 */
 	constructor(width, height, tile) {
 		// Take map in deliveroo format and convert it into matrix format
 		this.width = width;
@@ -343,11 +402,20 @@ class GameMap {
 		}
 	}
 
+	/**
+	 *
+	 * @param {*} x
+	 * @param {*} y
+	 * @returns
+	 */
 	getItem(x, y) {
 		return this.map[x][y];
 	}
 }
 
+/**
+ *
+ */
 class IntentionRevision {
 	#intention_queue = new Array();
 	get intention_queue() {
@@ -405,6 +473,9 @@ class IntentionRevision {
 	}
 }
 
+/**
+ *
+ */
 class IntentionRevisionReplace extends IntentionRevision {
 	async push(predicate) {
 		// Check if already queued
@@ -437,6 +508,9 @@ class IntentionRevisionReplace extends IntentionRevision {
 	}
 }
 
+/**
+ *
+ */
 class Intention {
 	// Plan currently used for achieving the intention
 	#current_plan;
@@ -518,6 +592,9 @@ class Intention {
 	}
 }
 
+/**
+ *
+ */
 class Plan {
 	// This is used to stop the plan
 	#stopped = false;
@@ -556,6 +633,9 @@ class Plan {
 	}
 }
 
+/**
+ *
+ */
 class GoPickUp extends Plan {
 	static isApplicableTo(go_pick_up, x, y, id) {
 		return go_pick_up == "go_pick_up" /*|| go_pick_up == "emergency_go_pick_up"*/;
@@ -572,6 +652,9 @@ class GoPickUp extends Plan {
 	}
 }
 
+/**
+ *
+ */
 class GoDeliver extends Plan {
 	static isApplicableTo(go_deliver) {
 		return go_deliver == "go_deliver";
@@ -592,6 +675,9 @@ class GoDeliver extends Plan {
 	}
 }
 
+/**
+ *
+ */
 class Explore extends Plan {
 	static isApplicableTo(explore) {
 		return explore == "explore";
@@ -614,6 +700,9 @@ class Explore extends Plan {
 	}
 }
 
+/**
+ *
+ */
 class BlindBFSmove extends Plan {
 	static isApplicableTo(go_to, x, y) {
 		return go_to == "go_to";
@@ -723,6 +812,10 @@ class BlindBFSmove extends Plan {
 	}
 }
 
+/**
+ *
+ * @returns
+ */
 function nearExplore() {
 	let currentNode = grafo.graphMap[Math.round(me.x)][Math.round(me.y)];
 
@@ -748,6 +841,10 @@ function nearExplore() {
 	return possibleNeighbors[Math.floor(Math.random() * possibleNeighbors.length)];
 }
 
+/**
+ *
+ * @returns
+ */
 function distanceExplore() {
 	let suitableCells = undefined;
 	// Check spawn/non spawn ratio, if larger than SPAWN_NON_SPAWN_RATIO
@@ -801,6 +898,10 @@ function distanceExplore() {
 	return [randX, randY];
 }
 
+/**
+ *
+ * @returns
+ */
 function timedExplore() {
 	let suitableCells = undefined;
 	// Check spawn/non spawn ratio, if larger than SPAWN_NON_SPAWN_RATIO
@@ -974,6 +1075,12 @@ function navigateBFS(initialPos, finalPos) {
 	}
 }
 
+/**
+ * Compute the expected reward of delivering the currently carried parcels following a specific path
+ * @param {Array} carriedParcels - list of parcels carried by me
+ * @param {Array} path - path the agent will follow to deliver the parcels
+ * @returns expected reward of delivering the currently carried following the provided path
+ */
 function expectedRewardOfCarriedParcels(carriedParcels, path) {
 	let totalScore = 0;
 
@@ -987,6 +1094,12 @@ function expectedRewardOfCarriedParcels(carriedParcels, path) {
 	return totalScore;
 }
 
+/**
+ * Compute the expected reward of delivering the currently carried parcels plus a targeted parcel to pick up
+ * @param {Array} carriedParcels - list of parcels carried by me
+ * @param {{x:BigInt, y: BigInt, reward: BigInt, time:BigInt}} parcel2Pickup - targeted parcel to pick up
+ * @returns expected reward of delivering the currently carried parcels and the targeted parcel to pick up
+ */
 function expectedRewardCarriedAndPickup(carriedParcels, parcel2Pickup) {
 	let pickUpReward = parcelCostReward(parcel2Pickup);
 
@@ -1004,8 +1117,8 @@ function expectedRewardCarriedAndPickup(carriedParcels, parcel2Pickup) {
 }
 
 /**
- *
- * @returns {List} list of parcels carried by me
+ * Return the list of parcels carried by me
+ * @returns {Array} list of parcels carried by me
  */
 function carryingParcels() {
 	// Compute the set of parcels carried by me
@@ -1019,6 +1132,9 @@ function carryingParcels() {
 	return carriedParcels;
 }
 
+/**
+ *
+ */
 function optionsGeneration() {
 	/**
 	 * Options generation
@@ -1136,6 +1252,11 @@ function optionsGeneration() {
 	}
 }
 
+/**
+ * Compute the expected reward of a specific parcel (go pick up and deliver)
+ * @param {{x:BigInt, y: BigInt, reward: BigInt, time:BigInt}} parcel
+ * @returns Map containing the path from the current agent position to the parcel (pathToParcel, undefined if not reachable), the path from the parcel to nearest delivery zone (pathToDeliver, undefined if not reachable) and expected reward (expectedReward)
+ */
 function parcelCostReward(parcel) {
 	let parX = parcel.x;
 	let parY = parcel.y;
@@ -1177,6 +1298,13 @@ function parcelCostReward(parcel) {
 	};
 }
 
+/**
+ * Compute the new score of a parcel after a specific time considering the specific map configuration and the last time the parcel was seen
+ * @param {BigInt} time - time in milliseconds
+ * @param {BigInt} parcelScore - current parcel score
+ * @param {BigInt} lastVisitTime - timestamp of the parcel's last visit
+ * @returns  the estimated score of the parcel after the provided time
+ */
 function parcelScoreAfterMs(time, parcelScore, lastVisitTime) {
 	let decadeInterval = currentConfig.PARCEL_DECADING_INTERVAL; //Seconds
 
@@ -1203,16 +1331,33 @@ function parcelScoreAfterMs(time, parcelScore, lastVisitTime) {
 	return expected;
 }
 
+/**
+ * Compute the new score of a parcel after a specific path considering the specific map configuration and the last time the parcel was seen
+ * @param {Array} path - movement path
+ * @param {BigInt} parcelScore - current parcel score
+ * @param {BigInt} lastVisitTime - timestamp of the parcel's last visit
+ * @returns {BigInt} the estimated score of the parcel after the provided path has been completed by the agent
+ */
 function parcelScoreAfterMsPath(path, parcelScore, lastVisitTime) {
 	return parcelScoreAfterMs(path.length * currentConfig.MOVEMENT_DURATION, parcelScore, lastVisitTime);
 }
 
+/**
+ * Compute Manhattan distance between two positions
+ * @param {{ x: BigInt, y: BigInt }} pos1 - first position to consider
+ * @param {{ x: BigInt, y: BigInt }} pos2 - second position to consider
+ * @returns {BigInt} Manhattan distance between pos1 and pos2
+ */
 function distance({ x: x1, y: y1 }, { x: x2, y: y2 }) {
 	const dx = Math.abs(Math.round(x1) - Math.round(x2));
 	const dy = Math.abs(Math.round(y1) - Math.round(y2));
 	return dx + dy;
 }
 
+/**
+ * Compute a revision of the agent's memory regarding parcels and agents positions
+ * @param {Boolean} generateOptions - if True, compute the option generation after the memory revision
+ */
 function reviseMemory(generateOptions) {
 	let parcels2 = new Map();
 	let agents2 = new Map();
@@ -1271,6 +1416,10 @@ function reviseMemory(generateOptions) {
 		optionsGeneration();
 	}
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// ===============================================================================================================
+// ---------------------------------------------------------------------------------------------------------------
 
 /*
 // NAME: random
