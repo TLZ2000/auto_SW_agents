@@ -7,6 +7,7 @@ const TIMED_EXPLORE = 0.99;
 const MEMORY_DIFFERENCE_THRESHOLD = 2000;
 const MOVES_SCALE_FACTOR = 100;
 const MEMORY_REVISION_TIMER = 10000;
+
 /**
  * Queue class
  */
@@ -78,12 +79,12 @@ class GraphNode {
 }
 
 /**
- *
+ * Graph class used to manage the map navigation
  */
 class Graph {
 	/**
 	 *
-	 * @param {*} currentMap
+	 * @param {GameMap} currentMap - the GameMap object that represent the current map
 	 */
 	constructor(currentMap) {
 		this.gameMap = currentMap;
@@ -155,9 +156,8 @@ class Graph {
 		this.preprocess();
 	}
 
-	// Compute nearest delivery/spawn
 	/**
-	 *
+	 * Preprocess the graph to compute nearest delivery/spawn
 	 */
 	preprocess() {
 		// Compute nearest delivery
@@ -245,13 +245,12 @@ class Graph {
 		});
 	}
 
-	// Update the timestamp of the last visit for the visible cells at this location
 	/**
-	 *
-	 * @param {*} x
-	 * @param {*} y
+	 * Update the timestamp of the last visit for the visible cells at the agent's current location
 	 */
-	updateTimeMap(x, y) {
+	updateTimeMap() {
+		let x = Math.round(me.x);
+		let y = Math.round(me.y);
 		let range = currentConfig.PARCELS_OBSERVATION_DISTANCE;
 		let currentNode = this.graphMap[x][y];
 		let time = Date.now();
@@ -260,7 +259,7 @@ class Graph {
 	}
 
 	/**
-	 *
+	 * Reset the internal map that represent the cells occupied by other agents (to 0, completely free)
 	 */
 	resetAgentsNearby() {
 		// Initialize matrix containing all the agents positions (0 -> no agent, 1 -> agent)
@@ -273,10 +272,10 @@ class Graph {
 	}
 
 	/**
-	 *
-	 * @param {*} node
-	 * @param {*} time
-	 * @param {*} remainingRange
+	 * PRIVATE FUNCTION, recursively explore the graph to update the "visited" time stamp
+	 * @param {GraphNode} node - currently explored node
+	 * @param {BigInt} time - current timestamp to set
+	 * @param {BigInt} remainingRange - remaining vision range
 	 */
 	#recursiveTimeMap(node, time, remainingRange) {
 		// If not node already explored (same timestamp) and remaining range
@@ -315,10 +314,10 @@ class Graph {
  */
 class GameMap {
 	/**
-	 *
-	 * @param {*} width
-	 * @param {*} height
-	 * @param {*} tile
+	 * Create an internal representation of the current map provided by the server
+	 * @param {BigInt} width - map width
+	 * @param {BigInt} height - map height
+	 * @param {Array<Map>} tile - array containing the type of cells formatted as {x, y, type}
 	 */
 	constructor(width, height, tile) {
 		// Take map in deliveroo format and convert it into matrix format
@@ -403,10 +402,10 @@ class GameMap {
 	}
 
 	/**
-	 *
-	 * @param {*} x
-	 * @param {*} y
-	 * @returns
+	 * Get a specific cell's type using a coordinate system where [0, 0] is the bottom left corner
+	 * @param {BigInt} x
+	 * @param {BigInt} y
+	 * @returns {Map} return specifications of the cell formatted as {x, y, type}
 	 */
 	getItem(x, y) {
 		return this.map[x][y];
@@ -414,7 +413,7 @@ class GameMap {
 }
 
 /**
- *
+ * Base IntentionRevision class
  */
 class IntentionRevision {
 	#intention_queue = new Array();
@@ -474,7 +473,7 @@ class IntentionRevision {
 }
 
 /**
- *
+ * Implementation of the IntentionRevision class considering only a single current intention
  */
 class IntentionRevisionReplace extends IntentionRevision {
 	async push(predicate) {
@@ -509,7 +508,7 @@ class IntentionRevisionReplace extends IntentionRevision {
 }
 
 /**
- *
+ * Base Intention class
  */
 class Intention {
 	// Plan currently used for achieving the intention
@@ -593,7 +592,7 @@ class Intention {
 }
 
 /**
- *
+ * Base Plan class
  */
 class Plan {
 	// This is used to stop the plan
@@ -634,7 +633,7 @@ class Plan {
 }
 
 /**
- *
+ * Plan class handling the "go_pick_up" intention
  */
 class GoPickUp extends Plan {
 	static isApplicableTo(go_pick_up, x, y, id) {
@@ -653,7 +652,7 @@ class GoPickUp extends Plan {
 }
 
 /**
- *
+ * Plan class handling the "go_deliver" intention
  */
 class GoDeliver extends Plan {
 	static isApplicableTo(go_deliver) {
@@ -676,7 +675,7 @@ class GoDeliver extends Plan {
 }
 
 /**
- *
+ * Plan class handling the "explore" intention
  */
 class Explore extends Plan {
 	static isApplicableTo(explore) {
@@ -701,9 +700,9 @@ class Explore extends Plan {
 }
 
 /**
- *
+ * Plan class handling the "go_to" intention
  */
-class BlindBFSmove extends Plan {
+class BFSmove extends Plan {
 	static isApplicableTo(go_to, x, y) {
 		return go_to == "go_to";
 	}
@@ -773,7 +772,7 @@ class BlindBFSmove extends Plan {
 
 			i++;
 			// After motion update the timestamp of the visited cells
-			grafo.updateTimeMap(me.x, me.y);
+			grafo.updateTimeMap();
 		}
 		return true;
 	}
@@ -846,15 +845,6 @@ function timedExplore() {
 	if (grafo.gameMap.spawnZonesCounter / grafo.gameMap.nonSpawnZonesCounter > SPAWN_NON_SPAWN_RATIO) {
 		// Explore only spawning zones
 		suitableCells = grafo.gameMap.spawnZones;
-		/*
-		if (Math.random() < DELIVERY_AREA_EXPLORE) {
-			// Explore only deliveries zones
-			suitableCells = grafo.gameMap.deliveryZones;
-		} else {
-			// Explore only spawning zones
-			suitableCells = grafo.gameMap.spawnZones;
-		}
-    */
 	} else {
 		// Consider only spawning tiles for explore
 		suitableCells = grafo.gameMap.spawnZones;
@@ -1071,12 +1061,9 @@ function carryingParcels() {
 }
 
 /**
- *
+ * Generate all possible options, based on the current game state and configuration, perform option filtering and select the best possible option as current intention
  */
 function optionsGeneration() {
-	/**
-	 * Options generation
-	 */
 	// Recover all the parcels I am carrying and the path to the nearest delivery
 	let carriedParcels = carryingParcels();
 
@@ -1394,7 +1381,7 @@ var currentConfig = undefined;
 
 // Plan classes are added to plan library
 planLibrary.push(GoPickUp);
-planLibrary.push(BlindBFSmove);
+planLibrary.push(BFSmove);
 planLibrary.push(GoDeliver);
 planLibrary.push(Explore);
 
