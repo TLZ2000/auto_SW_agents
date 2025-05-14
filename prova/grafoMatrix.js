@@ -310,7 +310,7 @@ class Graph {
 }
 
 /**
- *
+ * GameMap class that represent
  */
 class GameMap {
 	/**
