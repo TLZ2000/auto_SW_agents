@@ -6,7 +6,7 @@ const DELIVERY_AREA_EXPLORE = 0.1;
 const TIMED_EXPLORE = 0.99;
 const MEMORY_DIFFERENCE_THRESHOLD = 2000;
 const MOVES_SCALE_FACTOR = 100;
-const WAIT_TIMEOUT = 1000;
+const MEMORY_REVISION_TIMER = 10000;
 
 class Queue {
 	constructor() {
@@ -969,7 +969,7 @@ function navigateBFS(initialPos, finalPos) {
 	if (finalPath != undefined) {
 		return finalPath;
 	} else {
-		console.log("No path found to [" + finalPos[0] + "," + finalPos[1] + "]!");
+		//console.log("No path found to [" + finalPos[0] + "," + finalPos[1] + "]!");
 		return undefined;
 	}
 }
@@ -1281,7 +1281,7 @@ const client = new DeliverooApi(
 */
 
 // NAME: timed
-const client = new DeliverooApi("http://localhost:8080", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFlNTFhZCIsIm5hbWUiOiJtYXJjbyIsInRlYW1JZCI6IjE5NWI1ZSIsInRlYW1OYW1lIjoiZGlzaSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ1OTM1NzczfQ.Vcwbr28RqAjdKtOCEMh5Mx_VhhimIpyPh3qw-5XQlTQ");
+const client = new DeliverooApi("http://localhost:8080", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImNkNjU1NCIsIm5hbWUiOiJBZ2VudCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ2MDE4MzU1fQ.Qj5XIXCpnxv4ibSukP8xL0oTz6X6v7_3ouKZiVBHJl8");
 
 // Connect to server
 //const client = new DeliverooApi("https://deliveroojs.rtibdi.disi.unitn.it/", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjE4OTUyMSIsIm5hbWUiOiJUaGUgUm9ib1NhcGllbnMiLCJ0ZWFtSWQiOiJkMzkwNTgiLCJ0ZWFtTmFtZSI6IlRoZSBSb2JvU2FwaWVucyIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ2NTI0OTE4fQ.ldgQdobvrC-JuTBzhOdP4M96y6wC9EToaaQGXjoMzXQ");
@@ -1394,3 +1394,12 @@ await new Promise((res) => {
 		res();
 	});
 });
+
+memoryRevisionLoop();
+
+async function memoryRevisionLoop() {
+	while (true) {
+		await new Promise((res) => setTimeout(res, MEMORY_REVISION_TIMER));
+		reviseMemory(false);
+	}
+}
