@@ -12,7 +12,7 @@ const TIMED_EXPLORE = 0.99;
 const MEMORY_DIFFERENCE_THRESHOLD = 2000;
 const MOVES_SCALE_FACTOR = 100;
 const MEMORY_REVISION_TIMER = 10000;
-const MEMORY_SHARE_TIMER = 500;
+const MEMORY_SHARE_TIMER = 2000;
 
 /**
  * Queue class
@@ -1582,3 +1582,5 @@ await new Promise((res) => {
 });
 
 memoryRevisionLoop();
+
+memoryShareLoop();
