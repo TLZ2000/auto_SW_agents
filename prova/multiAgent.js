@@ -1,4 +1,10 @@
 import { DeliverooApi } from "@unitn-asa/deliveroo-js-client";
+const AGENT1_ID = "a420c0";
+const AGENT2_ID = "71f250";
+
+const AGENT1_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ijg5ZWU5MSIsIm5hbWUiOiJBR0VOVDEiLCJyb2xlIjoidXNlciIsImlhdCI6MTc0NzgxMzYzMX0.W8cKIL5m5sQ1CIdh-SdY2O8iWXEjmFR0AWgDWL-mGww";
+const AGENT2_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFjNWUxZCIsIm5hbWUiOiJBR0VOVDIiLCJyb2xlIjoidXNlciIsImlhdCI6MTc0NzgxMzYzNX0.x260N7Vm8Iuzm2fer9Q9YaKf7j0fqIuw5-MLxfPl4kY";
+const SERVER_ADDRS = "http://localhost:8080";
 
 const DISTANCE_NEAREST_PARCEL = 5;
 const SPAWN_NON_SPAWN_RATIO = 0.5;
@@ -1354,9 +1360,6 @@ const client = new DeliverooApi(
 );
 */
 
-// NAME: timed
-const client = new DeliverooApi("http://localhost:8080", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImNkNjU1NCIsIm5hbWUiOiJBZ2VudCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ2MDE4MzU1fQ.Qj5XIXCpnxv4ibSukP8xL0oTz6X6v7_3ouKZiVBHJl8");
-
 // Connect to server
 //const client = new DeliverooApi("https://deliveroojs.rtibdi.disi.unitn.it/", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjE4OTUyMSIsIm5hbWUiOiJUaGUgUm9ib1NhcGllbnMiLCJ0ZWFtSWQiOiJkMzkwNTgiLCJ0ZWFtTmFtZSI6IlRoZSBSb2JvU2FwaWVucyIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ2NTI0OTE4fQ.ldgQdobvrC-JuTBzhOdP4M96y6wC9EToaaQGXjoMzXQ");
 
@@ -1378,6 +1381,31 @@ var agents = new Map();
 var currentMap = undefined;
 var grafo = undefined;
 var currentConfig = undefined;
+
+// Recover command line arguments
+// print process.argv
+process.argv.forEach(function (val, index, array) {
+	if (val == "-a") {
+		if (process.argv[index + 1] == "1") {
+			// I am AGENT1
+			me.multiAgent_myID = AGENT1_ID;
+			me.multiAgent_palID = AGENT2_ID;
+			me.myToken = AGENT1_TOKEN;
+		} else {
+			// I am AGENT2
+			me.multiAgent_myID = AGENT2_ID;
+			me.multiAgent_palID = AGENT1_ID;
+			me.myToken = AGENT2_TOKEN;
+		}
+	}
+	console.log(index + ": " + val);
+});
+
+console.log(me.multiAgent_myID);
+console.log(me.multiAgent_palID);
+console.log(me.myToken);
+
+const client = new DeliverooApi(SERVER_ADDRS, me.myToken);
 
 // Plan classes are added to plan library
 planLibrary.push(GoPickUp);
