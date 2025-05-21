@@ -4,7 +4,7 @@ const AGENT2_ID = "ac5e1d";
 
 const AGENT1_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ijg5ZWU5MSIsIm5hbWUiOiJBR0VOVDEiLCJyb2xlIjoidXNlciIsImlhdCI6MTc0NzgxMzYzMX0.W8cKIL5m5sQ1CIdh-SdY2O8iWXEjmFR0AWgDWL-mGww";
 const AGENT2_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFjNWUxZCIsIm5hbWUiOiJBR0VOVDIiLCJyb2xlIjoidXNlciIsImlhdCI6MTc0NzgxMzYzNX0.x260N7Vm8Iuzm2fer9Q9YaKf7j0fqIuw5-MLxfPl4kY";
-const SERVER_ADDRS = "http://localhost:8080";
+const SERVER_ADDRS = "https://deliveroojs2.rtibdi.disi.unitn.it";
 
 const SPAWN_NON_SPAWN_RATIO = 0.5;
 const DELIVERY_AREA_EXPLORE = 0.1;
@@ -485,10 +485,10 @@ class IntentionRevisionReplace extends IntentionRevision {
 		// Check if already queued
 		const last = this.intention_queue.at(this.intention_queue.length - 1);
 
-		if (last) {
+		/* if (last) {
 			console.log("LAST: " + last.predicate.join(" "));
 			console.log("NOW: " + predicate.join(" "));
-		}
+		} */
 
 		if (last && last.predicate.join(" ") == predicate.join(" ")) {
 			return; // intention is already being achieved
@@ -1377,6 +1377,11 @@ const me = {
 	y: null,
 	score: null,
 	moves: 0,
+	multiAgent_myID: null,
+	multiAgent_palID: null,
+	multiAgent_palX: null,
+	multiAgent_palY: null,
+	myToken: null,
 };
 const myAgent = new IntentionRevisionReplace();
 const planLibrary = [];
@@ -1405,12 +1410,7 @@ process.argv.forEach(function (val, index, array) {
 			me.myToken = AGENT2_TOKEN;
 		}
 	}
-	console.log(index + ": " + val);
 });
-
-console.log(me.multiAgent_myID);
-console.log(me.multiAgent_palID);
-console.log(me.myToken);
 
 const client = new DeliverooApi(SERVER_ADDRS, me.myToken);
 
@@ -1421,10 +1421,52 @@ planLibrary.push(GoDeliver);
 planLibrary.push(Explore);
 
 client.onMsg(async (id, name, msg, reply) => {
-	console.log("new msg received from", name);
-	console.log(JSONToMap(msg.content));
-	const myname = (await client.me).name;
-	if (reply) {
+	// Manage the message content based on the message type
+	switch (msg.type) {
+		case "MSG_parcelSensing":
+			// Reconstruct parcel map
+			let parcels_map = JSONToMap(msg.content);
+
+			// Cycle all the reconstructed parcels
+			parcels_map.forEach((p) => {
+				// Check if the parcel is already in my memory
+				if (parcels.has(p.id)) {
+					// If so, check if the received parcel information is newer than the parcel information in my memory
+					if (parcels.get(p.id).time < p.time) {
+						// If so, update my memory
+						parcels.set(p.id, p);
+					}
+				} else {
+					// If not in memory, add it
+					parcels.set(p.id, p);
+				}
+			});
+			break;
+		case "MSG_agentSensing":
+			// Reconstruct agent map
+			let agents_map = JSONToMap(msg.content);
+
+			// Cycle all the reconstructed agents
+			agents_map.forEach((a) => {
+				// Check if the agent is already in my memory
+				if (parcels.has(a.id)) {
+					// If so, check if the received agent information is newer than the agent information in my memory
+					if (agents.get(a.id).time < a.time) {
+						// If so, update my memory
+						agents.set(a.id, a);
+					}
+				} else {
+					// If not in memory, add it
+					agents.set(a.id, a);
+				}
+			});
+			break;
+		default:
+			break;
+	}
+	reviseMemory(false);
+
+	/* 	if (reply) {
 		let answer = "hello " + name + ", this is the reply from " + myname + ". Do you need anything?";
 		console.log("my reply: ", answer);
 		try {
@@ -1432,7 +1474,7 @@ client.onMsg(async (id, name, msg, reply) => {
 		} catch {
 			(error) => console.error(error);
 		}
-	}
+	} */
 });
 
 client.onParcelsSensing(async (pp) => {
@@ -1450,19 +1492,25 @@ client.onParcelsSensing(async (pp) => {
 		}
 	}
 
+	// Send the parcels in the current belief set to the other agent in JSON format
 	await client.emitSay(me.multiAgent_palID, {
-		type: "parcelSensing",
+		type: "MSG_parcelSensing",
 		content: mapToJSON(parcels),
 	});
 });
 
 client.onAgentsSensing(async (aa) => {
 	// Add the sensed agents to the agent belief set
-
 	let now = Date.now();
 	aa.forEach((a) => {
 		a.time = now;
 		agents.set(a.id, a);
+	});
+
+	// Send the agents in the current belief set to the other agent in JSON format
+	await client.emitSay(me.multiAgent_palID, {
+		type: "MSG_agentSensing",
+		content: mapToJSON(agents),
 	});
 
 	/*
