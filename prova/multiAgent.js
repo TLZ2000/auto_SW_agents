@@ -1,6 +1,6 @@
 import { DeliverooApi } from "@unitn-asa/deliveroo-js-client";
-const AGENT1_ID = "a420c0";
-const AGENT2_ID = "71f250";
+const AGENT1_ID = "89ee91";
+const AGENT2_ID = "ac5e1d";
 
 const AGENT1_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ijg5ZWU5MSIsIm5hbWUiOiJBR0VOVDEiLCJyb2xlIjoidXNlciIsImlhdCI6MTc0NzgxMzYzMX0.W8cKIL5m5sQ1CIdh-SdY2O8iWXEjmFR0AWgDWL-mGww";
 const AGENT2_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFjNWUxZCIsIm5hbWUiOiJBR0VOVDIiLCJyb2xlIjoidXNlciIsImlhdCI6MTc0NzgxMzYzNX0.x260N7Vm8Iuzm2fer9Q9YaKf7j0fqIuw5-MLxfPl4kY";
@@ -1347,6 +1347,14 @@ function reviseMemory(generateOptions) {
 	}
 }
 
+function mapToJSON(map) {
+	return JSON.stringify(Object.fromEntries(map));
+}
+
+function JSONToMap(json) {
+	return new Map(Object.entries(JSON.parse(json)));
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // ===============================================================================================================
 // ---------------------------------------------------------------------------------------------------------------
@@ -1412,25 +1420,40 @@ planLibrary.push(BFSmove);
 planLibrary.push(GoDeliver);
 planLibrary.push(Explore);
 
+client.onMsg(async (id, name, msg, reply) => {
+	console.log("new msg received from", name);
+	console.log(JSONToMap(msg.content));
+	const myname = (await client.me).name;
+	if (reply) {
+		let answer = "hello " + name + ", this is the reply from " + myname + ". Do you need anything?";
+		console.log("my reply: ", answer);
+		try {
+			reply(answer);
+		} catch {
+			(error) => console.error(error);
+		}
+	}
+});
+
 client.onParcelsSensing(async (pp) => {
 	// Add the sensed parcels to the parcel belief set
 	let now = Date.now();
 	for (const p of pp) {
-		parcels.set(p.id, {
-			id: p.id,
-			x: p.x,
-			y: p.y,
-			carriedBy: p.carriedBy,
-			reward: p.reward,
-			time: now,
-		});
+		p.time = now;
+		parcels.set(p.id, p);
 	}
 
+	// Remove carried parcels after delivery
 	for (const [id, parcel] of parcels) {
 		if (parcel.carriedBy == me.id && parcel.time != now) {
 			parcels.delete(id);
 		}
 	}
+
+	await client.emitSay(me.multiAgent_palID, {
+		type: "parcelSensing",
+		content: mapToJSON(parcels),
+	});
 });
 
 client.onAgentsSensing(async (aa) => {
