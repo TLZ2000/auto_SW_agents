@@ -4,7 +4,7 @@ const AGENT2_ID = "ac5e1d";
 
 const AGENT1_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ijg5ZWU5MSIsIm5hbWUiOiJBR0VOVDEiLCJyb2xlIjoidXNlciIsImlhdCI6MTc0NzgxMzYzMX0.W8cKIL5m5sQ1CIdh-SdY2O8iWXEjmFR0AWgDWL-mGww";
 const AGENT2_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFjNWUxZCIsIm5hbWUiOiJBR0VOVDIiLCJyb2xlIjoidXNlciIsImlhdCI6MTc0NzgxMzYzNX0.x260N7Vm8Iuzm2fer9Q9YaKf7j0fqIuw5-MLxfPl4kY";
-const SERVER_ADDRS = "https://deliveroojs2.rtibdi.disi.unitn.it";
+const SERVER_ADDRS = "http://localhost:8080";
 
 const SPAWN_NON_SPAWN_RATIO = 0.5;
 const DELIVERY_AREA_EXPLORE = 0.1;
@@ -12,6 +12,7 @@ const TIMED_EXPLORE = 0.99;
 const MEMORY_DIFFERENCE_THRESHOLD = 2000;
 const MOVES_SCALE_FACTOR = 100;
 const MEMORY_REVISION_TIMER = 10000;
+const MEMORY_SHARE_TIMER = 500;
 
 /**
  * Queue class
@@ -1355,6 +1356,31 @@ function JSONToMap(json) {
 	return new Map(Object.entries(JSON.parse(json)));
 }
 
+async function memoryRevisionLoop() {
+	while (true) {
+		await new Promise((res) => setTimeout(res, MEMORY_REVISION_TIMER));
+		reviseMemory(false);
+	}
+}
+
+async function memoryShareLoop() {
+	while (true) {
+		await new Promise((res) => setTimeout(res, MEMORY_SHARE_TIMER));
+
+		// Send the parcels in the current belief set to the other agent in JSON format
+		await client.emitSay(me.multiAgent_palID, {
+			type: "MSG_parcelSensing",
+			content: mapToJSON(parcels),
+		});
+
+		// Send the agents in the current belief set to the other agent in JSON format
+		await client.emitSay(me.multiAgent_palID, {
+			type: "MSG_agentSensing",
+			content: mapToJSON(agents),
+		});
+	}
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // ===============================================================================================================
 // ---------------------------------------------------------------------------------------------------------------
@@ -1491,12 +1517,6 @@ client.onParcelsSensing(async (pp) => {
 			parcels.delete(id);
 		}
 	}
-
-	// Send the parcels in the current belief set to the other agent in JSON format
-	await client.emitSay(me.multiAgent_palID, {
-		type: "MSG_parcelSensing",
-		content: mapToJSON(parcels),
-	});
 });
 
 client.onAgentsSensing(async (aa) => {
@@ -1505,12 +1525,6 @@ client.onAgentsSensing(async (aa) => {
 	aa.forEach((a) => {
 		a.time = now;
 		agents.set(a.id, a);
-	});
-
-	// Send the agents in the current belief set to the other agent in JSON format
-	await client.emitSay(me.multiAgent_palID, {
-		type: "MSG_agentSensing",
-		content: mapToJSON(agents),
 	});
 
 	/*
@@ -1568,10 +1582,3 @@ await new Promise((res) => {
 });
 
 memoryRevisionLoop();
-
-async function memoryRevisionLoop() {
-	while (true) {
-		await new Promise((res) => setTimeout(res, MEMORY_REVISION_TIMER));
-		reviseMemory(false);
-	}
-}
