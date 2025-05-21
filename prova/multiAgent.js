@@ -846,15 +846,8 @@ function distanceExplore() {
  * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "timed" criterion
  */
 function timedExplore() {
-	let suitableCells = undefined;
-	// Check spawn/non spawn ratio, if larger than SPAWN_NON_SPAWN_RATIO
-	if (grafo.gameMap.spawnZonesCounter / grafo.gameMap.nonSpawnZonesCounter > SPAWN_NON_SPAWN_RATIO) {
-		// Explore only spawning zones
-		suitableCells = grafo.gameMap.spawnZones;
-	} else {
-		// Consider only spawning tiles for explore
-		suitableCells = grafo.gameMap.spawnZones;
-	}
+	// Explore only spawning zones
+	let suitableCells = grafo.gameMap.spawnZones;
 	let tmp = [];
 	// Do not consider current cell
 	for (let i = 0; i < suitableCells.length; i++) {
@@ -881,8 +874,13 @@ function timedExplore() {
 
 	// Normalize timestamp
 	suitableCells.forEach((element) => {
+		let distanceFromPal = distance({ x: element.x, y: element.y }, { x: me.multiAgent_palX, y: me.multiAgent_palY });
 		element.timestamp /= totalTime; // First normalization
 		element.timestamp /= element.distance * element.distance * element.distance * element.distance + 1; // Penalize distant cells
+
+		// DA CONTINUARE
+
+		// element.timestamp /= Math.max(0, -1 * Math.log(distanceFromPal));
 	});
 
 	// Second normalization
