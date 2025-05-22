@@ -732,6 +732,10 @@ class BFSmove extends Plan {
 			path = navigateBFS([Math.round(me.x), Math.round(me.y)], distanceExplore());
 		}
 
+		if (path == undefined) {
+			console.log("PROBLEMA " + (path == undefined));
+		}
+
 		let i = 0;
 		while (path != undefined && i < path.length) {
 			if (this.stopped) throw ["stopped"]; // if stopped then quit
@@ -987,28 +991,28 @@ function navigateBFS(initialPos, finalPos) {
 
 			// Explore its neighbors
 			// Up
-			if (currentNode.neighU != null) {
+			if (currentNode.neighU !== undefined && currentNode.neighU !== null) {
 				let tmp = path.slice();
 				tmp.push("U");
 				queue.enqueue({ currentNode: currentNode.neighU, path: tmp });
 			}
 
 			// Right
-			if (currentNode.neighR != null) {
+			if (currentNode.neighR !== undefined && currentNode.neighR !== null) {
 				let tmp = path.slice();
 				tmp.push("R");
 				queue.enqueue({ currentNode: currentNode.neighR, path: tmp });
 			}
 
 			// Down
-			if (currentNode.neighD != null) {
+			if (currentNode.neighD !== undefined && currentNode.neighD !== null) {
 				let tmp = path.slice();
 				tmp.push("D");
 				queue.enqueue({ currentNode: currentNode.neighD, path: tmp });
 			}
 
 			// Left
-			if (currentNode.neighL != null) {
+			if (currentNode.neighL !== undefined && currentNode.neighL !== null) {
 				let tmp = path.slice();
 				tmp.push("L");
 				queue.enqueue({ currentNode: currentNode.neighL, path: tmp });
@@ -1532,8 +1536,10 @@ client.onMsg(async (id, name, msg, reply) => {
 						agents.set(a.id, a);
 					}
 				} else {
-					// If not in memory, add it
-					agents.set(a.id, a);
+					// If not in memory, add it if that agent is no me
+					if (me.id != a.id) {
+						agents.set(a.id, a);
+					}
 				}
 			});
 			break;
