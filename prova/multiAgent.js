@@ -10,7 +10,7 @@ const SPAWN_NON_SPAWN_RATIO = 0.5;
 const DELIVERY_AREA_EXPLORE = 0.1;
 const TIMED_EXPLORE = 0.99;
 const MEMORY_DIFFERENCE_THRESHOLD = 2000;
-const MOVES_SCALE_FACTOR = 100;
+const MOVES_SCALE_FACTOR = 10;
 const MEMORY_REVISION_TIMER = 10000;
 const MEMORY_SHARE_TIMER = 2000;
 
@@ -662,6 +662,13 @@ class GoPickUp extends Plan {
 		await this.subIntention(["go_to", x, y]);
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		await client.emitPickup();
+
+		// Say to pal what packages I am carrying
+		await client.emitSay(me.multiAgent_palID, {
+			type: "MSG_carryingPKG",
+			content: JSON.stringify(carryingParcels()),
+		});
+
 		reviseMemory(true);
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		return true;
@@ -1497,6 +1504,8 @@ planLibrary.push(GoDeliver);
 planLibrary.push(Explore);
 
 client.onMsg(async (id, name, msg, reply) => {
+	var checkMemory = false;
+
 	// Manage the message content based on the message type
 	switch (msg.type) {
 		case "MSG_parcelSensing":
@@ -1557,10 +1566,21 @@ client.onMsg(async (id, name, msg, reply) => {
 			grafo.mergeTimeMaps(time_map);
 			break;
 
+		case "MSG_carryingPKG":
+			// Reconstruct the parcels carried by the pal
+			let carriedParcels = JSON.parse(msg.content);
+			carriedParcels.forEach((p) => {
+				parcels.set(p.id, p);
+			});
+
+			// Schedule a revise memory
+			checkMemory = true;
+			break;
+
 		default:
 			break;
 	}
-	reviseMemory(false);
+	reviseMemory(checkMemory);
 
 	/* 	if (reply) {
 		let answer = "hello " + name + ", this is the reply from " + myname + ". Do you need anything?";
