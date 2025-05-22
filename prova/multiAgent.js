@@ -264,6 +264,17 @@ class Graph {
 		this.#recursiveTimeMap(currentNode, time, range);
 	}
 
+	mergeTimeMaps(new_time) {
+		// Cycle all the timestamps in my time map and, if the new_time has a timestamp more recent, update my timestamp
+		for (let x = 0; x < new_time.length; x++) {
+			for (let y = 0; y < new_time[x].length; y++) {
+				if (this.gameMap.timeMap[x][y] < new_time[x][y]) {
+					this.gameMap.timeMap[x][y] = new_time[x][y];
+				}
+			}
+		}
+	}
+
 	/**
 	 * Reset the internal map that represent the cells occupied by other agents (to 0, completely free)
 	 */
@@ -849,12 +860,19 @@ function timedExplore() {
 	// Explore only spawning zones
 	let suitableCells = grafo.gameMap.spawnZones;
 	let tmp = [];
-	// Do not consider current cell
+	// Do not consider some specific cells
 	for (let i = 0; i < suitableCells.length; i++) {
+		// Ignore current agent cell
 		if (suitableCells[i].x == Math.round(me.x) && suitableCells[i].y == Math.round(me.y)) {
 			continue;
 		}
 
+		// Ignore this cell if it is already occupied by someone else
+		if (grafo.agentsNearby[suitableCells[i].x][suitableCells[i].y] == 1) {
+			continue;
+		}
+
+		// Otherwise consider this cell
 		tmp.push(suitableCells[i]);
 	}
 	suitableCells = tmp;
@@ -1354,6 +1372,14 @@ function JSONToMap(json) {
 	return new Map(Object.entries(JSON.parse(json)));
 }
 
+function matrixToJSON(mat) {
+	return JSON.stringify(mat);
+}
+
+function JSONToMatrix(json) {
+	return JSON.parse(json);
+}
+
 async function memoryRevisionLoop() {
 	while (true) {
 		await new Promise((res) => setTimeout(res, MEMORY_REVISION_TIMER));
@@ -1386,6 +1412,12 @@ async function memoryShareLoop() {
 				content: mapToJSON(map),
 			});
 		}
+
+		// Send the agents timestamp map to the other agent in JSON format
+		await client.emitSay(me.multiAgent_palID, {
+			type: "MSG_timeMap",
+			content: matrixToJSON(grafo.gameMap.timeMap),
+		});
 	}
 }
 
@@ -1502,6 +1534,13 @@ client.onMsg(async (id, name, msg, reply) => {
 			me.multiAgent_palX = Math.round(agent_map.x);
 			me.multiAgent_palY = Math.round(agent_map.y);
 			break;
+
+		case "MSG_timeMap":
+			// Reconstruct other agent time map
+			let time_map = JSONToMatrix(msg.content);
+			grafo.mergeTimeMaps(time_map);
+			break;
+
 		default:
 			break;
 	}
