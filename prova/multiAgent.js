@@ -1097,6 +1097,8 @@ function optionsGeneration() {
 	for (const parcel of parcels.values()) {
 		if (!parcel.carriedBy) {
 			if (parcel.x == Math.round(me.x) && parcel.y == Math.round(me.y)) {
+				// I am already in this position with this parcel, so I must pick it up
+				parcels.get(parcel.id).myExpectedReward = Infinity;
 				options.push([
 					"go_pick_up",
 					parcel.x, // X coord
@@ -1105,12 +1107,16 @@ function optionsGeneration() {
 					Infinity, // Expected reward if picked up
 				]);
 			} else {
+				// Compute and save the current expected reward for this parcel from the current agent's position
+				let tmpReward = expectedRewardCarriedAndPickup(carriedParcels, parcel);
+				parcels.get(parcel.id).myExpectedReward = tmpReward;
+
 				options.push([
 					"go_pick_up",
 					parcel.x, // X coord
 					parcel.y, // Y coord
 					parcel.id, // ID
-					expectedRewardCarriedAndPickup(carriedParcels, parcel), // Expected reward if picked up
+					tmpReward,
 				]);
 			}
 		}
@@ -1506,6 +1512,10 @@ client.onMsg(async (id, name, msg, reply) => {
 					// If not in memory, add it
 					parcels.set(p.id, p);
 				}
+
+				// Swap the field "myExpectedReward" and "palExpectedReward"
+				parcels.get(p.id).palExpectedReward = p.myExpectedReward;
+				parcels.get(p.id).myExpectedReward = 0;
 			});
 			break;
 		case "MSG_agentSensing":
@@ -1562,6 +1572,8 @@ client.onParcelsSensing(async (pp) => {
 	let now = Date.now();
 	for (const p of pp) {
 		p.time = now;
+		p.myExpectedReward = 0;
+		p.palExpectedReward = 0;
 		parcels.set(p.id, p);
 	}
 
