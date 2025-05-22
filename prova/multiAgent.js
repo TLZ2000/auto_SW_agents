@@ -10,7 +10,8 @@ const SPAWN_NON_SPAWN_RATIO = 0.5;
 const DELIVERY_AREA_EXPLORE = 0.1;
 const TIMED_EXPLORE = 0.99;
 const MEMORY_DIFFERENCE_THRESHOLD = 2000;
-const MOVES_SCALE_FACTOR = 10;
+const MOVES_SCALE_FACTOR = 100; // Lower values mean I want to deliver more often
+const MOVES_SCALE_FACTOR_NO_DECAY = 10; // Lower values mean I want to deliver more often
 const MEMORY_REVISION_TIMER = 10000;
 const MEMORY_SHARE_TIMER = 2000;
 
@@ -1059,7 +1060,7 @@ function expectedRewardOfCarriedParcels(carriedParcels, path) {
  * Compute the expected reward of delivering the currently carried parcels plus a targeted parcel to pick up
  * @param {Array} carriedParcels - list of parcels carried by me
  * @param {{x:BigInt, y: BigInt, reward: BigInt, time:BigInt}} parcel2Pickup - targeted parcel to pick up
- * @returns expected reward of delivering the currently carried parcels and the targeted parcel to pick up
+ * @returns list containing 0: expected reward of delivering the currently carried parcels and the targeted parcel to pick up, 1: length of path to pickup the parcel
  */
 function expectedRewardCarriedAndPickup(carriedParcels, parcel2Pickup) {
 	let pickUpReward = parcelCostReward(parcel2Pickup);
@@ -1070,10 +1071,10 @@ function expectedRewardCarriedAndPickup(carriedParcels, parcel2Pickup) {
 		let totalScore = pickUpReward.expectedReward + expectedRewardOfCarriedParcels(carriedParcels, pickUpReward.pathToParcel.concat(pickUpReward.pathToDeliver));
 
 		// Return the final expected score
-		return totalScore;
+		return [totalScore, pickUpReward.pathToParcel.length];
 	} else {
 		// Else no reward
-		return 0;
+		return [0, 0];
 	}
 }
 
@@ -1109,35 +1110,27 @@ function optionsGeneration() {
 		if (!parcel.carriedBy) {
 			if (parcel.x == Math.round(me.x) && parcel.y == Math.round(me.y)) {
 				// I am already in this position with this parcel, so I must pick it up
-				parcels.get(parcel.id).myExpectedReward = Infinity;
 				options.push([
 					"go_pick_up",
 					parcel.x, // X coord
 					parcel.y, // Y coord
 					parcel.id, // ID
-					Infinity, // Expected reward if picked up
+					Infinity, // Expected reward
+					0, // Path length to pickup
 				]);
 			} else {
 				// Compute and save the current expected reward for this parcel from the current agent's position
 				let tmpReward = expectedRewardCarriedAndPickup(carriedParcels, parcel);
-				parcels.get(parcel.id).myExpectedReward = tmpReward;
 
 				options.push([
 					"go_pick_up",
 					parcel.x, // X coord
 					parcel.y, // Y coord
 					parcel.id, // ID
-					tmpReward,
+					tmpReward[0], // Expected reward
+					tmpReward[1], // lenght of the path to pickup the parcel
 				]);
 			}
-		}
-	}
-
-	if (carriedParcels.length != 0) {
-		if (grafo.gameMap.getItem(Math.round(me.x), Math.round(me.y)).type == 2) {
-			options.push(["go_deliver", Infinity]);
-		} else {
-			options.push(["go_deliver", expectedRewardOfCarriedParcels(carriedParcels, pathNearestDelivery) * (me.moves / MOVES_SCALE_FACTOR + 1)]);
 		}
 	}
 
@@ -1146,20 +1139,61 @@ function optionsGeneration() {
 	 */
 	let best_option = undefined;
 	let maxExpectedScore = 0;
+	let minDistance = 0;
 
+	// Select best pickup option
 	options.forEach((option) => {
 		let currentExpectedScore = 0;
+		let currentDistance = 0;
 		if (option[0] == "go_pick_up") {
 			currentExpectedScore = option[4];
-		} else if (option[0] == "go_deliver") {
-			currentExpectedScore = option[1];
+			currentDistance = option[5];
 		}
 
+		// Check the best expected score
 		if (currentExpectedScore > maxExpectedScore) {
 			maxExpectedScore = currentExpectedScore;
+			minDistance = currentDistance;
 			best_option = option;
+		} else if (currentExpectedScore == maxExpectedScore) {
+			// If same expected score, then select the nearest parcel
+			if (currentDistance < minDistance) {
+				best_option = option;
+				minDistance = currentDistance;
+			}
 		}
 	});
+
+	// Define a delivery option
+	let delivery_option = undefined;
+	if (carriedParcels.length != 0) {
+		if (grafo.gameMap.getItem(Math.round(me.x), Math.round(me.y)).type == 2) {
+			delivery_option = ["go_deliver", Infinity];
+		} else {
+			if (currentConfig.PARCEL_DECADING_INTERVAL == "infinite") {
+				// If there is no parcel decay, then increase the expected reward of the carried parcels using a dedicated scale factor
+				delivery_option = ["go_deliver", expectedRewardOfCarriedParcels(carriedParcels, pathNearestDelivery) * (me.moves / MOVES_SCALE_FACTOR_NO_DECAY + 1)];
+			} else {
+				// If there is parcel decay, let the user weight the parcel reward increase
+				delivery_option = ["go_deliver", expectedRewardOfCarriedParcels(carriedParcels, pathNearestDelivery) * (me.moves / MOVES_SCALE_FACTOR + 1)];
+			}
+		}
+	}
+
+	// Select the deliver option or pickup option (aka. best_option) based on the highest expected reward
+	if (best_option) {
+		if (delivery_option) {
+			// If there is a possible pickup and also a possible deliver, then check the highest reward
+			if (best_option[4] < delivery_option[1]) {
+				best_option = delivery_option;
+			}
+		} else {
+			// If I have a pickup option but no deliver, then do nothing
+		}
+	} else {
+		// If I have no pickup options, then the best option is the delivery by default (if I have no delivery, I will select the explore later)
+		best_option = delivery_option;
+	}
 
 	/**
 	 * Best option is selected
@@ -1525,10 +1559,6 @@ client.onMsg(async (id, name, msg, reply) => {
 					// If not in memory, add it
 					parcels.set(p.id, p);
 				}
-
-				// Swap the field "myExpectedReward" and "palExpectedReward"
-				parcels.get(p.id).palExpectedReward = p.myExpectedReward;
-				parcels.get(p.id).myExpectedReward = 0;
 			});
 			break;
 		case "MSG_agentSensing":
@@ -1598,8 +1628,6 @@ client.onParcelsSensing(async (pp) => {
 	let now = Date.now();
 	for (const p of pp) {
 		p.time = now;
-		p.myExpectedReward = 0;
-		p.palExpectedReward = 0;
 		parcels.set(p.id, p);
 	}
 
