@@ -15,6 +15,8 @@ const MOVES_SCALE_FACTOR_NO_DECAY = 10; // Lower values mean I want to deliver m
 const MEMORY_REVISION_TIMER = 10000;
 const MEMORY_SHARE_TIMER = 2000;
 const MAX_EXPLORABLE_SPAWN_CELLS = 100;
+const MAX_WAITING_RESPONSE = 10;
+const WAITING_INTERVAL = 100;
 
 /**
  * Queue class
@@ -1170,13 +1172,133 @@ function carryingParcels() {
 }
 
 /**
+ *
+ * @param {[int, int]} initialPos
+ * @param {[int, int]} finalPos
+ * @returns
+ */
+function findPathNearestDeliverAndOtherAgentBFS() {
+	let queue = new Queue();
+	let explored = new Set();
+	let finalPath = undefined;
+	let finalPalFlag = false;
+
+	let initialNode = grafo.graphMap[Math.round(me.x)][Math.round(me.y)];
+
+	if (initialNode == undefined) {
+		return undefined;
+	}
+
+	// Add initial node to the queue
+	queue.enqueue({ currentNode: initialNode, path: [], palFlag: false });
+
+	// Cycle until the queue is empty or a valid path has been found
+	while (!queue.isEmpty()) {
+		// Take the item from the queue
+		let { currentNode, path, palFlag } = queue.dequeue();
+
+		// Check if in the current node there is the pal agent
+		if (currentNode.x == me.multiAgent_palX && currentNode.y == me.multiAgent_palY) {
+			palFlag = true;
+		}
+
+		// If the current position is a delivery cell
+		if (currentNode.type == 2) {
+			// Check if in that delivery cell there is no other agent
+			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
+				// If it is the pal agent that occupies the cell
+				if (currentNode.x == me.multiAgent_palX && currentNode.y == me.multiAgent_palY) {
+					finalPath = path;
+					finalPalFlag = palFlag;
+				} else {
+					// If it is another agent
+					finalPath = undefined;
+				}
+			} else {
+				// No agent
+				finalPath = path;
+				finalPalFlag = palFlag;
+			}
+			break;
+		}
+
+		let currentNodeId = currentNode.x + " " + currentNode.y;
+
+		// If the node not has not been visited
+		if (!explored.has(currentNodeId)) {
+			// Visit it
+			explored.add(currentNodeId);
+
+			// If node is occupied
+			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
+				// Check if it is occupied by my pal agent
+				if (!(currentNode.x == me.multiAgent_palX && currentNode.y == me.multiAgent_palY)) {
+					// If not, skip the node and do not explore its neighbors
+					continue;
+				}
+			}
+
+			// Explore its neighbors
+			// Up
+			if (currentNode.neighU !== undefined && currentNode.neighU !== null) {
+				let tmp = path.slice();
+				tmp.push("U");
+				queue.enqueue({ currentNode: currentNode.neighU, path: tmp, palFlag: palFlag });
+			}
+
+			// Right
+			if (currentNode.neighR !== undefined && currentNode.neighR !== null) {
+				let tmp = path.slice();
+				tmp.push("R");
+				queue.enqueue({ currentNode: currentNode.neighR, path: tmp, palFlag: palFlag });
+			}
+
+			// Down
+			if (currentNode.neighD !== undefined && currentNode.neighD !== null) {
+				let tmp = path.slice();
+				tmp.push("D");
+				queue.enqueue({ currentNode: currentNode.neighD, path: tmp, palFlag: palFlag });
+			}
+
+			// Left
+			if (currentNode.neighL !== undefined && currentNode.neighL !== null) {
+				let tmp = path.slice();
+				tmp.push("L");
+				queue.enqueue({ currentNode: currentNode.neighL, path: tmp, palFlag: palFlag });
+			}
+		}
+	}
+
+	// Return the path from the current position to the delivery and the pal flag
+	return [finalPath, finalPalFlag];
+}
+
+async function sendTradeMessage(message) {
+	// Send trade message to pal
+	await client.emitSay(me.multiAgent_palID, {
+		type: "MSG_trade",
+		content: mapToJSON(message),
+	});
+}
+
+/**
+ * Wrapper for the sendTradeMessage() function
+ */
+function tradeWithPal(message) {
+	// Reset waiting response timer
+	me.waitingResponse = 0;
+	// Send the trade request
+	sendTradeMessage(message);
+}
+
+/**
  * Generate all possible options, based on the current game state and configuration, perform option filtering and select the best possible option as current intention
  */
 function optionsGeneration() {
 	// Recover all the parcels I am carrying and the path to the nearest delivery
 	let carriedParcels = carryingParcels();
 
-	let pathNearestDelivery = navigateBFS([Math.round(me.x), Math.round(me.y)], [grafo.graphMap[Math.round(me.x)][Math.round(me.y)].visitedDeliveries[0].deliveryNode.x, grafo.graphMap[Math.round(me.x)][Math.round(me.y)].visitedDeliveries[0].deliveryNode.y]);
+	let [pathNearestDelivery, palFlag] = findPathNearestDeliverAndOtherAgentBFS();
 
 	// TODO: mettere undefined
 
@@ -1242,15 +1364,32 @@ function optionsGeneration() {
 	// Define a delivery option
 	let delivery_option = undefined;
 	if (carriedParcels.length != 0) {
+		// If I am in a delivery cell, then deliver
 		if (grafo.gameMap.getItem(Math.round(me.x), Math.round(me.y)).type == 2) {
 			delivery_option = ["go_deliver", Infinity];
 		} else {
+			// Otherwise
+
+			// Compute expected reward
+			let reward = 0;
 			if (currentConfig.PARCEL_DECADING_INTERVAL == "infinite") {
 				// If there is no parcel decay, then increase the expected reward of the carried parcels using a dedicated scale factor
-				delivery_option = ["go_deliver", expectedRewardOfCarriedParcels(carriedParcels, pathNearestDelivery) * (me.moves / MOVES_SCALE_FACTOR_NO_DECAY + 1)];
+				reward = expectedRewardOfCarriedParcels(carriedParcels, pathNearestDelivery) * (me.moves / MOVES_SCALE_FACTOR_NO_DECAY + 1);
 			} else {
 				// If there is parcel decay, let the user weight the parcel reward increase
-				delivery_option = ["go_deliver", expectedRewardOfCarriedParcels(carriedParcels, pathNearestDelivery) * (me.moves / MOVES_SCALE_FACTOR + 1)];
+				reward = expectedRewardOfCarriedParcels(carriedParcels, pathNearestDelivery) * (me.moves / MOVES_SCALE_FACTOR + 1);
+			}
+
+			// Check if in the path to delivery there is my pal agent
+			if (!palFlag) {
+				// If not, procede with the usual delivery
+				delivery_option = ["go_deliver", reward];
+			} else {
+				// Otherwise, trade half delivery with pal agent
+				if (reward != 0) {
+					// Start trade with pal agent
+					tradeWithPal({ path: pathNearestDelivery, reward: reward });
+				}
 			}
 		}
 	}
@@ -1311,10 +1450,18 @@ function optionsGeneration() {
 
 		// If yes, push the best option
 		if (push) {
+			me.currentIntention = best_option[0];
+			if (best_option[0] == "go_deliver") {
+				me.currentIntentionReward = best_option[1];
+			} else if (best_option[0] == "go_pick_up") {
+				me.currentIntentionReward = best_option[4];
+			}
 			myAgent.push(best_option);
 		}
 	} else {
 		// If we don't have a valid best option, then explore
+		me.currentIntention = "explore";
+		me.currentIntentionReward = 0;
 		if (Math.random() < TIMED_EXPLORE) {
 			// Explore oldest tiles
 			myAgent.push(["explore", "timed"]);
@@ -1574,6 +1721,9 @@ const me = {
 	multiAgent_palX: null,
 	multiAgent_palY: null,
 	myToken: null,
+	waitingResponse: MAX_WAITING_RESPONSE,
+	currentIntention: undefined,
+	currentIntentionReward: 0,
 };
 const myAgent = new IntentionRevisionReplace();
 const planLibrary = [];
@@ -1636,6 +1786,7 @@ client.onMsg(async (id, name, msg, reply) => {
 				}
 			});
 			break;
+
 		case "MSG_agentSensing":
 			// Reconstruct agent map
 			let agents_map = JSONToMap(msg.content);
@@ -1684,6 +1835,12 @@ client.onMsg(async (id, name, msg, reply) => {
 
 			// Schedule a revise memory
 			checkMemory = true;
+			break;
+
+		case "MSG_trade":
+			let message = JSONToMap(msg.content);
+
+			// Compute
 			break;
 
 		default:
