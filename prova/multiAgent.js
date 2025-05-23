@@ -1532,7 +1532,7 @@ async function memoryShareLoop() {
 		// Send the current me information to the other agent in JSON format
 		if (me.x != null && me.y != null) {
 			let map = new Map();
-			map.set(me.id, { x: me.x, y: me.y });
+			map.set(me.id, { id: me.id, x: me.x, y: me.y });
 			await client.emitSay(me.multiAgent_palID, {
 				type: "MSG_agentInfo",
 				content: mapToJSON(map),
@@ -1663,6 +1663,10 @@ client.onMsg(async (id, name, msg, reply) => {
 			let agent_map = JSONToMap(msg.content).get(me.multiAgent_palID);
 			me.multiAgent_palX = Math.round(agent_map.x);
 			me.multiAgent_palY = Math.round(agent_map.y);
+
+			agent_map.time = Date.now();
+			// Add other agent to my memory
+			agents.set(agent_map.id, agent_map);
 			break;
 
 		case "MSG_timeMap":
