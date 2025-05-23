@@ -10,10 +10,11 @@ const SPAWN_NON_SPAWN_RATIO = 0.5;
 const DELIVERY_AREA_EXPLORE = 0.1;
 const TIMED_EXPLORE = 0.99;
 const MEMORY_DIFFERENCE_THRESHOLD = 2000;
-const MOVES_SCALE_FACTOR = 100; // Lower values mean I want to deliver more often
+const MOVES_SCALE_FACTOR = 50; // Lower values mean I want to deliver more often
 const MOVES_SCALE_FACTOR_NO_DECAY = 10; // Lower values mean I want to deliver more often
 const MEMORY_REVISION_TIMER = 10000;
 const MEMORY_SHARE_TIMER = 2000;
+const MAX_EXPLORABLE_SPAWN_CELLS = 100;
 
 /**
  * Queue class
@@ -808,25 +809,101 @@ class BFSmove extends Plan {
 }
 
 /**
+ * Compute the list of reachable spawn/delivery zones from the current agent's position
+ * @returns {[Array, Array]} tile items containing [suitableSpawn, suitableDelivery]
+ */
+function searchSuitableCellsBFS() {
+	let queue = new Queue();
+	let explored = new Set();
+	let suitableSpawn = [];
+	let suitableDelivery = [];
+
+	let initialNode = grafo.graphMap[Math.round(me.x)][Math.round(me.y)];
+
+	if (initialNode == undefined) {
+		return undefined;
+	}
+
+	// Add initial node to the queue
+	queue.enqueue(initialNode);
+
+	// Cycle until the queue is empty or a valid path has been found
+	while (!queue.isEmpty()) {
+		if (suitableSpawn.length > MAX_EXPLORABLE_SPAWN_CELLS) {
+			break;
+		}
+		// Take the item from the queue
+		let currentNode = queue.dequeue();
+
+		let currentNodeId = currentNode.x + " " + currentNode.y;
+
+		// If the node not has not been visited
+		if (!explored.has(currentNodeId)) {
+			// Visit it
+			explored.add(currentNodeId);
+
+			// If node is occupied, ignore its neighbors
+			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
+				continue;
+			}
+
+			// Check node type
+			if (currentNode.type == 1) {
+				// If spawn node, then add to suitable spawns
+				suitableSpawn.push({ type: currentNode.type, x: currentNode.x, y: currentNode.y });
+			} else if (currentNode.type == 2) {
+				// If deliver node, then add to suitable deliveries
+				suitableDelivery.push({ type: currentNode.type, x: currentNode.x, y: currentNode.y });
+			}
+
+			// Explore its neighbors
+			// Up
+			if (currentNode.neighU !== undefined && currentNode.neighU !== null) {
+				queue.enqueue(currentNode.neighU);
+			}
+
+			// Right
+			if (currentNode.neighR !== undefined && currentNode.neighR !== null) {
+				queue.enqueue(currentNode.neighR);
+			}
+
+			// Down
+			if (currentNode.neighD !== undefined && currentNode.neighD !== null) {
+				queue.enqueue(currentNode.neighD);
+			}
+
+			// Left
+			if (currentNode.neighL !== undefined && currentNode.neighL !== null) {
+				queue.enqueue(currentNode.neighL);
+			}
+		}
+	}
+
+	console.log([suitableSpawn, suitableDelivery]);
+
+	return [suitableSpawn, suitableDelivery];
+}
+
+/**
  * Randomly select a cell to explore using the "distance" criterion (distant cells are more probable), if the ratio of spawn/non spawn cells is greater than SPAWN_NON_SPAWN_RATIO, consider also delivery zones
  * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "distance" criterion
  */
 function distanceExplore() {
-	let suitableCells = undefined;
+	let suitableCells = searchSuitableCellsBFS();
 	// Check spawn/non spawn ratio, if larger than SPAWN_NON_SPAWN_RATIO
 	if (grafo.gameMap.spawnZonesCounter / grafo.gameMap.nonSpawnZonesCounter > SPAWN_NON_SPAWN_RATIO) {
 		// Consider also delivery zones for the explore
 		let deliveryOrSpawn = Math.random();
 		if (deliveryOrSpawn < DELIVERY_AREA_EXPLORE) {
 			// Explore only deliveries zones
-			suitableCells = grafo.gameMap.deliveryZones;
+			suitableCells = suitableCells[1];
 		} else {
 			// Explore only spawning zones
-			suitableCells = grafo.gameMap.spawnZones;
+			suitableCells = suitableCells[0];
 		}
 	} else {
 		// Consider only spawning tiles for explore
-		suitableCells = grafo.gameMap.spawnZones;
+		suitableCells = suitableCells[0];
 	}
 
 	// Recover all suitable tiles for explore (spawning)
@@ -870,7 +947,7 @@ function distanceExplore() {
  */
 function timedExplore() {
 	// Explore only spawning zones
-	let suitableCells = grafo.gameMap.spawnZones;
+	let suitableCells = searchSuitableCellsBFS()[0];
 	let tmp = [];
 	// Do not consider some specific cells
 	for (let i = 0; i < suitableCells.length; i++) {
@@ -904,12 +981,10 @@ function timedExplore() {
 
 	// Normalize timestamp
 	suitableCells.forEach((element) => {
-		let distanceFromPal = distance({ x: element.x, y: element.y }, { x: me.multiAgent_palX, y: me.multiAgent_palY });
 		element.timestamp /= totalTime; // First normalization
 		element.timestamp /= element.distance * element.distance * element.distance * element.distance + 1; // Penalize distant cells
 
 		// DA CONTINUARE
-
 		// element.timestamp /= Math.max(0, -1 * Math.log(distanceFromPal));
 	});
 
@@ -939,7 +1014,7 @@ function timedExplore() {
 		}
 	});
 
-	// If timed explore failed (sometimes happens a NaN error somewhere and we don't know why)
+	// If timed explore failed
 	if (randX == undefined || randY == undefined) {
 		// If this happens, select a random cell to explore based on distance
 		return distanceExplore();
