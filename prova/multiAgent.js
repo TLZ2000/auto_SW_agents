@@ -13,7 +13,7 @@ const MEMORY_DIFFERENCE_THRESHOLD = 2000;
 const MOVES_SCALE_FACTOR = 50; // Lower values mean I want to deliver more often
 const MOVES_SCALE_FACTOR_NO_DECAY = 10; // Lower values mean I want to deliver more often
 const MEMORY_REVISION_TIMER = 10000;
-const MEMORY_SHARE_TIMER = 2000;
+const MEMORY_SHARE_TIMER = 100;
 const MAX_EXPLORABLE_SPAWN_CELLS = 100;
 const MAX_WAITING_RESPONSE = 10;
 const WAITING_INTERVAL = 100;
@@ -1274,10 +1274,11 @@ function findPathNearestDeliverAndOtherAgentBFS() {
 }
 
 async function sendTradeMessage(message) {
-	// Send trade message to pal
+	// Send trade message to pal, also add memory informations to be sure that also the other agent is up to date
+	me.tradeMessageSent = true;
 	await client.emitSay(me.multiAgent_palID, {
 		type: "MSG_trade",
-		content: mapToJSON(message),
+		content: JSON.stringify({ message: message, parcels: parcels, agents: agents }),
 	});
 }
 
@@ -1285,10 +1286,13 @@ async function sendTradeMessage(message) {
  * Wrapper for the sendTradeMessage() function
  */
 function tradeWithPal(message) {
-	// Reset waiting response timer
-	me.waitingResponse = 0;
 	// Send the trade request
 	sendTradeMessage(message);
+
+	// Wait until pal response
+	while (me.tradeMessageSent) {
+		console.log("waiting");
+	}
 }
 
 /**
@@ -1298,10 +1302,8 @@ function tradeWithPal(message) {
  * @returns {[BigInt, BigInt]} position of the middle cell where the agents should meet
  */
 function computeMiddlePoint(path, fromMe2Pal = true) {
-	let myPosition = [me.x, me.y]; // Current agent position
-	let palPosition = [me.multiAgent_palX, me.multiAgent_palY]; // Current pal position
-	let agentPathIndex = 0; // Path length -1 (for indexing reasons)
-	let palPathIndex = path.length() - 1; // Path length -1 (for indexing reasons)
+	let myPosition = [Math.round(me.x), Math.round(me.y)]; // Current agent position
+	let palPosition = [Math.round(me.multiAgent_palX), Math.round(me.multiAgent_palY)]; // Current pal position
 
 	let myPath = [];
 	let palPath = [];
@@ -1325,7 +1327,6 @@ function computeMiddlePoint(path, fromMe2Pal = true) {
 		palPath.reverse();
 	} else {
 		// The path is correct for the pal but inverted for me
-		// The path is correct for me but inverted for the pal
 		palPath = path;
 
 		palPath.forEach((move) => {
@@ -1343,7 +1344,7 @@ function computeMiddlePoint(path, fromMe2Pal = true) {
 		myPath.reverse();
 	}
 
-	for (let i = 0; i < path.length(); i++) {
+	for (let i = 0; i < path.length; i++) {
 		// Agent step
 		if (myPath[i] == "U") {
 			// Move up
@@ -1366,20 +1367,19 @@ function computeMiddlePoint(path, fromMe2Pal = true) {
 		}
 
 		// Pal step
-		if (path[palPathIndex] == "U") {
+		if (palPath[i] == "U") {
 			// Move up
 			palPosition[1] = palPosition[1] + 1;
-		} else if (path[palPathIndex] == "R") {
+		} else if (palPath[i] == "R") {
 			// Move right
 			palPosition[0] = palPosition[0] + 1;
-		} else if (path[palPathIndex] == "D") {
+		} else if (palPath[i] == "D") {
 			// Move down
 			palPosition[1] = palPosition[1] - 1;
-		} else if (path[palPathIndex] == "L") {
+		} else if (palPath[i] == "L") {
 			// Move left
 			palPosition[0] = palPosition[0] - 1;
 		}
-		palPathIndex -= 1;
 
 		// Are agent and pal in the same position?
 		if (myPosition[0] == palPosition[0] && myPosition[1] == palPosition[1]) {
@@ -1490,7 +1490,7 @@ function optionsGeneration() {
 				// Otherwise, trade half delivery with pal agent
 				if (reward != 0) {
 					// Start trade with pal agent
-					tradeWithPal({ path: pathNearestDelivery, reward: reward });
+					tradeWithPal({ path: pathNearestDelivery, reward: reward, myX: Math.round(me.x), myY: Math.round(me.y) });
 				}
 			}
 		}
@@ -1572,6 +1572,42 @@ function optionsGeneration() {
 			myAgent.push(["explore", "distance"]);
 		}
 	}
+}
+
+/**
+ * Follow the path from the pal agent until my position
+ * @param {Array} path - path from the pal agent to somewhere
+ * @returns {Array|undefined} path from the pal agent to me, undefined if I am not on the provided path
+ */
+function fromPal2Me(path) {
+	let palX = Math.round(me.multiAgent_palX);
+	let palY = Math.round(me.multiAgent_palY);
+	let tmpPath = [];
+
+	for (let i = 0; i < path.length; i++) {
+		let move = path[i];
+		if (move == "U") {
+			palY += 1;
+		} else if (move == "R") {
+			palX += 1;
+		} else if (move == "D") {
+			palY -= 1;
+		} else if (move == "L") {
+			palX -= 1;
+		}
+
+		tmpPath.push(move);
+		console.log(tmpPath);
+		console.log(palX + " - " + palY);
+		console.log(Math.round(me.x) + " - " + Math.round(me.y));
+		console.log(palX == Math.round(me.x) && palY == Math.round(me.y));
+
+		if (palX == Math.round(me.x) && palY == Math.round(me.y)) {
+			return tmpPath;
+		}
+	}
+
+	return undefined;
 }
 
 /**
@@ -1796,6 +1832,54 @@ async function memoryShareLoop() {
 	}
 }
 
+function updateParcelsFromPal(parcels_map) {
+	// Cycle all the reconstructed parcels
+	parcels_map.forEach((p) => {
+		// Check if the parcel is already in my memory
+		if (parcels.has(p.id)) {
+			// If so, check if the received parcel information is newer than the parcel information in my memory
+			if (parcels.get(p.id).time < p.time) {
+				// If so, update my memory
+				parcels.set(p.id, p);
+			}
+		} else {
+			// If not in memory, add it
+			parcels.set(p.id, p);
+		}
+	});
+}
+
+function updateAgentsFromPal(agents_map) {
+	// Cycle all the reconstructed agents
+	agents_map.forEach((a) => {
+		// Check if the agent is already in my memory
+		if (parcels.has(a.id)) {
+			// If so, check if the received agent information is newer than the agent information in my memory
+			if (agents.get(a.id).time < a.time) {
+				// If so, update my memory
+				agents.set(a.id, a);
+			}
+		} else {
+			// If not in memory, add it if that agent is no me
+			if (me.id != a.id) {
+				agents.set(a.id, a);
+			}
+		}
+	});
+}
+
+function updateMeFromPal(agent_map) {
+	// Update coordinates
+	me.multiAgent_palX = Math.round(agent_map.x);
+	me.multiAgent_palY = Math.round(agent_map.y);
+
+	// Update last visit of Pal
+	agent_map.time = Date.now();
+
+	// Add other agent to my memory
+	agents.set(agent_map.id, agent_map);
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // ===============================================================================================================
 // ---------------------------------------------------------------------------------------------------------------
@@ -1823,7 +1907,7 @@ const me = {
 	multiAgent_palX: null,
 	multiAgent_palY: null,
 	myToken: null,
-	waitingResponse: MAX_WAITING_RESPONSE,
+	tradeMessageSent: false,
 	currentIntention: undefined,
 	currentIntentionReward: 0,
 };
@@ -1873,53 +1957,19 @@ client.onMsg(async (id, name, msg, reply) => {
 			// Reconstruct parcel map
 			let parcels_map = JSONToMap(msg.content);
 
-			// Cycle all the reconstructed parcels
-			parcels_map.forEach((p) => {
-				// Check if the parcel is already in my memory
-				if (parcels.has(p.id)) {
-					// If so, check if the received parcel information is newer than the parcel information in my memory
-					if (parcels.get(p.id).time < p.time) {
-						// If so, update my memory
-						parcels.set(p.id, p);
-					}
-				} else {
-					// If not in memory, add it
-					parcels.set(p.id, p);
-				}
-			});
+			updateParcelsFromPal(parcels_map);
 			break;
 
 		case "MSG_agentSensing":
 			// Reconstruct agent map
 			let agents_map = JSONToMap(msg.content);
-
-			// Cycle all the reconstructed agents
-			agents_map.forEach((a) => {
-				// Check if the agent is already in my memory
-				if (parcels.has(a.id)) {
-					// If so, check if the received agent information is newer than the agent information in my memory
-					if (agents.get(a.id).time < a.time) {
-						// If so, update my memory
-						agents.set(a.id, a);
-					}
-				} else {
-					// If not in memory, add it if that agent is no me
-					if (me.id != a.id) {
-						agents.set(a.id, a);
-					}
-				}
-			});
+			updateAgentsFromPal(agents_map);
 			break;
 
 		case "MSG_agentInfo":
 			// Reconstruct other agent map
 			let agent_map = JSONToMap(msg.content).get(me.multiAgent_palID);
-			me.multiAgent_palX = Math.round(agent_map.x);
-			me.multiAgent_palY = Math.round(agent_map.y);
-
-			agent_map.time = Date.now();
-			// Add other agent to my memory
-			agents.set(agent_map.id, agent_map);
+			updateMeFromPal(agent_map);
 			break;
 
 		case "MSG_timeMap":
@@ -1940,8 +1990,25 @@ client.onMsg(async (id, name, msg, reply) => {
 			break;
 
 		case "MSG_trade":
-			let message = JSONToMap(msg.content);
+			console.log("MSG_trade received");
+			let message = JSON.parse(msg.content);
 
+			// Update latest pal position
+			me.multiAgent_palX = message.myX;
+			me.multiAgent_palY = message.myY;
+
+			// Compute path from me to pal
+			let pathPal2Me = fromPal2Me(message.path);
+
+			console.log(pathPal2Me);
+
+			// Identify a middle position
+			let middlePosition = computeMiddlePoint(pathPal2Me, false);
+
+			console.log("PRINT - " + middlePosition);
+			// WIP: if pal agent ask for help, I go to help him always
+
+			/*
 			if (me.currentIntention == "explore") {
 				// If I am exploring, so I am doing nothing, then help pal
 			} else if (me.currentIntention == "go_pick_up") {
@@ -1952,7 +2019,7 @@ client.onMsg(async (id, name, msg, reply) => {
 				// Reason if it is convenient for me to interrupt this action and help pal
 				// Interrupt and help
 				// Complete and help
-			}
+			}*/
 
 			// Compute
 			break;
