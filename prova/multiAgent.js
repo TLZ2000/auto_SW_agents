@@ -4,7 +4,7 @@ const AGENT2_ID = "ac5e1d";
 
 const AGENT1_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ijg5ZWU5MSIsIm5hbWUiOiJBR0VOVDEiLCJyb2xlIjoidXNlciIsImlhdCI6MTc0NzgxMzYzMX0.W8cKIL5m5sQ1CIdh-SdY2O8iWXEjmFR0AWgDWL-mGww";
 const AGENT2_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFjNWUxZCIsIm5hbWUiOiJBR0VOVDIiLCJyb2xlIjoidXNlciIsImlhdCI6MTc0NzgxMzYzNX0.x260N7Vm8Iuzm2fer9Q9YaKf7j0fqIuw5-MLxfPl4kY";
-const SERVER_ADDRS = "http://localhost:8080";
+const SERVER_ADDRS = "http://loca6lhost:8080";
 
 const SPAWN_NON_SPAWN_RATIO = 0.5;
 const DELIVERY_AREA_EXPLORE = 0.1;
@@ -1292,6 +1292,67 @@ function tradeWithPal(message) {
 }
 
 /**
+ * Given a path, the current position of the agent and the current position of PAL, compute the middle point of the path where the two agents should meet
+ * @param {Array} path - path where the agents should travel
+ * @returns {[BigInt, BigInt]} position of the middle cell where the agents should meet
+ */
+function computeMiddlePoint(path) {
+	let myPositon = [me.x, me.y]; // Current agent position
+	let palPositon = [me.multiAgent_palX, me.multiAgent_palY]; // Current pal position
+	let agentPathIndex = 0; // Path length -1 (for indexing reasons)
+	let palPathIndex = path.length() - 1; // Path length -1 (for indexing reasons)
+
+	for (agentPathIndex = 0; agentPathIndex < path.length(); agentPathIndex++) {
+		// Agent step
+		if (path[agentPathIndex] == "U") {
+			// Move up
+			myPositon[1] = myPositon[1] + 1;
+		} else if (path[agentPathIndex] == "R") {
+			// Move right
+			myPositon[0] = myPositon[0] + 1;
+		} else if (path[agentPathIndex] == "D") {
+			// Move down
+			myPositon[1] = myPositon[1] - 1;
+		} else if (path[agentPathIndex] == "L") {
+			// Move left
+			myPositon[0] = myPositon[0] - 1;
+		}
+
+		// Are agent and pal in the same position?
+		if (myPositon[0] == palPositon[0] && myPositon[1] == palPositon[1]) {
+			// This is the middle point, so return
+			return myPositon;
+		}
+
+		// Pal step
+		if (path[palPathIndex] == "U") {
+			// Move up
+			palPositon[1] = palPositon[1] + 1;
+		} else if (path[palPathIndex] == "R") {
+			// Move right
+			palPositon[0] = palPositon[0] + 1;
+		} else if (path[palPathIndex] == "D") {
+			// Move down
+			palPositon[1] = palPositon[1] - 1;
+		} else if (path[palPathIndex] == "L") {
+			// Move left
+			palPositon[0] = palPositon[0] - 1;
+		}
+		palPathIndex -= 1;
+
+		// Are agent and pal in the same position?
+		if (myPositon[0] == palPositon[0] && myPositon[1] == palPositon[1]) {
+			// This is the middle point, so return
+			return myPositon;
+		}
+	}
+
+	// If a middle point has not been found for some reason, then error
+	console.log("ERROR: no middle point found");
+	return [undefined, undefined];
+}
+
+/**
  * Generate all possible options, based on the current game state and configuration, perform option filtering and select the best possible option as current intention
  */
 function optionsGeneration() {
@@ -1839,6 +1900,18 @@ client.onMsg(async (id, name, msg, reply) => {
 
 		case "MSG_trade":
 			let message = JSONToMap(msg.content);
+
+			if (me.currentIntention == "explore") {
+				// If I am exploring, so I am doing nothing, then help pal
+			} else if (me.currentIntention == "go_pick_up") {
+				// Reason if it is convenient for me to interrupt this action and help pal
+				// Interrupt and help
+				// Complete and help
+			} else if (me.currentIntention == "go_deliver") {
+				// Reason if it is convenient for me to interrupt this action and help pal
+				// Interrupt and help
+				// Complete and help
+			}
 
 			// Compute
 			break;
