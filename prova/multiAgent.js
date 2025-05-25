@@ -4,7 +4,7 @@ const AGENT2_ID = "ac5e1d";
 
 const AGENT1_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ijg5ZWU5MSIsIm5hbWUiOiJBR0VOVDEiLCJyb2xlIjoidXNlciIsImlhdCI6MTc0NzgxMzYzMX0.W8cKIL5m5sQ1CIdh-SdY2O8iWXEjmFR0AWgDWL-mGww";
 const AGENT2_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFjNWUxZCIsIm5hbWUiOiJBR0VOVDIiLCJyb2xlIjoidXNlciIsImlhdCI6MTc0NzgxMzYzNX0.x260N7Vm8Iuzm2fer9Q9YaKf7j0fqIuw5-MLxfPl4kY";
-const SERVER_ADDRS = "http://loca6lhost:8080";
+const SERVER_ADDRS = "http://localhost:8080";
 
 const SPAWN_NON_SPAWN_RATIO = 0.5;
 const DELIVERY_AREA_EXPLORE = 0.1;
@@ -1293,57 +1293,98 @@ function tradeWithPal(message) {
 
 /**
  * Given a path, the current position of the agent and the current position of PAL, compute the middle point of the path where the two agents should meet
- * @param {Array} path - path where the agents should travel
+ * @param {Array} path - path between the two agents
+ * @param {Boolean} fromMe2Pal - true (default) if the path is from me to the pal agent, false otherwise
  * @returns {[BigInt, BigInt]} position of the middle cell where the agents should meet
  */
-function computeMiddlePoint(path) {
-	let myPositon = [me.x, me.y]; // Current agent position
-	let palPositon = [me.multiAgent_palX, me.multiAgent_palY]; // Current pal position
+function computeMiddlePoint(path, fromMe2Pal = true) {
+	let myPosition = [me.x, me.y]; // Current agent position
+	let palPosition = [me.multiAgent_palX, me.multiAgent_palY]; // Current pal position
 	let agentPathIndex = 0; // Path length -1 (for indexing reasons)
 	let palPathIndex = path.length() - 1; // Path length -1 (for indexing reasons)
 
-	for (agentPathIndex = 0; agentPathIndex < path.length(); agentPathIndex++) {
+	let myPath = [];
+	let palPath = [];
+
+	if (fromMe2Pal) {
+		// The path is correct for me but inverted for the pal
+		myPath = path;
+
+		myPath.forEach((move) => {
+			if (move == "U") {
+				palPath.push("D");
+			} else if (move == "D") {
+				palPath.push("U");
+			} else if (move == "R") {
+				palPath.push("L");
+			} else if (move == "L") {
+				palPath.push("R");
+			}
+		});
+
+		palPath.reverse();
+	} else {
+		// The path is correct for the pal but inverted for me
+		// The path is correct for me but inverted for the pal
+		palPath = path;
+
+		palPath.forEach((move) => {
+			if (move == "U") {
+				myPath.push("D");
+			} else if (move == "D") {
+				myPath.push("U");
+			} else if (move == "R") {
+				myPath.push("L");
+			} else if (move == "L") {
+				myPath.push("R");
+			}
+		});
+
+		myPath.reverse();
+	}
+
+	for (let i = 0; i < path.length(); i++) {
 		// Agent step
-		if (path[agentPathIndex] == "U") {
+		if (myPath[i] == "U") {
 			// Move up
-			myPositon[1] = myPositon[1] + 1;
-		} else if (path[agentPathIndex] == "R") {
+			myPosition[1] = myPosition[1] + 1;
+		} else if (myPath[i] == "R") {
 			// Move right
-			myPositon[0] = myPositon[0] + 1;
-		} else if (path[agentPathIndex] == "D") {
+			myPosition[0] = myPosition[0] + 1;
+		} else if (myPath[i] == "D") {
 			// Move down
-			myPositon[1] = myPositon[1] - 1;
-		} else if (path[agentPathIndex] == "L") {
+			myPosition[1] = myPosition[1] - 1;
+		} else if (myPath[i] == "L") {
 			// Move left
-			myPositon[0] = myPositon[0] - 1;
+			myPosition[0] = myPosition[0] - 1;
 		}
 
 		// Are agent and pal in the same position?
-		if (myPositon[0] == palPositon[0] && myPositon[1] == palPositon[1]) {
+		if (myPosition[0] == palPosition[0] && myPosition[1] == palPosition[1]) {
 			// This is the middle point, so return
-			return myPositon;
+			return myPosition;
 		}
 
 		// Pal step
 		if (path[palPathIndex] == "U") {
 			// Move up
-			palPositon[1] = palPositon[1] + 1;
+			palPosition[1] = palPosition[1] + 1;
 		} else if (path[palPathIndex] == "R") {
 			// Move right
-			palPositon[0] = palPositon[0] + 1;
+			palPosition[0] = palPosition[0] + 1;
 		} else if (path[palPathIndex] == "D") {
 			// Move down
-			palPositon[1] = palPositon[1] - 1;
+			palPosition[1] = palPosition[1] - 1;
 		} else if (path[palPathIndex] == "L") {
 			// Move left
-			palPositon[0] = palPositon[0] - 1;
+			palPosition[0] = palPosition[0] - 1;
 		}
 		palPathIndex -= 1;
 
 		// Are agent and pal in the same position?
-		if (myPositon[0] == palPositon[0] && myPositon[1] == palPositon[1]) {
+		if (myPosition[0] == palPosition[0] && myPosition[1] == palPosition[1]) {
 			// This is the middle point, so return
-			return myPositon;
+			return myPosition;
 		}
 	}
 
