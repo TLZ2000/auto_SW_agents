@@ -13,7 +13,7 @@ const MEMORY_DIFFERENCE_THRESHOLD = 2000;
 const MOVES_SCALE_FACTOR = 50; // Lower values mean I want to deliver more often
 const MOVES_SCALE_FACTOR_NO_DECAY = 10; // Lower values mean I want to deliver more often
 const MEMORY_REVISION_TIMER = 10000;
-const MEMORY_SHARE_TIMER = 100;
+const MEMORY_SHARE_TIMER = 2000;
 const MAX_EXPLORABLE_SPAWN_CELLS = 100;
 const MAX_WAITING_RESPONSE = 10;
 const WAITING_INTERVAL = 100;
@@ -1028,9 +1028,10 @@ function timedExplore() {
  *
  * @param {[int, int]} initialPos
  * @param {[int, int]} finalPos
+ * @param {Boolean} ignorePal - optional parameter (defaul = false), if true ignores the pal collisions
  * @returns
  */
-function navigateBFS(initialPos, finalPos) {
+function navigateBFS(initialPos, finalPos, ignorePal = false) {
 	let queue = new Queue();
 	let explored = new Set();
 	let finalPath = undefined;
@@ -1055,6 +1056,9 @@ function navigateBFS(initialPos, finalPos) {
 			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
 				// Agent
 				finalPath = undefined;
+			} else if (ignorePal && grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1 && Math.round(me.multiAgent_palX) == currentNode.x && Math.round(me.multiAgent_palY) == currentNode.y) {
+				// If this cell is occupied by the pal agent and the ignorePal is true
+				finalPath = path;
 			} else {
 				// No agent
 				finalPath = path;
@@ -1273,21 +1277,25 @@ function findPathNearestDeliverAndOtherAgentBFS() {
 	return [finalPath, finalPalFlag];
 }
 
-async function sendTradeMessage(message) {
+async function sendTradeMessage(requestReward) {
 	// Send trade message to pal, also add memory informations to be sure that also the other agent is up to date
 	me.tradeMessageSent = true;
+
+	let tmpParcels = mapToJSON(parcels);
+	let tmpAgents = mapToJSON(agents);
+
 	await client.emitSay(me.multiAgent_palID, {
 		type: "MSG_trade",
-		content: JSON.stringify({ message: message, parcels: parcels, agents: agents }),
+		content: JSON.stringify({ reward: requestReward, parcels: tmpParcels, agents: tmpAgents, me: me }),
 	});
 }
 
 /**
  * Wrapper for the sendTradeMessage() function
  */
-function tradeWithPal(message) {
+function tradeWithPal(requestReward) {
 	// Send the trade request
-	sendTradeMessage(message);
+	sendTradeMessage(requestReward);
 
 	// Wait until pal response
 	while (me.tradeMessageSent) {
@@ -1490,7 +1498,7 @@ function optionsGeneration() {
 				// Otherwise, trade half delivery with pal agent
 				if (reward != 0) {
 					// Start trade with pal agent
-					tradeWithPal({ path: pathNearestDelivery, reward: reward, myX: Math.round(me.x), myY: Math.round(me.y) });
+					tradeWithPal(reward);
 				}
 			}
 		}
@@ -1572,42 +1580,6 @@ function optionsGeneration() {
 			myAgent.push(["explore", "distance"]);
 		}
 	}
-}
-
-/**
- * Follow the path from the pal agent until my position
- * @param {Array} path - path from the pal agent to somewhere
- * @returns {Array|undefined} path from the pal agent to me, undefined if I am not on the provided path
- */
-function fromPal2Me(path) {
-	let palX = Math.round(me.multiAgent_palX);
-	let palY = Math.round(me.multiAgent_palY);
-	let tmpPath = [];
-
-	for (let i = 0; i < path.length; i++) {
-		let move = path[i];
-		if (move == "U") {
-			palY += 1;
-		} else if (move == "R") {
-			palX += 1;
-		} else if (move == "D") {
-			palY -= 1;
-		} else if (move == "L") {
-			palX -= 1;
-		}
-
-		tmpPath.push(move);
-		console.log(tmpPath);
-		console.log(palX + " - " + palY);
-		console.log(Math.round(me.x) + " - " + Math.round(me.y));
-		console.log(palX == Math.round(me.x) && palY == Math.round(me.y));
-
-		if (palX == Math.round(me.x) && palY == Math.round(me.y)) {
-			return tmpPath;
-		}
-	}
-
-	return undefined;
 }
 
 /**
@@ -1868,6 +1840,13 @@ function updateAgentsFromPal(agents_map) {
 	});
 }
 
+function intentionalCrash() {
+	const lista = undefined;
+	lista.forEach((element) => {
+		console.log("HELLO");
+	});
+}
+
 function updateMeFromPal(agent_map) {
 	// Update coordinates
 	me.multiAgent_palX = Math.round(agent_map.x);
@@ -1956,7 +1935,6 @@ client.onMsg(async (id, name, msg, reply) => {
 		case "MSG_parcelSensing":
 			// Reconstruct parcel map
 			let parcels_map = JSONToMap(msg.content);
-
 			updateParcelsFromPal(parcels_map);
 			break;
 
@@ -1992,20 +1970,27 @@ client.onMsg(async (id, name, msg, reply) => {
 		case "MSG_trade":
 			console.log("MSG_trade received");
 			let message = JSON.parse(msg.content);
+			let reward = message.reward;
+			let parcel = JSONToMap(message.parcels);
+			let agent = JSONToMap(message.agents);
+			let pal = message.me;
+			console.log(message);
 
-			// Update latest pal position
-			me.multiAgent_palX = message.myX;
-			me.multiAgent_palY = message.myY;
+			// Sync memory with Pal agent
+			updateMeFromPal(parcel);
+			updateAgentsFromPal(agent);
+			updateMeFromPal(pal);
 
-			// Compute path from me to pal
-			let pathPal2Me = fromPal2Me(message.path);
-
-			console.log(pathPal2Me);
+			// Compute a path from me to the pal agent
+			let path = navigateBFS([Math.round(me.x), Math.round(me.y)], [Math.round(me.multiAgent_palX), Math.round(me.multiAgent_palY)], true);
 
 			// Identify a middle position
-			let middlePosition = computeMiddlePoint(pathPal2Me, false);
+			let middlePosition = computeMiddlePoint(path, false);
 
-			console.log("PRINT - " + middlePosition);
+			while (true) {
+				console.log("PRINT - " + middlePosition);
+			}
+
 			// WIP: if pal agent ask for help, I go to help him always
 
 			/*
