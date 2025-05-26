@@ -15,6 +15,7 @@ const MOVES_SCALE_FACTOR_NO_DECAY = 10; // Lower values mean I want to deliver m
 const MEMORY_REVISION_TIMER = 10000;
 const MEMORY_SHARE_TIMER = 500;
 const MAX_EXPLORABLE_SPAWN_CELLS = 100;
+const WAITING_SCALE_FACTOR = 2;
 
 /**
  * Queue class
@@ -712,10 +713,19 @@ class Explore extends Plan {
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		let coords;
 
-		if (type == "timed") {
-			coords = timedExplore();
-		} else if (type == "distance") {
-			coords = distanceExplore();
+		// If we inverted the explore option with the pal agent
+		if (me.invertExplore) {
+			// Then, explore using the pal coordinates
+			coords = me.currentExploreCoordinates;
+			me.invertExplore = false;
+		} else {
+			// Otherwise, compute new coordinates
+			if (type == "timed") {
+				coords = timedExplore();
+			} else if (type == "distance") {
+				coords = distanceExplore();
+			}
+			me.currentExploreCoordinates = coords;
 		}
 
 		// When a valid cell has been found, move to it (and hope to find something interesting)
@@ -757,10 +767,43 @@ function palThere(direction) {
 	return false;
 }
 
+async function startTradeWithPal() {
+	await client.emitSay(me.multiAgent_palID, {
+		type: "MSG_startTrade",
+		content: JSON.stringify({ me: me }),
+	});
+}
+
+function waitMovementDuration() {
+	let initialTime = Date.now();
+	while (true) {
+		let tmpTime = Date.now();
+		if (tmpTime - initialTime >= currentConfig.MOVEMENT_DURATION * WAITING_SCALE_FACTOR) {
+			break;
+		}
+	}
+}
+
 /**
  * Callback function to manage the case where I have a pal in the immediate next position on my path
  */
-function palOnThePath() {}
+function palOnThePath(direction) {
+	// Wait some time to be sure that the pal agent wants to go in the cell where I am
+	waitMovementDuration();
+
+	// If the pal agent is still there, then it wants to go where I am
+	if (palThere(direction)) {
+		// Start trade with pal agent
+		if (me.id == AGENT1_ID) {
+			// Only agent_1 starts trading procedure
+			startTradeWithPal();
+		}
+
+		// Wait for a response/message
+		me.waiting = true;
+		while (me.waiting) {}
+	}
+}
 
 /**
  * Plan class handling the "go_to" intention
@@ -788,58 +831,58 @@ class BFSmove extends Plan {
 			// this.log('me', me, 'xy', x, y);
 
 			if (palThere(path[i])) {
-				palOnThePath();
-			}
-
-			if (path[i] == "R") {
-				moved_horizontally = await client.emitMove("right");
-				// status_x = await this.subIntention( 'go_to', {x: me.x+1, y: me.y} );
-			} else if (path[i] == "L") {
-				moved_horizontally = await client.emitMove("left");
-				// status_x = await this.subIntention( 'go_to', {x: me.x-1, y: me.y} );
-			}
-
-			let carriedParcels = carryingParcels();
-
-			if (moved_horizontally) {
-				me.x = moved_horizontally.x;
-				me.y = moved_horizontally.y;
-
-				if (carriedParcels.length > 0) {
-					me.moves += 1;
+				palOnThePath(path[i]);
+			} else {
+				if (path[i] == "R") {
+					moved_horizontally = await client.emitMove("right");
+					// status_x = await this.subIntention( 'go_to', {x: me.x+1, y: me.y} );
+				} else if (path[i] == "L") {
+					moved_horizontally = await client.emitMove("left");
+					// status_x = await this.subIntention( 'go_to', {x: me.x-1, y: me.y} );
 				}
-			}
 
-			if (this.stopped) throw ["stopped"]; // if stopped then quit
+				let carriedParcels = carryingParcels();
 
-			if (path[i] == "U") {
-				moved_vertically = await client.emitMove("up");
-				// status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y+1} );
-			} else if (path[i] == "D") {
-				moved_vertically = await client.emitMove("down");
-				// status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y-1} );
-			}
+				if (moved_horizontally) {
+					me.x = moved_horizontally.x;
+					me.y = moved_horizontally.y;
 
-			if (moved_vertically) {
-				me.x = moved_vertically.x;
-				me.y = moved_vertically.y;
-
-				if (carriedParcels.length > 0) {
-					me.moves += 1;
+					if (carriedParcels.length > 0) {
+						me.moves += 1;
+					}
 				}
-			}
 
-			// If stucked
-			if (!moved_horizontally && !moved_vertically) {
-				return true;
-				//throw 'stucked';
-			} else if (me.x == x && me.y == y) {
-				// this.log('target reached');
-			}
+				if (this.stopped) throw ["stopped"]; // if stopped then quit
 
-			i++;
-			// After motion update the timestamp of the visited cells
-			grafo.updateTimeMap();
+				if (path[i] == "U") {
+					moved_vertically = await client.emitMove("up");
+					// status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y+1} );
+				} else if (path[i] == "D") {
+					moved_vertically = await client.emitMove("down");
+					// status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y-1} );
+				}
+
+				if (moved_vertically) {
+					me.x = moved_vertically.x;
+					me.y = moved_vertically.y;
+
+					if (carriedParcels.length > 0) {
+						me.moves += 1;
+					}
+				}
+
+				// If stucked
+				if (!moved_horizontally && !moved_vertically) {
+					return true;
+					//throw 'stucked';
+				} else if (me.x == x && me.y == y) {
+					// this.log('target reached');
+				}
+
+				i++;
+				// After motion update the timestamp of the visited cells
+				grafo.updateTimeMap();
+			}
 		}
 		return true;
 	}
@@ -1215,6 +1258,22 @@ function carryingParcels() {
 }
 
 /**
+ * Return the list of parcels carried by pal
+ * @returns {Array} list of parcels carried by pal
+ */
+function palCarryingParcels() {
+	// Compute the set of parcels carried by pal
+	var carriedParcels = [];
+	parcels.forEach((parcel) => {
+		if (parcel.carriedBy == me.multiAgent_palID) {
+			carriedParcels.push(parcel);
+		}
+	});
+
+	return carriedParcels;
+}
+
+/**
  *
  * @returns {Array} The path from the agent position to the nearest delivery cell (ignoring the pal collisions)
  */
@@ -1316,7 +1375,7 @@ function optionsGeneration() {
 
 	const options = [];
 	for (const parcel of parcels.values()) {
-		if (!parcel.carriedBy) {
+		if (!parcel.carriedBy && !me.ignoreParcels.has(parcel.id)) {
 			if (parcel.x == Math.round(me.x) && parcel.y == Math.round(me.y)) {
 				// I am already in this position with this parcel, so I must pick it up
 				options.push([
@@ -1455,25 +1514,19 @@ function optionsGeneration() {
 
 		// If yes, push the best option
 		if (push) {
-			me.currentIntention = best_option[0];
-			if (best_option[0] == "go_deliver") {
-				me.currentIntentionReward = best_option[1];
-			} else if (best_option[0] == "go_pick_up") {
-				me.currentIntentionReward = best_option[4];
-			}
+			me.currentIntention = best_option;
 			myAgent.push(best_option);
 		}
 	} else {
 		// If we don't have a valid best option, then explore
-		me.currentIntention = "explore";
-		me.currentIntentionReward = 0;
 		if (Math.random() < TIMED_EXPLORE) {
 			// Explore oldest tiles
-			myAgent.push(["explore", "timed"]);
+			me.currentIntention = ["explore", "timed"];
 		} else {
 			// Explore distant tiles
-			myAgent.push(["explore", "distance"]);
+			me.currentIntention = ["explore", "distance"];
 		}
+		myAgent.push(me.currentIntention);
 	}
 }
 
@@ -1754,6 +1807,108 @@ function updateMeFromPal(agent_map) {
 	agents.set(agent_map.id, agent_map);
 }
 
+function decideTrade(agent1Intention, agent2Intention, agent1Parcels, agent2Parcels) {
+	// Compute label with the two agents' intentions
+	let intentionLabel = "";
+	switch (agent1Intention[0]) {
+		case "explore":
+			intentionLabel += "E";
+			break;
+		case "go_pick_up":
+			intentionLabel += "P";
+			break;
+		case "go_deliver":
+			intentionLabel += "D";
+			break;
+	}
+
+	switch (agent2Intention[0]) {
+		case "explore":
+			intentionLabel += "E";
+			break;
+		case "go_pick_up":
+			intentionLabel += "P";
+			break;
+		case "go_deliver":
+			intentionLabel += "D";
+			break;
+	}
+
+	// Compute label with carrying parcels information
+	let parcelLabel = "";
+	if (agent1Parcels > 0) {
+		parcelLabel += "P";
+	} else {
+		parcelLabel += "N";
+	}
+
+	if (agent2Parcels > 0) {
+		parcelLabel += "P";
+	} else {
+		parcelLabel += "N";
+	}
+
+	// Decide which trade to do considering intentionLabel and parcelLabel
+	switch (intentionLabel) {
+		case "EE":
+			// Explore - Explore => invert intentions
+			return "invert";
+		case "EP":
+			// Explore - Pickup
+			if (parcelLabel == "NN") {
+				// Invert intentions
+				return "invert";
+			} else if (parcelLabel == "NP") {
+				// A2
+				return "a2_drop";
+			}
+			break;
+		case "ED":
+			// Explore - Deliver => A2
+			return "a2_drop";
+			break;
+		case "PE":
+			// Pickup - Explore
+			if (parcelLabel == "NN") {
+				// Invert intentions
+				return "invert";
+			} else if (parcelLabel == "PN") {
+				// A1
+				return "a1_drop";
+			}
+			break;
+		case "PP":
+			// Pickup - Pickup => error
+			return "error";
+		case "PD":
+			// Pickup - Deliver
+			if (parcelLabel == "NP") {
+				// A2
+				return "a2_drop";
+			} else if (parcelLabel == "PP") {
+				// A2
+				return "a2_drop";
+			}
+			break;
+		case "DE":
+			// Deliver - Explore => A1
+			return "a1_drop";
+		case "DP":
+			// Deliver - Pickup
+			if (parcelLabel == "PN") {
+				// A1
+				return "a1_drop";
+			} else if (parcelLabel == "PP") {
+				// A1
+				return "a1_drop";
+			}
+			break;
+		case "DD":
+			// Deliver - Deliver => error
+			return "error";
+	}
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // ===============================================================================================================
 // ---------------------------------------------------------------------------------------------------------------
@@ -1783,6 +1938,10 @@ const me = {
 	myToken: null,
 	currentIntention: undefined,
 	currentIntentionReward: 0,
+	waiting: false,
+	currentExploreCoordinates: [0, 0],
+	invertExplore: false,
+	ignoreParcels: new Set(),
 };
 const myAgent = new IntentionRevisionReplace();
 const planLibrary = [];
@@ -1859,6 +2018,183 @@ client.onMsg(async (id, name, msg, reply) => {
 
 			// Schedule a revise memory
 			checkMemory = true;
+			break;
+
+		case "MSG_startTrade":
+			// Check if I am agent_2
+			if (me.id == AGENT2_ID) {
+				let message = JSON.parse(msg.content);
+				let agent2Intention = me.currentIntention;
+				let agent1Intention = message.me.currentIntention;
+				let agent2Parcels = carryingParcels().length;
+				let agent1Parcels = palCarryingParcels().length;
+
+				// Decide which type of trade to do depending on my and pal intention and if me and pal are carrying parcels or not
+				let tradeProcedure = decideTrade(agent1Intention, agent2Intention, agent1Parcels, agent2Parcels);
+
+				// Reset the ignoreParcels list
+				me.ignoreParcels = new Set();
+
+				// Do the trade procedure
+				if (tradeProcedure == "invert") {
+					// Send invert message with intentions
+					await client.emitSay(me.multiAgent_palID, {
+						type: "MSG_tradeConfirmation",
+						content: JSON.stringify({ tradeProcedure: tradeProcedure, me: me }),
+					});
+
+					// Invert intention
+					me.currentIntention = agent1Intention;
+					if (me.currentIntention[0] == "explore") {
+						me.currentExploreCoordinates = message.me.currentExploreCoordinates;
+						me.invertExplore = true;
+					}
+					myAgent.push(me.currentIntention);
+				} else if (tradeProcedure == "a1_drop") {
+					// Send invert message with intentions
+					await client.emitSay(me.multiAgent_palID, {
+						type: "MSG_tradeConfirmation",
+						content: JSON.stringify({ tradeProcedure: tradeProcedure, me: me }),
+					});
+
+					// Recover pal coordinates
+					let palX = message.me.x;
+					let palY = message.me.y;
+					let moveDirection = "";
+					if (me.x > palX) {
+						moveDirection = "left";
+					} else if (me.x < palX) {
+						moveDirection = "right";
+					} else if (me.y > palY) {
+						moveDirection = "down";
+					} else if (me.y < palY) {
+						moveDirection = "up";
+					}
+
+					// Wait for the other agent to receive the message, drop the parcels and move out of the cell
+					waitMovementDuration();
+
+					// Move
+					await client.emitMove(moveDirection);
+
+					// Pick up the parcels
+					await client.emitPickup();
+
+					// Invert intention
+					me.currentIntention = agent1Intention;
+					me.moves = message.me.moves;
+					if (me.currentIntention[0] == "explore") {
+						me.currentExploreCoordinates = message.me.currentExploreCoordinates;
+						me.invertExplore = true;
+					}
+					myAgent.push(me.currentIntention);
+				} else if (tradeProcedure == "a2_drop") {
+					// Add parcels to ignore
+					let ignParcels = carryingParcels();
+					ignParcels.forEach((parcel) => {
+						me.ignoreParcels.add(parcel.id);
+					});
+					// Drop the parcels that we are carrying
+					await client.emitPutdown();
+
+					// Send invert message with intentions
+					await client.emitSay(me.multiAgent_palID, {
+						type: "MSG_tradeConfirmation",
+						content: JSON.stringify({ tradeProcedure: tradeProcedure, me: me }),
+					});
+
+					// Invert intention
+					me.currentIntention = agent1Intention;
+					me.moves = message.me.moves;
+					if (me.currentIntention[0] == "explore") {
+						me.currentExploreCoordinates = message.me.currentExploreCoordinates;
+						me.invertExplore = true;
+					}
+					myAgent.push(me.currentIntention);
+				} else if (tradeProcedure == "error") {
+					console.log("ERROR: it should not be");
+				}
+				// Set waiting to false
+				me.waiting = false;
+			} else {
+				console.log("YOU SHOULD NOT BE HERE!!!!!");
+			}
+			break;
+		case "MSG_tradeConfirmation":
+			if (me.id == AGENT1_ID) {
+				let message = JSON.parse(msg.content);
+				let agent2Intention = message.me.currentIntention;
+				let tradeProcedure = message.tradeProcedure;
+
+				// Reset the ignoreParcels list
+				me.ignoreParcels = new Set();
+
+				// Do the trade procedure
+				if (tradeProcedure == "invert") {
+					// Invert intention
+					me.currentIntention = agent2Intention;
+					if (me.currentIntention[0] == "explore") {
+						me.currentExploreCoordinates = message.me.currentExploreCoordinates;
+						me.invertExplore = true;
+					}
+					myAgent.push(me.currentIntention);
+				} else if (tradeProcedure == "a2_drop") {
+					// Recover pal coordinates
+					let palX = message.me.x;
+					let palY = message.me.y;
+					let moveDirection = "";
+					if (me.x > palX) {
+						moveDirection = "left";
+					} else if (me.x < palX) {
+						moveDirection = "right";
+					} else if (me.y > palY) {
+						moveDirection = "down";
+					} else if (me.y < palY) {
+						moveDirection = "up";
+					}
+
+					// Wait for the other agent to receive the message, drop the parcels and move out of the cell
+					waitMovementDuration();
+
+					// Move
+					await client.emitMove(moveDirection);
+
+					// Pick up the parcels
+					await client.emitPickup();
+
+					// Invert intention
+					me.currentIntention = agent2Intention;
+					me.moves = message.me.moves;
+					if (me.currentIntention[0] == "explore") {
+						me.currentExploreCoordinates = message.me.currentExploreCoordinates;
+						me.invertExplore = true;
+					}
+					myAgent.push(me.currentIntention);
+				} else if (tradeProcedure == "a1_drop") {
+					// Add parcels to ignore
+					let ignParcels = carryingParcels();
+					ignParcels.forEach((parcel) => {
+						me.ignoreParcels.add(parcel.id);
+					});
+					// Drop the parcels that we are carrying
+					await client.emitPutdown();
+
+					// Invert intention
+					me.currentIntention = agent2Intention;
+					me.moves = message.me.moves;
+					if (me.currentIntention[0] == "explore") {
+						me.currentExploreCoordinates = message.me.currentExploreCoordinates;
+						me.invertExplore = true;
+					}
+					myAgent.push(me.currentIntention);
+				} else if (tradeProcedure == "error") {
+					console.log("ERROR: it should not be");
+				}
+				// Set waiting to false
+				me.waiting = false;
+			} else {
+				console.log("YOU SHOULD NOT BE HERE!!!!!");
+			}
 			break;
 		default:
 			break;
