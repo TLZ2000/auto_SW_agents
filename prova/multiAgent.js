@@ -13,7 +13,7 @@ const MEMORY_DIFFERENCE_THRESHOLD = 2000;
 const MOVES_SCALE_FACTOR = 50; // Lower values mean I want to deliver more often
 const MOVES_SCALE_FACTOR_NO_DECAY = 10; // Lower values mean I want to deliver more often
 const MEMORY_REVISION_TIMER = 10000;
-const MEMORY_SHARE_TIMER = 2000;
+const MEMORY_SHARE_TIMER = 500;
 const MAX_EXPLORABLE_SPAWN_CELLS = 100;
 const MAX_WAITING_RESPONSE = 10;
 const WAITING_INTERVAL = 100;
@@ -1054,11 +1054,20 @@ function navigateBFS(initialPos, finalPos, ignorePal = false) {
 		if (currentNode.x == finalPos[0] && currentNode.y == finalPos[1]) {
 			// Check if in the final node there is no other agent
 			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
-				// Agent
-				finalPath = undefined;
-			} else if (ignorePal && grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1 && Math.round(me.multiAgent_palX) == currentNode.x && Math.round(me.multiAgent_palY) == currentNode.y) {
-				// If this cell is occupied by the pal agent and the ignorePal is true
-				finalPath = path;
+				// Should I ignore Pal collisions?
+				if (!ignorePal) {
+					// undefined independently from pal or not
+					finalPath = undefined;
+				} else {
+					// If I want to find the pal and in this position is the pal
+					if (currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY)) {
+						// Return the path to the pal
+						finalPath = path;
+					} else {
+						// Else this is an agent not pal
+						finalPath = undefined;
+					}
+				}
 			} else {
 				// No agent
 				finalPath = path;
@@ -1730,6 +1739,7 @@ function reviseMemory(generateOptions) {
 	grafo.resetAgentsNearby();
 
 	// Add the agents to the matrix
+	console.log("INSIDE - " + agents);
 	for (const a of agents) {
 		if (grafo.agentsNearby != undefined) {
 			grafo.agentsNearby[Math.round(a[1].x)][Math.round(a[1].y)] = 1;
@@ -1969,6 +1979,7 @@ client.onMsg(async (id, name, msg, reply) => {
 
 		case "MSG_trade":
 			console.log("MSG_trade received");
+			console.log("OUT - " + agents);
 			let message = JSON.parse(msg.content);
 			let reward = message.reward;
 			let parcel = JSONToMap(message.parcels);
@@ -1982,14 +1993,17 @@ client.onMsg(async (id, name, msg, reply) => {
 			updateMeFromPal(pal);
 
 			// Compute a path from me to the pal agent
+			console.log("[" + Math.round(me.x) + " - " + Math.round(me.y) + "] ==> [" + Math.round(me.multiAgent_palX) + " - " + Math.round(me.multiAgent_palY) + "]");
 			let path = navigateBFS([Math.round(me.x), Math.round(me.y)], [Math.round(me.multiAgent_palX), Math.round(me.multiAgent_palY)], true);
 
-			// Identify a middle position
-			let middlePosition = computeMiddlePoint(path, false);
+			console.log(path);
 
-			while (true) {
-				console.log("PRINT - " + middlePosition);
-			}
+			// Identify a middle position
+			let middlePosition = computeMiddlePoint(path, true);
+
+			console.log(middlePosition);
+
+			console.log("MID - " + agents);
 
 			// WIP: if pal agent ask for help, I go to help him always
 
