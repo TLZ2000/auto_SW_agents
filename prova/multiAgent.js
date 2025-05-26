@@ -726,6 +726,43 @@ class Explore extends Plan {
 }
 
 /**
+ * Given my position, check in in some direction there is the pal
+ * @param {String} direction
+ * @returns true if in the specified direction there is the pal
+ */
+function palThere(direction) {
+	switch (direction) {
+		case "U":
+			if (me.x == me.multiAgent_palX && me.y + 1 == me.multiAgent_palY) {
+				return true;
+			}
+			break;
+		case "R":
+			if (me.x + 1 == me.multiAgent_palX && me.y == me.multiAgent_palY) {
+				return true;
+			}
+			break;
+		case "D":
+			if (me.x == me.multiAgent_palX && me.y - 1 == me.multiAgent_palY) {
+				return true;
+			}
+			break;
+		case "L":
+			if (me.x - 1 == me.multiAgent_palX && me.y == me.multiAgent_palY) {
+				return true;
+			}
+			break;
+	}
+
+	return false;
+}
+
+/**
+ * Callback function to manage the case where I have a pal in the immediate next position on my path
+ */
+function palOnThePath() {}
+
+/**
  * Plan class handling the "go_to" intention
  */
 class BFSmove extends Plan {
@@ -741,10 +778,6 @@ class BFSmove extends Plan {
 			path = navigateBFS([Math.round(me.x), Math.round(me.y)], distanceExplore());
 		}
 
-		if (path == undefined) {
-			console.log("PROBLEMA " + (path == undefined));
-		}
-
 		let i = 0;
 		while (path != undefined && i < path.length) {
 			if (this.stopped) throw ["stopped"]; // if stopped then quit
@@ -753,6 +786,10 @@ class BFSmove extends Plan {
 			let moved_vertically;
 
 			// this.log('me', me, 'xy', x, y);
+
+			if (palThere(path[i])) {
+				palOnThePath();
+			}
 
 			if (path[i] == "R") {
 				moved_horizontally = await client.emitMove("right");
@@ -881,9 +918,6 @@ function searchSuitableCellsBFS() {
 			}
 		}
 	}
-
-	console.log([suitableSpawn, suitableDelivery]);
-
 	return [suitableSpawn, suitableDelivery];
 }
 
