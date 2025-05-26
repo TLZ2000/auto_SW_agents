@@ -15,8 +15,6 @@ const MOVES_SCALE_FACTOR_NO_DECAY = 10; // Lower values mean I want to deliver m
 const MEMORY_REVISION_TIMER = 10000;
 const MEMORY_SHARE_TIMER = 500;
 const MAX_EXPLORABLE_SPAWN_CELLS = 100;
-const MAX_WAITING_RESPONSE = 10;
-const WAITING_INTERVAL = 100;
 
 /**
  * Queue class
@@ -846,7 +844,10 @@ function searchSuitableCellsBFS() {
 
 			// If node is occupied, ignore its neighbors
 			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
-				continue;
+				// Unless it is occupied by the pal
+				if (!(currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY))) {
+					continue;
+				}
 			}
 
 			// Check node type
@@ -1028,10 +1029,9 @@ function timedExplore() {
  *
  * @param {[int, int]} initialPos
  * @param {[int, int]} finalPos
- * @param {Boolean} ignorePal - optional parameter (defaul = false), if true ignores the pal collisions
- * @returns
+ * @returns {Array} return the shortest path from the initialPos to the finalPos ignoring the pal collisions
  */
-function navigateBFS(initialPos, finalPos, ignorePal = false) {
+function navigateBFS(initialPos, finalPos) {
 	let queue = new Queue();
 	let explored = new Set();
 	let finalPath = undefined;
@@ -1054,19 +1054,13 @@ function navigateBFS(initialPos, finalPos, ignorePal = false) {
 		if (currentNode.x == finalPos[0] && currentNode.y == finalPos[1]) {
 			// Check if in the final node there is no other agent
 			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
-				// Should I ignore Pal collisions?
-				if (!ignorePal) {
-					// undefined independently from pal or not
-					finalPath = undefined;
+				// If I want to find the pal and in this position is the pal
+				if (currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY)) {
+					// Return the path to the pal
+					finalPath = path;
 				} else {
-					// If I want to find the pal and in this position is the pal
-					if (currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY)) {
-						// Return the path to the pal
-						finalPath = path;
-					} else {
-						// Else this is an agent not pal
-						finalPath = undefined;
-					}
+					// Else this is an agent not pal
+					finalPath = undefined;
 				}
 			} else {
 				// No agent
@@ -1082,9 +1076,11 @@ function navigateBFS(initialPos, finalPos, ignorePal = false) {
 			// Visit it
 			explored.add(currentNodeId);
 
-			// If node is occupied, ignore its neighbors
+			// If node is occupied, ignore its neighbors unless it is occupied by the pal
 			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
-				continue;
+				if (!(currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY))) {
+					continue;
+				}
 			}
 
 			// Explore its neighbors
@@ -1186,16 +1182,12 @@ function carryingParcels() {
 
 /**
  *
- * @param {[int, int]} initialPos
- * @param {[int, int]} finalPos
- * @returns
+ * @returns {Array} The path from the agent position to the nearest delivery cell (ignoring the pal collisions)
  */
-function findPathNearestDeliverAndOtherAgentBFS() {
+function findPathNearestDeliverBFS() {
 	let queue = new Queue();
 	let explored = new Set();
 	let finalPath = undefined;
-	let finalPalFlag = false;
-
 	let initialNode = grafo.graphMap[Math.round(me.x)][Math.round(me.y)];
 
 	if (initialNode == undefined) {
@@ -1203,17 +1195,12 @@ function findPathNearestDeliverAndOtherAgentBFS() {
 	}
 
 	// Add initial node to the queue
-	queue.enqueue({ currentNode: initialNode, path: [], palFlag: false });
+	queue.enqueue({ currentNode: initialNode, path: [] });
 
 	// Cycle until the queue is empty or a valid path has been found
 	while (!queue.isEmpty()) {
 		// Take the item from the queue
-		let { currentNode, path, palFlag } = queue.dequeue();
-
-		// Check if in the current node there is the pal agent
-		if (currentNode.x == me.multiAgent_palX && currentNode.y == me.multiAgent_palY) {
-			palFlag = true;
-		}
+		let { currentNode, path } = queue.dequeue();
 
 		// If the current position is a delivery cell
 		if (currentNode.type == 2) {
@@ -1222,7 +1209,6 @@ function findPathNearestDeliverAndOtherAgentBFS() {
 				// If it is the pal agent that occupies the cell
 				if (currentNode.x == me.multiAgent_palX && currentNode.y == me.multiAgent_palY) {
 					finalPath = path;
-					finalPalFlag = palFlag;
 				} else {
 					// If it is another agent
 					finalPath = undefined;
@@ -1230,7 +1216,6 @@ function findPathNearestDeliverAndOtherAgentBFS() {
 			} else {
 				// No agent
 				finalPath = path;
-				finalPalFlag = palFlag;
 			}
 			break;
 		}
@@ -1256,158 +1241,34 @@ function findPathNearestDeliverAndOtherAgentBFS() {
 			if (currentNode.neighU !== undefined && currentNode.neighU !== null) {
 				let tmp = path.slice();
 				tmp.push("U");
-				queue.enqueue({ currentNode: currentNode.neighU, path: tmp, palFlag: palFlag });
+				queue.enqueue({ currentNode: currentNode.neighU, path: tmp });
 			}
 
 			// Right
 			if (currentNode.neighR !== undefined && currentNode.neighR !== null) {
 				let tmp = path.slice();
 				tmp.push("R");
-				queue.enqueue({ currentNode: currentNode.neighR, path: tmp, palFlag: palFlag });
+				queue.enqueue({ currentNode: currentNode.neighR, path: tmp });
 			}
 
 			// Down
 			if (currentNode.neighD !== undefined && currentNode.neighD !== null) {
 				let tmp = path.slice();
 				tmp.push("D");
-				queue.enqueue({ currentNode: currentNode.neighD, path: tmp, palFlag: palFlag });
+				queue.enqueue({ currentNode: currentNode.neighD, path: tmp });
 			}
 
 			// Left
 			if (currentNode.neighL !== undefined && currentNode.neighL !== null) {
 				let tmp = path.slice();
 				tmp.push("L");
-				queue.enqueue({ currentNode: currentNode.neighL, path: tmp, palFlag: palFlag });
+				queue.enqueue({ currentNode: currentNode.neighL, path: tmp });
 			}
 		}
 	}
 
 	// Return the path from the current position to the delivery and the pal flag
-	return [finalPath, finalPalFlag];
-}
-
-async function sendTradeMessage(requestReward) {
-	// Send trade message to pal, also add memory informations to be sure that also the other agent is up to date
-	me.tradeMessageSent = true;
-
-	let tmpParcels = mapToJSON(parcels);
-	let tmpAgents = mapToJSON(agents);
-
-	await client.emitSay(me.multiAgent_palID, {
-		type: "MSG_trade",
-		content: JSON.stringify({ reward: requestReward, parcels: tmpParcels, agents: tmpAgents, me: me }),
-	});
-}
-
-/**
- * Wrapper for the sendTradeMessage() function
- */
-function tradeWithPal(requestReward) {
-	// Send the trade request
-	sendTradeMessage(requestReward);
-
-	// Wait until pal response
-	while (me.tradeMessageSent) {
-		console.log("waiting");
-	}
-}
-
-/**
- * Given a path, the current position of the agent and the current position of PAL, compute the middle point of the path where the two agents should meet
- * @param {Array} path - path between the two agents
- * @param {Boolean} fromMe2Pal - true (default) if the path is from me to the pal agent, false otherwise
- * @returns {[BigInt, BigInt]} position of the middle cell where the agents should meet
- */
-function computeMiddlePoint(path, fromMe2Pal = true) {
-	let myPosition = [Math.round(me.x), Math.round(me.y)]; // Current agent position
-	let palPosition = [Math.round(me.multiAgent_palX), Math.round(me.multiAgent_palY)]; // Current pal position
-
-	let myPath = [];
-	let palPath = [];
-
-	if (fromMe2Pal) {
-		// The path is correct for me but inverted for the pal
-		myPath = path;
-
-		myPath.forEach((move) => {
-			if (move == "U") {
-				palPath.push("D");
-			} else if (move == "D") {
-				palPath.push("U");
-			} else if (move == "R") {
-				palPath.push("L");
-			} else if (move == "L") {
-				palPath.push("R");
-			}
-		});
-
-		palPath.reverse();
-	} else {
-		// The path is correct for the pal but inverted for me
-		palPath = path;
-
-		palPath.forEach((move) => {
-			if (move == "U") {
-				myPath.push("D");
-			} else if (move == "D") {
-				myPath.push("U");
-			} else if (move == "R") {
-				myPath.push("L");
-			} else if (move == "L") {
-				myPath.push("R");
-			}
-		});
-
-		myPath.reverse();
-	}
-
-	for (let i = 0; i < path.length; i++) {
-		// Agent step
-		if (myPath[i] == "U") {
-			// Move up
-			myPosition[1] = myPosition[1] + 1;
-		} else if (myPath[i] == "R") {
-			// Move right
-			myPosition[0] = myPosition[0] + 1;
-		} else if (myPath[i] == "D") {
-			// Move down
-			myPosition[1] = myPosition[1] - 1;
-		} else if (myPath[i] == "L") {
-			// Move left
-			myPosition[0] = myPosition[0] - 1;
-		}
-
-		// Are agent and pal in the same position?
-		if (myPosition[0] == palPosition[0] && myPosition[1] == palPosition[1]) {
-			// This is the middle point, so return
-			return myPosition;
-		}
-
-		// Pal step
-		if (palPath[i] == "U") {
-			// Move up
-			palPosition[1] = palPosition[1] + 1;
-		} else if (palPath[i] == "R") {
-			// Move right
-			palPosition[0] = palPosition[0] + 1;
-		} else if (palPath[i] == "D") {
-			// Move down
-			palPosition[1] = palPosition[1] - 1;
-		} else if (palPath[i] == "L") {
-			// Move left
-			palPosition[0] = palPosition[0] - 1;
-		}
-
-		// Are agent and pal in the same position?
-		if (myPosition[0] == palPosition[0] && myPosition[1] == palPosition[1]) {
-			// This is the middle point, so return
-			return myPosition;
-		}
-	}
-
-	// If a middle point has not been found for some reason, then error
-	console.log("ERROR: no middle point found");
-	return [undefined, undefined];
+	return finalPath;
 }
 
 /**
@@ -1417,9 +1278,7 @@ function optionsGeneration() {
 	// Recover all the parcels I am carrying and the path to the nearest delivery
 	let carriedParcels = carryingParcels();
 
-	let [pathNearestDelivery, palFlag] = findPathNearestDeliverAndOtherAgentBFS();
-
-	// TODO: mettere undefined
+	let pathNearestDelivery = findPathNearestDeliverBFS();
 
 	const options = [];
 	for (const parcel of parcels.values()) {
@@ -1499,16 +1358,9 @@ function optionsGeneration() {
 				reward = expectedRewardOfCarriedParcels(carriedParcels, pathNearestDelivery) * (me.moves / MOVES_SCALE_FACTOR + 1);
 			}
 
-			// Check if in the path to delivery there is my pal agent
-			if (!palFlag) {
-				// If not, procede with the usual delivery
+			// Create delivery option if I have some reward
+			if (reward > 0) {
 				delivery_option = ["go_deliver", reward];
-			} else {
-				// Otherwise, trade half delivery with pal agent
-				if (reward != 0) {
-					// Start trade with pal agent
-					tradeWithPal(reward);
-				}
 			}
 		}
 	}
@@ -1739,7 +1591,6 @@ function reviseMemory(generateOptions) {
 	grafo.resetAgentsNearby();
 
 	// Add the agents to the matrix
-	console.log("INSIDE - " + agents);
 	for (const a of agents) {
 		if (grafo.agentsNearby != undefined) {
 			grafo.agentsNearby[Math.round(a[1].x)][Math.round(a[1].y)] = 1;
@@ -1896,7 +1747,6 @@ const me = {
 	multiAgent_palX: null,
 	multiAgent_palY: null,
 	myToken: null,
-	tradeMessageSent: false,
 	currentIntention: undefined,
 	currentIntentionReward: 0,
 };
@@ -1976,53 +1826,6 @@ client.onMsg(async (id, name, msg, reply) => {
 			// Schedule a revise memory
 			checkMemory = true;
 			break;
-
-		case "MSG_trade":
-			console.log("MSG_trade received");
-			console.log("OUT - " + agents);
-			let message = JSON.parse(msg.content);
-			let reward = message.reward;
-			let parcel = JSONToMap(message.parcels);
-			let agent = JSONToMap(message.agents);
-			let pal = message.me;
-			console.log(message);
-
-			// Sync memory with Pal agent
-			updateMeFromPal(parcel);
-			updateAgentsFromPal(agent);
-			updateMeFromPal(pal);
-
-			// Compute a path from me to the pal agent
-			console.log("[" + Math.round(me.x) + " - " + Math.round(me.y) + "] ==> [" + Math.round(me.multiAgent_palX) + " - " + Math.round(me.multiAgent_palY) + "]");
-			let path = navigateBFS([Math.round(me.x), Math.round(me.y)], [Math.round(me.multiAgent_palX), Math.round(me.multiAgent_palY)], true);
-
-			console.log(path);
-
-			// Identify a middle position
-			let middlePosition = computeMiddlePoint(path, true);
-
-			console.log(middlePosition);
-
-			console.log("MID - " + agents);
-
-			// WIP: if pal agent ask for help, I go to help him always
-
-			/*
-			if (me.currentIntention == "explore") {
-				// If I am exploring, so I am doing nothing, then help pal
-			} else if (me.currentIntention == "go_pick_up") {
-				// Reason if it is convenient for me to interrupt this action and help pal
-				// Interrupt and help
-				// Complete and help
-			} else if (me.currentIntention == "go_deliver") {
-				// Reason if it is convenient for me to interrupt this action and help pal
-				// Interrupt and help
-				// Complete and help
-			}*/
-
-			// Compute
-			break;
-
 		default:
 			break;
 	}
