@@ -821,10 +821,13 @@ class BFSmove extends Plan {
 			path = navigateBFS([Math.round(me.x), Math.round(me.y)], distanceExplore());
 		}
 
+		console.log("Moving with this path" + path);
+
 		let i = 0;
 		while (path != undefined && i < path.length) {
 			if (this.stopped) throw ["stopped"]; // if stopped then quit
 
+			console.error("FROM " + me.x + " - " + me.y + " I AM MOVING " + path[i] + " with PAL in pos " + me.multiAgent_palX + " - " + me.multiAgent_palY);
 			let moved_horizontally;
 			let moved_vertically;
 
@@ -834,8 +837,7 @@ class BFSmove extends Plan {
 				console.log("IN PAL THERE");
 				if (palOnThePath(path[i])) {
 					me.trading = true;
-					myAgent.push(["trade"]);
-					throw ["stopped"];
+					this.stop();
 				}
 			} else {
 				if (path[i] == "R") {
@@ -1399,6 +1401,12 @@ function optionsGeneration() {
 	let pathNearestDelivery = findPathNearestDeliverBFS();
 
 	const options = [];
+
+	if (me.trading) {
+		myAgent.push(["trade"]);
+		return;
+	}
+
 	for (const parcel of parcels.values()) {
 		if (!parcel.carriedBy && !me.ignoreParcels.has(parcel.id)) {
 			if (parcel.x == Math.round(me.x) && parcel.y == Math.round(me.y)) {
@@ -1475,11 +1483,7 @@ function optionsGeneration() {
 				// If there is parcel decay, let the user weight the parcel reward increase
 				reward = expectedRewardOfCarriedParcels(carriedParcels, pathNearestDelivery) * (me.moves / MOVES_SCALE_FACTOR + 1);
 			}
-
-			// Create delivery option if I have some reward
-			if (reward > 0) {
-				delivery_option = ["go_deliver", reward];
-			}
+			delivery_option = ["go_deliver", reward];
 		}
 	}
 
