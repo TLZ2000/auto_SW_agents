@@ -736,7 +736,13 @@ class BFSmove extends Plan {
 	async execute(go_to, x, y) {
 		let path = navigateBFS([Math.round(me.x), Math.round(me.y)], [x, y]);
 
+		me.currentPath = path;
+		me.initialPathXPosition = Math.round(me.x);
+		me.initialPathYPosition = Math.round(me.y);
+		me.initialPathTime = Date.now();
+
 		// If no path applicable, then select another cell and go to explore (to not remain still)
+		/*
 		if (path == undefined) {
 			path = navigateBFS([Math.round(me.x), Math.round(me.y)], distanceExplore());
 		}
@@ -744,6 +750,7 @@ class BFSmove extends Plan {
 		if (path == undefined) {
 			console.log("PROBLEMA " + (path == undefined));
 		}
+		*/
 
 		let i = 0;
 		while (path != undefined && i < path.length) {
@@ -878,8 +885,6 @@ function searchSuitableCellsBFS() {
 			}
 		}
 	}
-
-	console.log([suitableSpawn, suitableDelivery]);
 
 	return [suitableSpawn, suitableDelivery];
 }
@@ -1048,8 +1053,14 @@ function navigateBFS(initialPos, finalPos) {
 		if (currentNode.x == finalPos[0] && currentNode.y == finalPos[1]) {
 			// Check if in the final node there is no other agent
 			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
-				// Agent
-				finalPath = undefined;
+				// If the occupying agent is the pal
+				if (currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY)) {
+					// then it is ok
+					finalPath = path;
+				} else {
+					// otherwise it is another agent that i can't control
+					finalPath = undefined;
+				}
 			} else {
 				// No agent
 				finalPath = path;
@@ -1064,8 +1075,8 @@ function navigateBFS(initialPos, finalPos) {
 			// Visit it
 			explored.add(currentNodeId);
 
-			// If node is occupied, ignore its neighbors
-			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
+			// If node is occupied and it is not my pal, ignore its neighbors
+			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1 && !(currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY))) {
 				continue;
 			}
 
@@ -1170,6 +1181,12 @@ function carryingParcels() {
  * Generate all possible options, based on the current game state and configuration, perform option filtering and select the best possible option as current intention
  */
 function optionsGeneration() {
+	// If I have already a pending request to my pal
+	if (me.pendingOptionRequest) {
+		// Then I must await his response
+		return;
+	}
+
 	// Recover all the parcels I am carrying and the path to the nearest delivery
 	let carriedParcels = carryingParcels();
 
@@ -1192,7 +1209,12 @@ function optionsGeneration() {
 				]);
 			} else {
 				// Compute and save the current expected reward for this parcel from the current agent's position
-				let tmpReward = expectedRewardCarriedAndPickup(carriedParcels, parcel);
+				let tmpReward = [];
+				if (me.parcels2Ignore.has(parcel.id)) {
+					tmpReward = [0, Infinity];
+				} else {
+					tmpReward = expectedRewardCarriedAndPickup(carriedParcels, parcel);
+				}
 
 				options.push([
 					"go_pick_up",
@@ -1297,18 +1319,19 @@ function optionsGeneration() {
 						push = true;
 					}
 				} else if (currentIntention[0] == "go_deliver") {
-					if (best_option[1] > currentIntention[1]) {
-						push = true;
-					}
+					// I am already delivering, so I don't want to push another deliver
+					push = false;
 				} else {
 					push = true;
 				}
 			}
 		}
 
-		// If yes, push the best option
+		// If yes, ask if the pal is ok with my decision
 		if (push) {
-			myAgent.push(best_option);
+			// Signal the pending response
+			me.pendingOptionRequest = true;
+			askPal(best_option);
 		}
 	} else {
 		// If we don't have a valid best option, then explore
@@ -1320,6 +1343,36 @@ function optionsGeneration() {
 			myAgent.push(["explore", "distance"]);
 		}
 	}
+}
+
+async function askPal(message) {
+	client
+		.emitAsk(me.multiAgent_palID, { type: "MSG_optionSelection", content: JSON.stringify(message) })
+		.then((response) => {
+			console.log("RESPONSE: " + response);
+			if (response == true) {
+				// If the pal is OK with my selection, then I push it to my intention
+				me.pendingOptionRequest = false;
+				myAgent.push(message);
+			} else {
+				// If the pal is NOT OK with my selection, I must invalidate it
+				switch (message[0]) {
+					case "go_pick_up":
+						// Add the parcel to the set of parcels to ignore
+						me.parcels2Ignore.add(message[3]);
+						me.pendingOptionRequest = false;
+						optionsGeneration();
+						break;
+					case "go_deliver":
+						console.log("Deliver refused somehow?!?");
+						me.pendingOptionRequest = false;
+						break;
+				}
+			}
+		})
+		.catch((error) => {
+			console.error("Errore durante askPal:", error);
+		});
 }
 
 /**
@@ -1571,6 +1624,12 @@ const me = {
 	multiAgent_palX: null,
 	multiAgent_palY: null,
 	myToken: null,
+	initialPathXPosition: undefined,
+	initialPathYPosition: undefined,
+	currentPath: undefined,
+	initialPathTime: null,
+	pendingOptionRequest: false,
+	parcels2Ignore: new Set(),
 };
 const myAgent = new IntentionRevisionReplace();
 const planLibrary = [];
@@ -1681,6 +1740,35 @@ client.onMsg(async (id, name, msg, reply) => {
 
 			// Schedule a revise memory
 			checkMemory = true;
+			break;
+
+		case "MSG_optionSelection":
+			var palOption = JSON.parse(msg.content);
+			if (reply) {
+				switch (palOption[0]) {
+					case "go_pick_up":
+						console.log(palOption);
+
+						// Check if I should refuse that pickup action
+						let currentIntention = myAgent.getCurrentIntention();
+						console.log(currentIntention);
+						// If I have some intention and I am picking up that parcel with higher reward
+						if (currentIntention != undefined && currentIntention[0] == "go_pick_up" && currentIntention[3] == palOption[3] && currentIntention[4] > palOption[4]) {
+							// This parcel is MINE
+							reply(false);
+						} else {
+							// The pal can have that parcel
+							me.parcels2Ignore.add(palOption[3]);
+							reply(true);
+						}
+						break;
+					case "go_deliver":
+						// I have no reason to refuse a deliver
+						reply(true);
+						break;
+				}
+			}
+
 			break;
 
 		default:
