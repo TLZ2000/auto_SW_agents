@@ -736,83 +736,100 @@ class BFSmove extends Plan {
 	async execute(go_to, x, y) {
 		let path = navigateBFS([Math.round(me.x), Math.round(me.y)], [x, y]);
 
+		// If no path applicable, then select another cell and go to explore (to not remain still)
+		if (path == undefined) {
+			path = navigateBFS([Math.round(me.x), Math.round(me.y)], distanceExplore());
+		}
+
 		me.currentPath = path;
 		me.initialPathXPosition = Math.round(me.x);
 		me.initialPathYPosition = Math.round(me.y);
 		me.initialPathTime = Date.now();
 
-		// If no path applicable, then select another cell and go to explore (to not remain still)
-		/*
-		if (path == undefined) {
-			path = navigateBFS([Math.round(me.x), Math.round(me.y)], distanceExplore());
-		}
+		if (path != undefined) {
+			// Once I have computed the path, ask confirmation to Pal
+			let response = await askPalPath({ path: path, x: Math.round(me.x), y: Math.round(me.y) });
 
-		if (path == undefined) {
-			console.log("PROBLEMA " + (path == undefined));
-		}
-		*/
+			// If the pal disapproves my path (DUMB VERSION)
+			if (response.outcome == false) {
+				// Then search another path that do not includes the pal
+				// Update Pal position
+				me.multiAgent_palX = response.myX;
+				me.multiAgent_palY = response.myY;
 
-		let i = 0;
-		while (path != undefined && i < path.length) {
-			if (this.stopped) throw ["stopped"]; // if stopped then quit
-
-			let moved_horizontally;
-			let moved_vertically;
-
-			// this.log('me', me, 'xy', x, y);
-
-			if (path[i] == "R") {
-				moved_horizontally = await client.emitMove("right");
-				// status_x = await this.subIntention( 'go_to', {x: me.x+1, y: me.y} );
-			} else if (path[i] == "L") {
-				moved_horizontally = await client.emitMove("left");
-				// status_x = await this.subIntention( 'go_to', {x: me.x-1, y: me.y} );
+				// Compute a path without Pal
+				let path = navigateBFS([Math.round(me.x), Math.round(me.y)], [x, y], true);
 			}
 
-			let carriedParcels = carryingParcels();
+			let i = 0;
+			while (i < path.length) {
+				if (this.stopped) throw ["stopped"]; // if stopped then quit
 
-			if (moved_horizontally) {
-				me.x = moved_horizontally.x;
-				me.y = moved_horizontally.y;
+				let moved_horizontally;
+				let moved_vertically;
 
-				if (carriedParcels.length > 0) {
-					me.moves += 1;
+				// this.log('me', me, 'xy', x, y);
+
+				if (path[i] == "R") {
+					moved_horizontally = await client.emitMove("right");
+					// status_x = await this.subIntention( 'go_to', {x: me.x+1, y: me.y} );
+				} else if (path[i] == "L") {
+					moved_horizontally = await client.emitMove("left");
+					// status_x = await this.subIntention( 'go_to', {x: me.x-1, y: me.y} );
 				}
-			}
 
-			if (this.stopped) throw ["stopped"]; // if stopped then quit
+				let carriedParcels = carryingParcels();
 
-			if (path[i] == "U") {
-				moved_vertically = await client.emitMove("up");
-				// status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y+1} );
-			} else if (path[i] == "D") {
-				moved_vertically = await client.emitMove("down");
-				// status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y-1} );
-			}
+				if (moved_horizontally) {
+					me.x = moved_horizontally.x;
+					me.y = moved_horizontally.y;
 
-			if (moved_vertically) {
-				me.x = moved_vertically.x;
-				me.y = moved_vertically.y;
-
-				if (carriedParcels.length > 0) {
-					me.moves += 1;
+					if (carriedParcels.length > 0) {
+						me.moves += 1;
+					}
 				}
-			}
 
-			// If stucked
-			if (!moved_horizontally && !moved_vertically) {
-				return true;
-				//throw 'stucked';
-			} else if (me.x == x && me.y == y) {
-				// this.log('target reached');
-			}
+				if (this.stopped) throw ["stopped"]; // if stopped then quit
 
-			i++;
-			// After motion update the timestamp of the visited cells
-			grafo.updateTimeMap();
+				if (path[i] == "U") {
+					moved_vertically = await client.emitMove("up");
+					// status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y+1} );
+				} else if (path[i] == "D") {
+					moved_vertically = await client.emitMove("down");
+					// status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y-1} );
+				}
+
+				if (moved_vertically) {
+					me.x = moved_vertically.x;
+					me.y = moved_vertically.y;
+
+					if (carriedParcels.length > 0) {
+						me.moves += 1;
+					}
+				}
+
+				// If stucked
+				if (!moved_horizontally && !moved_vertically) {
+					return true;
+					//throw 'stucked';
+				} else if (me.x == x && me.y == y) {
+					// this.log('target reached');
+				}
+
+				i++;
+				// After motion update the timestamp of the visited cells
+				grafo.updateTimeMap();
+			}
 		}
 		return true;
 	}
+}
+
+async function askPalPath(message) {
+	me.pendingOptionRequest = true;
+	let response = await client.emitAsk(me.multiAgent_palID, { type: "MSG_pathSelection", content: JSON.stringify(message) });
+	me.pendingOptionRequest = false;
+	return response;
 }
 
 /**
@@ -1030,7 +1047,7 @@ function timedExplore() {
  * @param {[int, int]} finalPos
  * @returns
  */
-function navigateBFS(initialPos, finalPos) {
+function navigateBFS(initialPos, finalPos, considerPalCollision = false) {
 	let queue = new Queue();
 	let explored = new Set();
 	let finalPath = undefined;
@@ -1054,7 +1071,7 @@ function navigateBFS(initialPos, finalPos) {
 			// Check if in the final node there is no other agent
 			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
 				// If the occupying agent is the pal
-				if (currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY)) {
+				if (considerPalCollision && currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY)) {
 					// then it is ok
 					finalPath = path;
 				} else {
@@ -1076,7 +1093,7 @@ function navigateBFS(initialPos, finalPos) {
 			explored.add(currentNodeId);
 
 			// If node is occupied and it is not my pal, ignore its neighbors
-			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1 && !(currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY))) {
+			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1 && !(considerPalCollision && currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY))) {
 				continue;
 			}
 
@@ -1222,7 +1239,7 @@ function optionsGeneration() {
 					parcel.y, // Y coord
 					parcel.id, // ID
 					tmpReward[0], // Expected reward
-					tmpReward[1], // lenght of the path to pickup the parcel
+					tmpReward[1], // length of the path to pickup the parcel
 				]);
 			}
 		}
@@ -1331,7 +1348,7 @@ function optionsGeneration() {
 		if (push) {
 			// Signal the pending response
 			me.pendingOptionRequest = true;
-			askPal(best_option);
+			askPalOption(best_option);
 		}
 	} else {
 		// If we don't have a valid best option, then explore
@@ -1345,11 +1362,10 @@ function optionsGeneration() {
 	}
 }
 
-async function askPal(message) {
+async function askPalOption(message) {
 	client
 		.emitAsk(me.multiAgent_palID, { type: "MSG_optionSelection", content: JSON.stringify(message) })
 		.then((response) => {
-			console.log("RESPONSE: " + response);
 			if (response == true) {
 				// If the pal is OK with my selection, then I push it to my intention
 				me.pendingOptionRequest = false;
@@ -1371,7 +1387,7 @@ async function askPal(message) {
 			}
 		})
 		.catch((error) => {
-			console.error("Errore durante askPal:", error);
+			console.error("Errore durante askPalOption:", error);
 		});
 }
 
@@ -1743,7 +1759,7 @@ client.onMsg(async (id, name, msg, reply) => {
 			break;
 
 		case "MSG_optionSelection":
-			var palOption = JSON.parse(msg.content);
+			let palOption = JSON.parse(msg.content);
 			if (reply) {
 				switch (palOption[0]) {
 					case "go_pick_up":
@@ -1768,7 +1784,89 @@ client.onMsg(async (id, name, msg, reply) => {
 						break;
 				}
 			}
+			break;
 
+		case "MSG_pathSelection":
+			let tmp = JSON.parse(msg.content);
+			let palPath = tmp.path;
+			me.multiAgent_palX = tmp.x;
+			me.multiAgent_palY = tmp.y;
+			let tmpPalX = tmp.x;
+			let tmpPalY = tmp.y;
+			let tmpMyX = me.initialPathXPosition;
+			let tmpMyY = me.initialPathYPosition;
+
+			let nowTimestamp = Date.now();
+
+			// Compute position+time sequence of Pal
+			let palSequence = [];
+			let tmpTimeStamp = nowTimestamp;
+			palPath.forEach((move) => {
+				tmpTimeStamp += currentConfig.MOVEMENT_DURATION;
+				switch (move) {
+					case "U":
+						tmpPalY += 1;
+						break;
+					case "R":
+						tmpPalX += 1;
+						break;
+					case "D":
+						tmpPalY -= 1;
+						break;
+					case "L":
+						tmpPalX -= 1;
+						break;
+				}
+				palSequence.push({ x: tmpPalX, y: tmpPalY, timestamp: tmpTimeStamp });
+			});
+
+			// Compute position+time sequence of Me
+			let mySequence = [];
+			let myTimeStamp = nowTimestamp;
+			let currentPositionReached = false;
+			me.currentPath.forEach((move) => {
+				if (tmpMyX == Math.round(me.x) && tmpMyY == Math.round(me.y)) {
+					currentPositionReached = true;
+				}
+				switch (move) {
+					case "U":
+						tmpMyY += 1;
+						break;
+					case "R":
+						tmpMyX += 1;
+						break;
+					case "D":
+						tmpMyY -= 1;
+						break;
+					case "L":
+						tmpMyX -= 1;
+						break;
+				}
+
+				if (currentPositionReached) {
+					myTimeStamp += currentConfig.MOVEMENT_DURATION;
+					mySequence.push({ x: tmpMyX, y: tmpMyY, timestamp: myTimeStamp });
+				}
+			});
+
+			// Compare sequences and search for bumps
+			let minLen = Math.min(mySequence.length, palSequence.length);
+			for (let i = 0; i < minLen; i++) {
+				if (mySequence[i].x == palSequence[i].x && mySequence[i].y == palSequence[i].y) {
+					// Then we are bumping somewhere, so replay considering what I am currently doing (dumb version: return always false)
+					switch (myAgent.getCurrentIntention()[0]) {
+						case "go_pick_up":
+						case "go_deliver":
+						case "explore":
+						default:
+							reply({ outcome: false, myX: Math.round(me.x), myY: Math.round(me.y) });
+							break;
+					}
+				}
+			}
+
+			// If we are here, we are not bumping, then the path is ok
+			reply({ outcome: true });
 			break;
 
 		default:
