@@ -983,9 +983,6 @@ function timedExplore() {
 	suitableCells.forEach((element) => {
 		element.timestamp /= totalTime; // First normalization
 		element.timestamp /= element.distance * element.distance * element.distance * element.distance + 1; // Penalize distant cells
-
-		// DA CONTINUARE
-		// element.timestamp /= Math.max(0, -1 * Math.log(distanceFromPal));
 	});
 
 	// Second normalization
