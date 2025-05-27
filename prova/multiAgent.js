@@ -509,6 +509,10 @@ class IntentionRevisionReplace extends IntentionRevision {
 			return; // intention is already being achieved
 		}
 
+		if (me.trading && predicate[0] != "trade") {
+			return;
+		}
+
 		console.log("IntentionRevisionReplace.push", predicate);
 		const intention = new Intention(this, predicate);
 		this.intention_queue.push(intention);
@@ -791,18 +795,14 @@ function palOnThePath(direction) {
 	// Wait some time to be sure that the pal agent wants to go in the cell where I am
 	waitMovementDuration();
 
+	console.log("PAL POSITION: " + me.multiAgent_palX + " " + me.multiAgent_palY);
+
 	// If the pal agent is still there, then it wants to go where I am
 	if (palThere(direction)) {
-		// Start trade with pal agent
-		if (me.id == AGENT1_ID) {
-			// Only agent_1 starts trading procedure
-			startTradeWithPal();
-		}
-
-		// Wait for a response/message
-		me.waiting = true;
-		while (me.waiting) {}
+		return true;
 	}
+
+	return false;
 }
 
 /**
@@ -831,7 +831,12 @@ class BFSmove extends Plan {
 			// this.log('me', me, 'xy', x, y);
 
 			if (palThere(path[i])) {
-				palOnThePath(path[i]);
+				console.log("IN PAL THERE");
+				if (palOnThePath(path[i])) {
+					me.trading = true;
+					myAgent.push(["trade"]);
+					throw ["stopped"];
+				}
 			} else {
 				if (path[i] == "R") {
 					moved_horizontally = await client.emitMove("right");
@@ -884,6 +889,26 @@ class BFSmove extends Plan {
 				grafo.updateTimeMap();
 			}
 		}
+		return true;
+	}
+}
+
+/**
+ * Plan class handling the "trade" intention
+ */
+class Trade extends Plan {
+	static isApplicableTo(trade) {
+		return trade == "trade";
+	}
+
+	async execute(trade, type) {
+		if (this.stopped) throw ["stopped"]; // if stopped then quit
+
+		while (true) {
+			//console.log("TRADE");
+		}
+
+		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		return true;
 	}
 }
@@ -1942,6 +1967,7 @@ const me = {
 	currentExploreCoordinates: [0, 0],
 	invertExplore: false,
 	ignoreParcels: new Set(),
+	trading: false,
 };
 const myAgent = new IntentionRevisionReplace();
 const planLibrary = [];
@@ -1979,6 +2005,7 @@ planLibrary.push(GoPickUp);
 planLibrary.push(BFSmove);
 planLibrary.push(GoDeliver);
 planLibrary.push(Explore);
+planLibrary.push(Trade);
 
 client.onMsg(async (id, name, msg, reply) => {
 	var checkMemory = false;
