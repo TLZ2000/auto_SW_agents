@@ -1,19 +1,20 @@
 import { DeliverooApi } from "@unitn-asa/deliveroo-js-client";
-const AGENT1_ID = "89ee91";
-const AGENT2_ID = "ac5e1d";
+const AGENT1_ID = "a6cdae";
+const AGENT2_ID = "ff8ff0";
 
-const AGENT1_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ijg5ZWU5MSIsIm5hbWUiOiJBR0VOVDEiLCJyb2xlIjoidXNlciIsImlhdCI6MTc0NzgxMzYzMX0.W8cKIL5m5sQ1CIdh-SdY2O8iWXEjmFR0AWgDWL-mGww";
-const AGENT2_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFjNWUxZCIsIm5hbWUiOiJBR0VOVDIiLCJyb2xlIjoidXNlciIsImlhdCI6MTc0NzgxMzYzNX0.x260N7Vm8Iuzm2fer9Q9YaKf7j0fqIuw5-MLxfPl4kY";
-const SERVER_ADDRS = "http://localhost:8080";
+const AGENT1_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImE2Y2RhZSIsIm5hbWUiOiJUaGUgUm9ib1NhcGllbnNfMSIsInRlYW1JZCI6ImM1MTFhNCIsInRlYW1OYW1lIjoiVGhlIFJvYm9TYXBpZW5zIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDgzNTk4NTF9.ESkRP2T4LIP4z2ghpnmKFb-xkXldwNhaR2VShlL0dm4";
+const AGENT2_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImZmOGZmMCIsIm5hbWUiOiJUaGUgUm9ib1NhcGllbnNfMiIsInRlYW1JZCI6ImMzZTljYSIsInRlYW1OYW1lIjoiVGhlIFJvYm9TYXBpZW5zIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDgzNTk4NTV9.OOBVcCXkUxyLwY8OyDo6v8hfHiijKcAI2MRvOsrFJmA";
+//const SERVER_ADDRS = "http://localhost:8080";
+const SERVER_ADDRS = "https://deliveroojs.rtibdi.disi.unitn.it";
 
 const SPAWN_NON_SPAWN_RATIO = 0.5;
 const DELIVERY_AREA_EXPLORE = 0.1;
 const TIMED_EXPLORE = 0.99;
 const MEMORY_DIFFERENCE_THRESHOLD = 2000;
 const MOVES_SCALE_FACTOR = 50; // Lower values mean I want to deliver more often
-const MOVES_SCALE_FACTOR_NO_DECAY = 10; // Lower values mean I want to deliver more often
+const MOVES_SCALE_FACTOR_NO_DECAY = 20; // Lower values mean I want to deliver more often
 const MEMORY_REVISION_TIMER = 10000;
-const MEMORY_SHARE_TIMER = 2000;
+const MEMORY_SHARE_TIMER = 1500;
 const MAX_EXPLORABLE_SPAWN_CELLS = 100;
 
 /**
@@ -1824,6 +1825,11 @@ client.onMsg(async (id, name, msg, reply) => {
 			let mySequence = [];
 			let myTimeStamp = nowTimestamp;
 			let currentPositionReached = false;
+
+			if (me.currentPath == undefined) {
+				reply({ outcome: true });
+				break;
+			}
 			me.currentPath.forEach((move) => {
 				if (tmpMyX == Math.round(me.x) && tmpMyY == Math.round(me.y)) {
 					currentPositionReached = true;
