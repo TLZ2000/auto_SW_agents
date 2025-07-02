@@ -519,6 +519,7 @@ class IntentionRevisionReplace extends IntentionRevision {
 		}
 	}
 
+	// Function to get the current intention
 	getCurrentIntention() {
 		if (this.intention_queue.at(this.intention_queue.length - 1)) {
 			return this.intention_queue.at(this.intention_queue.length - 1).predicate;
@@ -689,6 +690,7 @@ class GoDeliver extends Plan {
 	async execute(go_deliver) {
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 
+		// TODO: riguardare nearest deliveries
 		let nearestDelivery = grafo.graphMap[Math.round(me.x)][Math.round(me.y)].visitedDeliveries[0].deliveryNode;
 
 		await this.subIntention(["go_to", nearestDelivery.x, nearestDelivery.y]);
@@ -759,7 +761,7 @@ class BFSmove extends Plan {
 				me.multiAgent_palY = response.myY;
 
 				// Compute a path without Pal
-				let path = navigateBFS([Math.round(me.x), Math.round(me.y)], [x, y], true);
+				path = navigateBFS([Math.round(me.x), Math.round(me.y)], [x, y], true);
 			}
 
 			let i = 0;
@@ -779,13 +781,17 @@ class BFSmove extends Plan {
 					// status_x = await this.subIntention( 'go_to', {x: me.x-1, y: me.y} );
 				}
 
+				// Check if agent is carrying parcels
 				let carriedParcels = carryingParcels();
 
+				// If moved horizontally
 				if (moved_horizontally) {
 					me.x = moved_horizontally.x;
 					me.y = moved_horizontally.y;
 
+					// And if agent is carrying parcels
 					if (carriedParcels.length > 0) {
+						// Increment the movement penalty (increase probability to go deliver)
 						me.moves += 1;
 					}
 				}
@@ -800,11 +806,14 @@ class BFSmove extends Plan {
 					// status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y-1} );
 				}
 
+				// If moved vertically
 				if (moved_vertically) {
 					me.x = moved_vertically.x;
 					me.y = moved_vertically.y;
 
+					// And if agent is carrying parcels
 					if (carriedParcels.length > 0) {
+						// Increment the movement penalty (increase probability to go deliver)
 						me.moves += 1;
 					}
 				}
@@ -908,7 +917,7 @@ function searchSuitableCellsBFS() {
 }
 
 /**
- * Randomly select a cell to explore using the "distance" criterion (distant cells are more probable), if the ratio of spawn/non spawn cells is greater than SPAWN_NON_SPAWN_RATIO, consider also delivery zones
+ * Randomly select a cell to explore using the "distance" criterion (distant cells are more probable), if the ratio of spawn/non spawn cells is greater than SPAWN_NON_SPAWN_RATIO, consider also delivery zones. Otherwise, this means that the spawn zones are few, so consider only them.
  * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "distance" criterion
  */
 function distanceExplore() {
@@ -974,11 +983,13 @@ function timedExplore() {
 	let tmp = [];
 	// Do not consider some specific cells
 	for (let i = 0; i < suitableCells.length; i++) {
+		// TODO: is needed?
 		// Ignore current agent cell
 		if (suitableCells[i].x == Math.round(me.x) && suitableCells[i].y == Math.round(me.y)) {
 			continue;
 		}
 
+		// TODO: is needed?
 		// Ignore this cell if it is already occupied by someone else
 		if (grafo.agentsNearby[suitableCells[i].x][suitableCells[i].y] == 1) {
 			continue;
@@ -1048,6 +1059,7 @@ function timedExplore() {
  * @param {[int, int]} finalPos
  * @returns
  */
+// TODO: riguardare considerPalCollision
 function navigateBFS(initialPos, finalPos, considerPalCollision = false) {
 	let queue = new Queue();
 	let explored = new Set();
@@ -1072,6 +1084,7 @@ function navigateBFS(initialPos, finalPos, considerPalCollision = false) {
 			// Check if in the final node there is no other agent
 			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
 				// If the occupying agent is the pal
+
 				if (considerPalCollision && currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY)) {
 					// then it is ok
 					finalPath = path;
@@ -1208,6 +1221,7 @@ function optionsGeneration() {
 	// Recover all the parcels I am carrying and the path to the nearest delivery
 	let carriedParcels = carryingParcels();
 
+	// TODO: guardare nearest deliveries
 	let pathNearestDelivery = navigateBFS([Math.round(me.x), Math.round(me.y)], [grafo.graphMap[Math.round(me.x)][Math.round(me.y)].visitedDeliveries[0].deliveryNode.x, grafo.graphMap[Math.round(me.x)][Math.round(me.y)].visitedDeliveries[0].deliveryNode.y]);
 
 	// TODO: mettere undefined
@@ -1278,8 +1292,11 @@ function optionsGeneration() {
 
 	// Define a delivery option
 	let delivery_option = undefined;
+	// Check if we are carrying parcels, so it makes sense to deliver them
 	if (carriedParcels.length != 0) {
+		// Check if we are in a delivery cell
 		if (grafo.gameMap.getItem(Math.round(me.x), Math.round(me.y)).type == 2) {
+			// If so, deliver
 			delivery_option = ["go_deliver", Infinity];
 		} else {
 			if (currentConfig.PARCEL_DECADING_INTERVAL == "infinite") {
@@ -1329,6 +1346,7 @@ function optionsGeneration() {
 						push = true;
 					}
 				} else {
+					// Explore
 					push = true;
 				}
 			} else if (best_option[0] == "go_deliver") {
@@ -1388,7 +1406,7 @@ async function askPalOption(message) {
 			}
 		})
 		.catch((error) => {
-			console.error("Errore durante askPalOption:", error);
+			console.error("Error during askPalOption:", error);
 		});
 }
 
@@ -1414,6 +1432,7 @@ function parcelCostReward(parcel) {
 		};
 	}
 
+	// TODO: vedere visited deliveries
 	// Compute distance parcel -> nearest delivery
 	let nearestDelivery = grafo.graphMap[parX][parY].visitedDeliveries[0].deliveryNode;
 
@@ -1448,13 +1467,17 @@ function parcelCostReward(parcel) {
 function parcelScoreAfterMs(time, parcelScore, lastVisitTime) {
 	let decadeInterval = currentConfig.PARCEL_DECADING_INTERVAL; //Seconds
 
+	// Convert decade interval to number (in currentConfig it is a string)
 	if (decadeInterval == "infinite") {
 		decadeInterval = Infinity;
 	} else {
 		decadeInterval = Number(decadeInterval.substring(0, decadeInterval.length - 1));
 	}
-	decadeInterval *= 1000; // Converte to ms
-	let marginedTime = time + Number(currentConfig.MOVEMENT_DURATION); // Add some additional time margin
+	// Convert to ms
+	decadeInterval *= 1000;
+
+	// Add some additional time margin
+	let marginedTime = time + Number(currentConfig.MOVEMENT_DURATION);
 	let scoreCost = Math.round(marginedTime / decadeInterval);
 
 	// Compute last visit time
@@ -1501,8 +1524,10 @@ function distance({ x: x1, y: y1 }, { x: x2, y: y2 }) {
 function reviseMemory(generateOptions) {
 	let parcels2 = new Map();
 	let agents2 = new Map();
+	// TODO: rivedere stopFlag
 	let stopFlag = false;
 
+	// TODO: rivedere controllo parcel e agenti che vediamo
 	// Revise memory information
 	parcels.forEach((parcel) => {
 		// Check if I see old parcels position
@@ -1826,10 +1851,13 @@ client.onMsg(async (id, name, msg, reply) => {
 			let myTimeStamp = nowTimestamp;
 			let currentPositionReached = false;
 
+			// If my path is undefined, there is no risk in bumping with pal
 			if (me.currentPath == undefined) {
+				// So, reply with true
 				reply({ outcome: true });
 				break;
 			}
+
 			me.currentPath.forEach((move) => {
 				if (tmpMyX == Math.round(me.x) && tmpMyY == Math.round(me.y)) {
 					currentPositionReached = true;
