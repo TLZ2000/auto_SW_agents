@@ -4,11 +4,11 @@ const AGENT2_ID = "ff8ff0";
 
 const AGENT1_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImE2Y2RhZSIsIm5hbWUiOiJUaGUgUm9ib1NhcGllbnNfMSIsInRlYW1JZCI6ImM1MTFhNCIsInRlYW1OYW1lIjoiVGhlIFJvYm9TYXBpZW5zIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDgzNTk4NTF9.ESkRP2T4LIP4z2ghpnmKFb-xkXldwNhaR2VShlL0dm4";
 const AGENT2_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImZmOGZmMCIsIm5hbWUiOiJUaGUgUm9ib1NhcGllbnNfMiIsInRlYW1JZCI6ImMzZTljYSIsInRlYW1OYW1lIjoiVGhlIFJvYm9TYXBpZW5zIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDgzNTk4NTV9.OOBVcCXkUxyLwY8OyDo6v8hfHiijKcAI2MRvOsrFJmA";
-//const SERVER_ADDRS = "http://localhost:8080";
-const SERVER_ADDRS = "https://deliveroojs.rtibdi.disi.unitn.it";
+const SERVER_ADDRS = "http://localhost:8080";
+// const SERVER_ADDRS = "https://deliveroojs.rtibdi.disi.unitn.it";
 
 const SPAWN_NON_SPAWN_RATIO = 0.5;
-const DELIVERY_AREA_EXPLORE = 0.1;
+const DELIVERY_AREA_EXPLORE = 0;
 const TIMED_EXPLORE = 0.99;
 const MEMORY_DIFFERENCE_THRESHOLD = 2000;
 const MOVES_SCALE_FACTOR = 50; // Lower values mean I want to deliver more often
@@ -454,7 +454,6 @@ class IntentionRevision {
 				const intention = this.intention_queue[0];
 
 				// Is queued intention still valid? Do I still want to achieve it?
-				// TODO this hard-coded implementation is an example
 				let id = intention.predicate[2];
 				let p = parcels.get(id);
 				if (p && p.carriedBy) {
@@ -690,10 +689,10 @@ class GoDeliver extends Plan {
 	async execute(go_deliver) {
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 
-		// TODO: riguardare nearest deliveries
-		let nearestDelivery = grafo.graphMap[Math.round(me.x)][Math.round(me.y)].visitedDeliveries[0].deliveryNode;
+		// Find coordinates of the nearest delivery
+		let nearestDelivery = nearestDeliveryFromHereCoords(Math.round(me.x), Math.round(me.y));
 
-		await this.subIntention(["go_to", nearestDelivery.x, nearestDelivery.y]);
+		await this.subIntention(["go_to", nearestDelivery[0], nearestDelivery[1]]);
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		await client.emitPutdown();
 		reviseMemory(true);
@@ -1221,11 +1220,10 @@ function optionsGeneration() {
 	// Recover all the parcels I am carrying and the path to the nearest delivery
 	let carriedParcels = carryingParcels();
 
-	// TODO: guardare nearest deliveries
-	let pathNearestDelivery = navigateBFS([Math.round(me.x), Math.round(me.y)], [grafo.graphMap[Math.round(me.x)][Math.round(me.y)].visitedDeliveries[0].deliveryNode.x, grafo.graphMap[Math.round(me.x)][Math.round(me.y)].visitedDeliveries[0].deliveryNode.y]);
+	// Find path to the nearest delivery
+	let pathNearestDelivery = nearestDeliveryFromHerePath(Math.round(me.x), Math.round(me.y));
 
 	// TODO: mettere undefined
-
 	const options = [];
 	for (const parcel of parcels.values()) {
 		if (!parcel.carriedBy) {
@@ -1432,11 +1430,8 @@ function parcelCostReward(parcel) {
 		};
 	}
 
-	// TODO: vedere visited deliveries
-	// Compute distance parcel -> nearest delivery
-	let nearestDelivery = grafo.graphMap[parX][parY].visitedDeliveries[0].deliveryNode;
-
-	let pathToDeliver = navigateBFS([parX, parY], [nearestDelivery.x, nearestDelivery.y]);
+	// Find path to the nearest delivery
+	let pathToDeliver = nearestDeliveryFromHerePath(parX, parY);
 
 	if (pathToDeliver == undefined) {
 		return {
@@ -1580,6 +1575,130 @@ function reviseMemory(generateOptions) {
 	if (generateOptions) {
 		optionsGeneration();
 	}
+}
+
+/**
+ * Compute the path to the nearest delivery cell from a given position considering also the other agents as blocking elements (the pal agent is NOT blocking)
+ * @param {Number} x - starting x coordinate
+ * @param {Number} y - starting y coordinate
+ * @returns {Array} [0]: coordinates [finalX, finalY] of the nearest delivery (if non existing -> [undefined, undefined]); [1]: array containing path to nearest delivery from [x, y] cell (if non existing -> undefined)
+ */
+function nearestDeliveryFromHere(x, y) {
+	let queue = new Queue();
+	let explored = new Set();
+	let finalPath = undefined;
+	let finalX = undefined;
+	let finalY = undefined;
+
+	let initialNode = grafo.graphMap[x][y];
+
+	if (initialNode == undefined) {
+		return undefined;
+	}
+
+	// Add initial node to the queue
+	queue.enqueue({ currentNode: initialNode, path: [] });
+
+	// Cycle until the queue is empty or a valid path has been found
+	while (!queue.isEmpty()) {
+		// Take the item from the queue
+		let { currentNode, path } = queue.dequeue();
+
+		// If the current position is a delivery zone
+		if (currentNode.type == 2) {
+			// Check if in the final node there is no other agent
+			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
+				// If the occupying agent is the pal
+				if (currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY)) {
+					// then it is ok
+					finalPath = path;
+					finalX = currentNode.x;
+					finalY = currentNode.y;
+					break;
+				} else {
+					// otherwise it is another agent that i can't control
+					finalPath = undefined;
+				}
+			} else {
+				// No agent
+				finalPath = path;
+				finalX = currentNode.x;
+				finalY = currentNode.y;
+				break;
+			}
+			
+		}
+
+		let currentNodeId = currentNode.x + " " + currentNode.y;
+
+		// If the node not has not been visited
+		if (!explored.has(currentNodeId)) {
+			// Visit it
+			explored.add(currentNodeId);
+
+			// If node is occupied and it is not my pal, ignore its neighbors
+			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1 && !(currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY))) {
+				continue;
+			}
+
+			// Explore its neighbors
+			// Up
+			if (currentNode.neighU !== undefined && currentNode.neighU !== null) {
+				let tmp = path.slice();
+				tmp.push("U");
+				queue.enqueue({ currentNode: currentNode.neighU, path: tmp });
+			}
+
+			// Right
+			if (currentNode.neighR !== undefined && currentNode.neighR !== null) {
+				let tmp = path.slice();
+				tmp.push("R");
+				queue.enqueue({ currentNode: currentNode.neighR, path: tmp });
+			}
+
+			// Down
+			if (currentNode.neighD !== undefined && currentNode.neighD !== null) {
+				let tmp = path.slice();
+				tmp.push("D");
+				queue.enqueue({ currentNode: currentNode.neighD, path: tmp });
+			}
+
+			// Left
+			if (currentNode.neighL !== undefined && currentNode.neighL !== null) {
+				let tmp = path.slice();
+				tmp.push("L");
+				queue.enqueue({ currentNode: currentNode.neighL, path: tmp });
+			}
+		}
+	}
+
+	// If there exists a path from the initial to the final tile
+	if (finalPath != undefined) {
+		return [[finalX, finalY], finalPath];
+	} else {
+		//console.log("No path found to [" + finalPos[0] + "," + finalPos[1] + "]!");
+		return [[undefined, undefined], undefined];
+	}
+}
+
+/**
+ * Compute the path to the nearest delivery cell from a given position considering also the other agents as blocking elements (the pal agent is NOT blocking)
+ * @param {Number} x - starting x coordinate
+ * @param {Number} y - starting y coordinate
+ * @returns {Array} array containing path to nearest delivery from [x, y] cell (if non existing -> undefined)
+ */
+function nearestDeliveryFromHerePath(x, y){
+	return nearestDeliveryFromHere(x, y)[1];
+}
+
+/**
+ * Compute the path to the nearest delivery cell from a given position considering also the other agents as blocking elements (the pal agent is NOT blocking)
+ * @param {Number} x - starting x coordinate
+ * @param {Number} y - starting y coordinate
+ * @returns {Array} coordinates [finalX, finalY] of the nearest delivery (if non existing -> [undefined, undefined])
+ */
+function nearestDeliveryFromHereCoords(x, y){
+	return nearestDeliveryFromHere(x, y)[0];
 }
 
 function mapToJSON(map) {
@@ -1941,6 +2060,13 @@ client.onAgentsSensing(async (aa) => {
 	aa.forEach((a) => {
 		a.time = now;
 		agents.set(a.id, a);
+
+		// If a is my pal
+		if(a.id == me.multiAgent_palID){
+			// Update its coordinates in real time
+			me.multiAgent_palX = a.x;
+			me.multiAgent_palY = a.y;
+		}
 	});
 
 	/*
