@@ -81,6 +81,7 @@ class GraphNode {
 		this.neighD = undefined; // Down neighbor
 		this.neighL = undefined; // Left neighbor
 		this.type = type; // Node type
+		// TODO: togliere questo perche non piu usato
 		this.visitedDeliveries = []; // List of dictionaries containing {deliveryNode, distance, direction}
 		this.nearestSpawn = undefined; // Nearest spawn area
 		this.visitedSet = new Set(); // Set containing the delivery nodes that already visited this node
