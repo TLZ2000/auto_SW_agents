@@ -965,15 +965,8 @@ function timedExplore() {
 	let tmp = [];
 	// Do not consider some specific cells
 	for (let i = 0; i < suitableCells.length; i++) {
-		// TODO: is needed?
 		// Ignore current agent cell
 		if (suitableCells[i].x == Math.round(me.x) && suitableCells[i].y == Math.round(me.y)) {
-			continue;
-		}
-
-		// TODO: is needed?
-		// Ignore this cell if it is already occupied by someone else
-		if (grafo.agentsNearby[suitableCells[i].x][suitableCells[i].y] == 1) {
 			continue;
 		}
 
