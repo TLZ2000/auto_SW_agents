@@ -1918,13 +1918,13 @@ client.onMsg(async (id, name, msg, reply) => {
 						let currentIntention = myAgent.getCurrentIntention();
 
 						console.log(currentIntention);
-						// If my current intention is not go_deliver and my expected reward to pickup the parcel that pal wants to pickup is higher, then tell him that I will pick it up
-						if (currentIntention != undefined && currentIntention[0] != "go_deliver" && parcels.has(palOption[3]) && expectedRewardCarriedAndPickup(carryingParcels(), parcels.get(palOption[3])) > palOption[4]) {
+
+						// If I have some intention and I am picking up that parcel with higher reward
+						if (currentIntention != undefined && currentIntention[0] == "go_pick_up" && currentIntention[3] == palOption[3] && currentIntention[4] > palOption[4]) {
 							// This parcel is MINE
 							reply(false);
 						} else {
 							// The pal can have that parcel
-							me.parcels2Ignore.set(palOption[3], Date.now());
 							reply(true);
 						}
 						break;
