@@ -10,9 +10,10 @@ const SERVER_ADDRS = "http://localhost:8080";
 const SPAWN_NON_SPAWN_RATIO = 0.5;
 const DELIVERY_AREA_EXPLORE = 0;
 const TIMED_EXPLORE = 0.99;
-const MEMORY_DIFFERENCE_THRESHOLD = 2000;
-const MOVES_SCALE_FACTOR = 50; // Lower values mean I want to deliver more often
-const MOVES_SCALE_FACTOR_NO_DECAY = 20; // Lower values mean I want to deliver more often
+const INVIEW_MEMORY_DIFFERENCE_THRESHOLD = 2000; // Threshold for parcels and agent in our vision range
+const OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD = 10000; // Threshold for parcels and agent not in our vision range
+const MOVES_SCALE_FACTOR = 100; // Lower values mean I want to deliver more often
+const MOVES_SCALE_FACTOR_NO_DECAY = 60; // Lower values mean I want to deliver more often
 const MEMORY_REVISION_TIMER = 10000;
 const MEMORY_SHARE_TIMER = 1500;
 const MAX_EXPLORABLE_SPAWN_CELLS = 100;
@@ -1029,13 +1030,14 @@ function timedExplore() {
 }
 
 /**
+ * Compute path from initialPos to finalPos using BFS
  *
  * @param {[int, int]} initialPos
  * @param {[int, int]} finalPos
- * @returns
+ * @param {Boolean} palNotBlocking - if false (default) -> pal is not considered a blocking entity, if true -> pal is it
+ * @returns path or undefined if path not available
  */
-// TODO: riguardare considerPalCollision
-function navigateBFS(initialPos, finalPos, considerPalCollision = false) {
+function navigateBFS(initialPos, finalPos, palNotBlocking = false) {
 	let queue = new Queue();
 	let explored = new Set();
 	let finalPath = undefined;
@@ -1060,7 +1062,7 @@ function navigateBFS(initialPos, finalPos, considerPalCollision = false) {
 			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
 				// If the occupying agent is the pal
 
-				if (considerPalCollision && currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY)) {
+				if (palNotBlocking && currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY)) {
 					// then it is ok
 					finalPath = path;
 				} else {
@@ -1082,7 +1084,7 @@ function navigateBFS(initialPos, finalPos, considerPalCollision = false) {
 			explored.add(currentNodeId);
 
 			// If node is occupied and it is not my pal, ignore its neighbors
-			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1 && !(considerPalCollision && currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY))) {
+			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1 && !(palNotBlocking && currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY))) {
 				continue;
 			}
 
@@ -1199,7 +1201,6 @@ function optionsGeneration() {
 	// Find path to the nearest delivery
 	let pathNearestDelivery = nearestDeliveryFromHerePath(Math.round(me.x), Math.round(me.y));
 
-	// TODO: mettere undefined
 	const options = [];
 	for (const parcel of parcels.values()) {
 		if (!parcel.carriedBy) {
@@ -1501,13 +1502,17 @@ function reviseMemory(generateOptions) {
 	parcels.forEach((parcel) => {
 		// Check if I see old parcels position
 		if (distance({ x: parcel.x, y: parcel.y }, { x: me.x, y: me.y }) < currentConfig.PARCELS_OBSERVATION_DISTANCE) {
-			// Check if I saw the parcel recently (aka. the onParcelSensing was called by it)
-			if (Date.now() - parcel.time < MEMORY_DIFFERENCE_THRESHOLD) {
+			// Check if I saw the parcel recently (aka. the onParcelsSensing was called by it)
+			if (Date.now() - parcel.time < INVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
 				// If so, preserve it
 				parcels2.set(parcel.id, parcel);
 			}
 		} else {
-			parcels2.set(parcel.id, parcel);
+			// Check if I saw the parcel (not in our vision range) recently
+			if (Date.now() - parcel.time < OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
+				// If so, preserve it
+				parcels2.set(parcel.id, parcel);
+			}
 		}
 	});
 	parcels = parcels2;
@@ -1516,12 +1521,16 @@ function reviseMemory(generateOptions) {
 		// Check if I see old agents position
 		if (distance({ x: agent.x, y: agent.y }, { x: me.x, y: me.y }) < currentConfig.AGENTS_OBSERVATION_DISTANCE) {
 			// Check if I saw the agent recently (aka. the onAgentSensing was called by it)
-			if (Date.now() - agent.time < MEMORY_DIFFERENCE_THRESHOLD) {
+			if (Date.now() - agent.time < INVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
 				// If so, preserve it
 				agents2.set(agent.id, agent);
 			}
 		} else {
-			agents2.set(agent.id, agent);
+			// Check if I saw the agent (not in our vision range) recently
+			if (Date.now() - agent.time < OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
+				// If so, preserve it
+				agents2.set(agent.id, agent);
+			}
 		}
 	});
 
@@ -2031,28 +2040,6 @@ client.onAgentsSensing(async (aa) => {
 			me.multiAgent_palY = a.y;
 		}
 	});
-
-	/*
-	// DA MODIFICARE
-	for (const a of agents.values()) {
-		if (aa.map((a) => a.id).find((id) => id == a.id) == undefined) {
-			agents.delete(a.id);
-			if (grafo.agentsNearby != undefined) {
-				grafo.agentsNearby[Math.round(a.x)][Math.round(a.y)] = 0;
-			}
-		}
-	}
-  
-
-	grafo.resetAgentsNearby();
-
-	// Add the agents to the matrix
-	for (const a of agents) {
-		if (grafo.agentsNearby != undefined) {
-			grafo.agentsNearby[Math.round(a[1].x)][Math.round(a[1].y)] = 1;
-		}
-	}
-  */
 });
 
 client.onYou(({ id, name, x, y, score }) => {
