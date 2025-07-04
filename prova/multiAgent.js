@@ -12,8 +12,8 @@ const DELIVERY_AREA_EXPLORE = 0;
 const TIMED_EXPLORE = 0.99;
 const INVIEW_MEMORY_DIFFERENCE_THRESHOLD = 2000; // Threshold for parcels and agent in our vision range
 const OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD = 10000; // Threshold for parcels and agent not in our vision range
-const MOVES_SCALE_FACTOR = 50; // Lower values mean I want to deliver more often
-const MOVES_SCALE_FACTOR_NO_DECAY = 20; // Lower values mean I want to deliver more often
+const MOVES_SCALE_FACTOR = 30; // Lower values mean I want to deliver more often
+const MOVES_SCALE_FACTOR_NO_DECAY = 5; // Lower values mean I want to deliver more often
 const MEMORY_REVISION_TIMER = 10000;
 const MEMORY_SHARE_TIMER = 1500;
 const MAX_EXPLORABLE_SPAWN_CELLS = 100;
@@ -1340,6 +1340,12 @@ function optionsGeneration() {
 				} else {
 					push = true;
 				}
+			}
+
+			// If my best option is go_deliver but my current intention is go_pick_up
+			if (currentIntention[0] == "go_pick_up" && best_option[0] == "go_deliver") {
+				// First finish the go_pick_up
+				return;
 			}
 		}
 
