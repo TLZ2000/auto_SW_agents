@@ -17,6 +17,7 @@ const MOVES_SCALE_FACTOR_NO_DECAY = 5; // Lower values mean I want to deliver mo
 const MEMORY_REVISION_TIMER = 10000;
 const MEMORY_SHARE_TIMER = 1500;
 const MAX_EXPLORABLE_SPAWN_CELLS = 100;
+const MEMORY_REVISION_PARCELS2IGNORE = 5000;
 
 const PARCEL_DISTANCE_LOW = 1;
 const PARCEL_DISTANCE_MID = 2;
@@ -1380,7 +1381,7 @@ async function askPalOption(message) {
 				switch (message[0]) {
 					case "go_pick_up":
 						// Add the parcel to the set of parcels to ignore
-						me.parcels2Ignore.add(message[3]);
+						me.parcels2Ignore.set(message[3], Date.now());
 						me.pendingOptionRequest = false;
 						optionsGeneration();
 						break;
@@ -1514,10 +1515,21 @@ function distance({ x: x1, y: y1 }, { x: x2, y: y2 }) {
  * @param {Boolean} generateOptions - if True, compute the option generation after the memory revision
  */
 function reviseMemory(generateOptions) {
+	let parcels2Ignore2 = new Map();
 	let parcels2 = new Map();
 	let agents2 = new Map();
 
-	// Revise memory information
+	// Revise memory about parcels2Ignore
+	me.parcels2Ignore.forEach((timestamp, id) => {
+		// Check if I ignored the parcel recently
+		if (Date.now() - timestamp < MEMORY_REVISION_PARCELS2IGNORE) {
+			// If so, keep ignoring it
+			parcels2Ignore2.set(id, timestamp);
+		}
+	});
+	me.parcels2Ignore = parcels2Ignore2;
+
+	// Revise memory information about parcels
 	parcels.forEach((parcel) => {
 		// Check if I see old parcels position
 		if (distance({ x: parcel.x, y: parcel.y }, { x: me.x, y: me.y }) < currentConfig.PARCELS_OBSERVATION_DISTANCE) {
@@ -1536,6 +1548,7 @@ function reviseMemory(generateOptions) {
 	});
 	parcels = parcels2;
 
+	// Revise memory information about agents
 	agents.forEach((agent) => {
 		// Check if I see old agents position
 		if (distance({ x: agent.x, y: agent.y }, { x: me.x, y: me.y }) < currentConfig.AGENTS_OBSERVATION_DISTANCE) {
@@ -1781,7 +1794,7 @@ const me = {
 	currentPath: undefined,
 	initialPathTime: null,
 	pendingOptionRequest: false,
-	parcels2Ignore: new Set(),
+	parcels2Ignore: new Map(),
 };
 const myAgent = new IntentionRevisionReplace();
 const planLibrary = [];
@@ -1911,7 +1924,7 @@ client.onMsg(async (id, name, msg, reply) => {
 							reply(false);
 						} else {
 							// The pal can have that parcel
-							me.parcels2Ignore.add(palOption[3]);
+							me.parcels2Ignore.set(palOption[3], Date.now());
 							reply(true);
 						}
 						break;
