@@ -21,9 +21,9 @@ const MAX_EXPLORABLE_SPAWN_CELLS = 100;
 const PARCEL_DISTANCE_LOW = 1;
 const PARCEL_DISTANCE_MID = 2;
 const PARCEL_DISTANCE_HIGH = 3;
-const PARCEL_WEIGHT_LOW = 6;
-const PARCEL_WEIGHT_MID = 3;
-const PARCEL_WEIGHT_HIGH = 1.5;
+const PARCEL_WEIGHT_LOW = 10;
+const PARCEL_WEIGHT_MID = 5;
+const PARCEL_WEIGHT_HIGH = 2.5;
 /**
  * Queue class
  */
@@ -1163,7 +1163,8 @@ function expectedRewardCarriedAndPickup(carriedParcels, parcel2Pickup) {
 	let pickUpReward = parcelCostReward(parcel2Pickup);
 
 	// If we can reach the parcel to pickup
-	if (pickUpReward.pathToDeliver != Infinity && pickUpReward.pathToParcel != Infinity && pickUpReward != 0 && pickUpReward.pathToDeliver != undefined && pickUpReward.pathToParcel != undefined) {
+	//if (pickUpReward.pathToDeliver != Infinity && pickUpReward.pathToParcel != Infinity && pickUpReward != 0 && pickUpReward.pathToDeliver != undefined && pickUpReward.pathToParcel != undefined) {
+	if (pickUpReward != 0 && pickUpReward.pathToDeliver != undefined && pickUpReward.pathToParcel != undefined) {
 		// Compute expected reward for the carried parcels
 		let totalScore = pickUpReward.expectedReward + expectedRewardOfCarriedParcels(carriedParcels, pickUpReward.pathToParcel.concat(pickUpReward.pathToDeliver));
 
@@ -1227,15 +1228,6 @@ function optionsGeneration() {
 					tmpReward = [0, Infinity];
 				} else {
 					tmpReward = expectedRewardCarriedAndPickup(carriedParcels, parcel);
-
-					// Increase the reward based on distance from parcel
-					if (tmpReward[1] <= PARCEL_DISTANCE_LOW) {
-						tmpReward[0] = tmpReward[0] * PARCEL_WEIGHT_LOW;
-					} else if (tmpReward[1] <= PARCEL_DISTANCE_MID) {
-						tmpReward[0] = tmpReward[0] * PARCEL_WEIGHT_MID;
-					} else if (tmpReward[1] <= PARCEL_DISTANCE_HIGH) {
-						tmpReward[0] = tmpReward[0] * PARCEL_WEIGHT_HIGH;
-					}
 				}
 
 				options.push([
@@ -1250,9 +1242,7 @@ function optionsGeneration() {
 		}
 	}
 
-	/**
-	 * Options filtering
-	 */
+	// Options filtering
 	let best_option = undefined;
 	let maxExpectedScore = 0;
 	let minDistance = 0;
@@ -1435,6 +1425,15 @@ function parcelCostReward(parcel) {
 
 	// Compute expected reward for [parX, parY] parcel
 	let expectedReward = parcelScoreAfterMsPath(pathToParcel.concat(pathToDeliver), parScore, lastVisitTime);
+
+	// Increase the reward based on distance from parcel
+	if (pathToParcel.length <= PARCEL_DISTANCE_LOW) {
+		expectedReward = expectedReward * PARCEL_WEIGHT_LOW;
+	} else if (pathToParcel.length <= PARCEL_DISTANCE_MID) {
+		expectedReward = expectedReward * PARCEL_WEIGHT_MID;
+	} else if (pathToParcel.length <= PARCEL_DISTANCE_HIGH) {
+		expectedReward = expectedReward * PARCEL_WEIGHT_HIGH;
+	}
 
 	// Return paths a->p, p->d, expected reward
 	return {
@@ -1898,6 +1897,7 @@ client.onMsg(async (id, name, msg, reply) => {
 
 						// Check if I should refuse that pickup action
 						let currentIntention = myAgent.getCurrentIntention();
+
 						console.log(currentIntention);
 						// If I have some intention and I am picking up that parcel with higher reward
 						if (currentIntention != undefined && currentIntention[0] == "go_pick_up" && currentIntention[3] == palOption[3] && currentIntention[4] > palOption[4]) {
