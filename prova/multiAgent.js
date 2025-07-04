@@ -12,12 +12,18 @@ const DELIVERY_AREA_EXPLORE = 0;
 const TIMED_EXPLORE = 0.99;
 const INVIEW_MEMORY_DIFFERENCE_THRESHOLD = 2000; // Threshold for parcels and agent in our vision range
 const OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD = 10000; // Threshold for parcels and agent not in our vision range
-const MOVES_SCALE_FACTOR = 100; // Lower values mean I want to deliver more often
-const MOVES_SCALE_FACTOR_NO_DECAY = 60; // Lower values mean I want to deliver more often
+const MOVES_SCALE_FACTOR = 50; // Lower values mean I want to deliver more often
+const MOVES_SCALE_FACTOR_NO_DECAY = 20; // Lower values mean I want to deliver more often
 const MEMORY_REVISION_TIMER = 10000;
 const MEMORY_SHARE_TIMER = 1500;
 const MAX_EXPLORABLE_SPAWN_CELLS = 100;
 
+const PARCEL_DISTANCE_LOW = 1;
+const PARCEL_DISTANCE_MID = 2;
+const PARCEL_DISTANCE_HIGH = 3;
+const PARCEL_WEIGHT_LOW = 6;
+const PARCEL_WEIGHT_MID = 3;
+const PARCEL_WEIGHT_HIGH = 1.5;
 /**
  * Queue class
  */
@@ -1221,6 +1227,15 @@ function optionsGeneration() {
 					tmpReward = [0, Infinity];
 				} else {
 					tmpReward = expectedRewardCarriedAndPickup(carriedParcels, parcel);
+
+					// Increase the reward based on distance from parcel
+					if (tmpReward[1] <= PARCEL_DISTANCE_LOW) {
+						tmpReward[0] = tmpReward[0] * PARCEL_WEIGHT_LOW;
+					} else if (tmpReward[1] <= PARCEL_DISTANCE_MID) {
+						tmpReward[0] = tmpReward[0] * PARCEL_WEIGHT_MID;
+					} else if (tmpReward[1] <= PARCEL_DISTANCE_HIGH) {
+						tmpReward[0] = tmpReward[0] * PARCEL_WEIGHT_HIGH;
+					}
 				}
 
 				options.push([
@@ -1497,7 +1512,6 @@ function reviseMemory(generateOptions) {
 	let parcels2 = new Map();
 	let agents2 = new Map();
 
-	// TODO: rivedere controllo parcel e agenti che vediamo
 	// Revise memory information
 	parcels.forEach((parcel) => {
 		// Check if I see old parcels position
