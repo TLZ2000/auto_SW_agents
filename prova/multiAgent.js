@@ -81,8 +81,6 @@ class GraphNode {
 		this.neighD = undefined; // Down neighbor
 		this.neighL = undefined; // Left neighbor
 		this.type = type; // Node type
-		// TODO: togliere questo perche non piu usato
-		this.visitedDeliveries = []; // List of dictionaries containing {deliveryNode, distance, direction}
 		this.nearestSpawn = undefined; // Nearest spawn area
 		this.visitedSet = new Set(); // Set containing the delivery nodes that already visited this node
 	}
@@ -193,11 +191,6 @@ class Graph {
 				if (!current.visitedSet.has(sourceId)) {
 					// Visit it
 					current.visitedSet.add(sourceId);
-					current.visitedDeliveries.push({
-						deliveryNode: source,
-						distance: distance,
-						direction: direction,
-					});
 
 					// Explore its neighbors
 					// Up
@@ -241,17 +234,6 @@ class Graph {
 					}
 				}
 			}
-		});
-
-		// Sort the deliveries on the distance for each node
-		this.graphMap.forEach((row) => {
-			row.forEach((element) => {
-				if (element) {
-					element.visitedDeliveries.sort((first, second) => {
-						return first.distance - second.distance;
-					});
-				}
-			});
 		});
 	}
 
@@ -1615,7 +1597,6 @@ function nearestDeliveryFromHere(x, y) {
 				finalY = currentNode.y;
 				break;
 			}
-			
 		}
 
 		let currentNodeId = currentNode.x + " " + currentNode.y;
@@ -1676,7 +1657,7 @@ function nearestDeliveryFromHere(x, y) {
  * @param {Number} y - starting y coordinate
  * @returns {Array} array containing path to nearest delivery from [x, y] cell (if non existing -> undefined)
  */
-function nearestDeliveryFromHerePath(x, y){
+function nearestDeliveryFromHerePath(x, y) {
 	return nearestDeliveryFromHere(x, y)[1];
 }
 
@@ -1686,7 +1667,7 @@ function nearestDeliveryFromHerePath(x, y){
  * @param {Number} y - starting y coordinate
  * @returns {Array} coordinates [finalX, finalY] of the nearest delivery (if non existing -> [undefined, undefined])
  */
-function nearestDeliveryFromHereCoords(x, y){
+function nearestDeliveryFromHereCoords(x, y) {
 	return nearestDeliveryFromHere(x, y)[0];
 }
 
@@ -2051,7 +2032,7 @@ client.onAgentsSensing(async (aa) => {
 		agents.set(a.id, a);
 
 		// If a is my pal
-		if(a.id == me.multiAgent_palID){
+		if (a.id == me.multiAgent_palID) {
 			// Update its coordinates in real time
 			me.multiAgent_palX = a.x;
 			me.multiAgent_palY = a.y;
