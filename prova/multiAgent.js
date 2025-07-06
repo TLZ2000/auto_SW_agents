@@ -704,6 +704,21 @@ class GoDeliver extends Plan {
 }
 
 /**
+ * Plan class handling the "corridor_resolve" intention
+ */
+class CorridorResolve extends Plan {
+	static isApplicableTo(corridor_resolve) {
+		return corridor_resolve == "corridor_resolve";
+	}
+
+	async execute(corridor_resolve) {
+		if (this.stopped) throw ["stopped"]; // if stopped then quit
+
+		return true;
+	}
+}
+
+/**
  * Plan class handling the "explore" intention
  */
 class Explore extends Plan {
@@ -895,9 +910,13 @@ class BFSmove extends Plan {
 					} else {
 						// AGENT 1
 						if(me.stopMovementAction){
+							// Stop this movement action
 							me.stopMovementAction = false;
-							myAgent.stopCurrentIntention();
-							throw ["stopped"];
+							me.stoppedIntention = myAgent.getCurrentIntention();
+
+							// Push new intention to resolve the corridor problem
+							myAgent.push(["corridor_resolve"]);
+							return true;
 						}						
 					}
 
@@ -1954,6 +1973,7 @@ planLibrary.push(GoPickUp);
 planLibrary.push(BFSmove);
 planLibrary.push(GoDeliver);
 planLibrary.push(Explore);
+planLibrary.push(CorridorResolve);
 
 client.onMsg(async (id, name, msg, reply) => {
 	var checkMemory = false;
