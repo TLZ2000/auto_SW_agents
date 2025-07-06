@@ -757,20 +757,26 @@ class BFSmove extends Plan {
 
 			let i = 0;
 			while (i < path.length) {
-				if (this.stopped) throw ["stopped"]; // if stopped then quit
-
-				console.log("MOVING");
-				console.log(me.multiAgent_palX + " - " + me.multiAgent_palY);
-
-				let moved_horizontally;
-				let moved_vertically;
+				// If stopped then quit
+				if (this.stopped) throw ["stopped"]; 
+				let moved_horizontally = undefined;
+				let moved_vertically = undefined;
 
 				if (path[i] == "R") {
-					moved_horizontally = await client.emitMove("right");
-					// status_x = await this.subIntention( 'go_to', {x: me.x+1, y: me.y} );
+					// Emit move only if the pal is not in my next position
+					if(!(me.y == me.multiAgent_palY && (me.x + 1) == me.multiAgent_palX)){
+						moved_horizontally = await client.emitMove("right");
+					} else {
+						// If the pal is in my next position LOG
+						console.log("PAL RIGHT")
+					}
 				} else if (path[i] == "L") {
-					moved_horizontally = await client.emitMove("left");
-					// status_x = await this.subIntention( 'go_to', {x: me.x-1, y: me.y} );
+					if(!(me.y == me.multiAgent_palY && (me.x - 1) == me.multiAgent_palX)){
+						moved_horizontally = await client.emitMove("left");
+					} else {
+						// If the pal is in my next position LOG
+						console.log("PAL LEFT")
+					}
 				}
 
 				// Check if agent is carrying parcels
@@ -791,11 +797,19 @@ class BFSmove extends Plan {
 				if (this.stopped) throw ["stopped"]; // if stopped then quit
 
 				if (path[i] == "U") {
-					moved_vertically = await client.emitMove("up");
-					// status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y+1} );
+					if(!((me.y + 1) == me.multiAgent_palY && me.x == me.multiAgent_palX)){
+						moved_vertically = await client.emitMove("up");
+					} else {
+						// If the pal is in my next position LOG
+						console.log("PAL UP")
+					}					
 				} else if (path[i] == "D") {
-					moved_vertically = await client.emitMove("down");
-					// status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y-1} );
+					if(!((me.y - 1) == me.multiAgent_palY && me.x == me.multiAgent_palX)){
+						moved_vertically = await client.emitMove("down");
+					} else {
+						// If the pal is in my next position LOG
+						console.log("PAL DOWN")
+					}
 				}
 
 				// If moved vertically
