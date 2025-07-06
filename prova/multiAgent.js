@@ -516,6 +516,16 @@ class IntentionRevisionReplace extends IntentionRevision {
 		}
 		return undefined;
 	}
+
+	stopCurrentIntention(){
+		const last = this.intention_queue.at(this.intention_queue.length - 1);
+
+		// Force current intention stop
+		if (last) {
+			me.stoppedIntention = last;
+			last.stop();
+		}
+	}
 }
 
 /**
@@ -741,6 +751,9 @@ class BFSmove extends Plan {
 		me.initialPathTime = Date.now();
 
 		if (path != undefined) {
+
+			// TODO: controllare se rimuovere askPalPath (per switchare parcels vogliamo che gli agenti si incontrino)
+			/*
 			// Once I have computed the path, ask confirmation to Pal
 			let response = await askPalPath({ path: path, x: Math.round(me.x), y: Math.round(me.y) });
 
@@ -754,13 +767,21 @@ class BFSmove extends Plan {
 				// Compute a path without Pal
 				path = navigateBFS([Math.round(me.x), Math.round(me.y)], [x, y], true);
 			}
-
+			*/
 			let i = 0;
 			while (i < path.length) {
 				// If stopped then quit
 				if (this.stopped) throw ["stopped"]; 
+
+				// If there is a bump request in progress
+				if(me.pendingBumpRequest){
+					// Pause the movement intent
+					continue;
+				}
+
 				let moved_horizontally = undefined;
 				let moved_vertically = undefined;
+				let pal_bump = false;
 
 				if (path[i] == "R") {
 					// Emit move only if the pal is not in my next position
@@ -768,14 +789,16 @@ class BFSmove extends Plan {
 						moved_horizontally = await client.emitMove("right");
 					} else {
 						// If the pal is in my next position LOG
-						console.log("PAL RIGHT")
+						console.log("PAL RIGHT");
+						pal_bump = true;
 					}
 				} else if (path[i] == "L") {
 					if(!(me.y == me.multiAgent_palY && (me.x - 1) == me.multiAgent_palX)){
 						moved_horizontally = await client.emitMove("left");
 					} else {
 						// If the pal is in my next position LOG
-						console.log("PAL LEFT")
+						console.log("PAL LEFT");
+						pal_bump = true;
 					}
 				}
 
@@ -786,6 +809,7 @@ class BFSmove extends Plan {
 				if (moved_horizontally) {
 					me.x = moved_horizontally.x;
 					me.y = moved_horizontally.y;
+					me.bumping = false;
 
 					// And if agent is carrying parcels
 					if (carriedParcels.length > 0) {
@@ -802,6 +826,9 @@ class BFSmove extends Plan {
 					} else {
 						// If the pal is in my next position LOG
 						console.log("PAL UP");
+						pal_bump = true;
+
+						// Flag option generation
 					}					
 				} else if (path[i] == "D") {
 					if(!((me.y - 1) == me.multiAgent_palY && me.x == me.multiAgent_palX)){
@@ -809,6 +836,7 @@ class BFSmove extends Plan {
 					} else {
 						// If the pal is in my next position LOG
 						console.log("PAL DOWN");
+						pal_bump = true;
 					}
 				}
 
@@ -816,6 +844,7 @@ class BFSmove extends Plan {
 				if (moved_vertically) {
 					me.x = moved_vertically.x;
 					me.y = moved_vertically.y;
+					me.bumping = false;
 
 					// And if agent is carrying parcels
 					if (carriedParcels.length > 0) {
@@ -826,14 +855,71 @@ class BFSmove extends Plan {
 
 				// If stucked
 				if (!moved_horizontally && !moved_vertically) {
-					console.log("BUMP");
-					return true;
+
+					if(!pal_bump){
+						// I am bumping into someone else, so generate another option
+						return true;
+					}
+
+					
+					// Pause movement intention
+					me.pendingBumpRequest = true;
+
+					// Pause option generation
+					me.pendingOptionRequest = true;		
+
+					// Reset pal_bump
+					pal_bump = false;
+
+					// Remember that I am bumping into the pal
+					me.bumping = true;
+					
+					
+					// Wait a movement duration to avoid spamming
+					await new Promise((res) => setTimeout(res, currentConfig.MOVEMENT_DURATION));
+					
+					if(me.id == AGENT2_ID){
+						// If I am AGENT 2, signal AGENT 1 that I am bumping against him
+						let response = await askPalBump();
+						if(response.outcome){
+							// Also AGENT 1 is bumping into me
+							myAgent.stopCurrentIntention();
+							throw ["stopped"];
+							// wait to be sure that agent 1 is listening
+							// promise to manage stale
+
+						} else {
+							// AGENT 1 is NOT bumping into me (for now)
+							// do nothing
+						}
+					} else {
+						// AGENT 1
+						if(me.stopMovementAction){
+							me.stopMovementAction = false;
+							myAgent.stopCurrentIntention();
+							throw ["stopped"];
+						}						
+					}
+
+					
+					// Restart movement intention
+					me.pendingBumpRequest = false;
+
+					// Restart option generation
+					me.pendingOptionRequest = false;
+					
+					
 					//throw 'stucked';
 				} else if (me.x == x && me.y == y) {
 					// this.log('target reached');
 				}
 
-				i++;
+				// If I actually moved
+				if(!me.bumping){
+					// Consider next path position
+					i++;	
+				}
+				
 				// After motion update the timestamp of the visited cells
 				grafo.updateTimeMap();
 			}
@@ -844,8 +930,13 @@ class BFSmove extends Plan {
 
 async function askPalPath(message) {
 	me.pendingOptionRequest = true;
-	let response = await client.emitAsk(me.multiAgent_palID, { type: "MSG_pathSelection", content: JSON.stringify(message) });
+	let response = await client.emitAsk(me.multiAgent_palID, {type: "MSG_pathSelection", content: JSON.stringify(message) });
 	me.pendingOptionRequest = false;
+	return response;
+}
+
+async function askPalBump(message) {
+	let response = await client.emitAsk(me.multiAgent_palID, {type: "MSG_bumpRequest"});
 	return response;
 }
 
@@ -1821,7 +1912,11 @@ const me = {
 	currentPath: undefined,
 	initialPathTime: null,
 	pendingOptionRequest: false,
+	pendingBumpRequest: false,
+	bumping: false,
 	parcels2Ignore: new Map(),
+	stoppedIntention: null,
+	stopMovementAction: false,
 };
 const myAgent = new IntentionRevisionReplace();
 const planLibrary = [];
@@ -2070,8 +2165,18 @@ client.onMsg(async (id, name, msg, reply) => {
 				me.multiAgent_palMessageID = palID;
 				me.multiAgent_palX = Math.round(palX);
 				me.multiAgent_palY = Math.round(palY);
+			}			
+			break;
+
+		case "MSG_bumpRequest":
+			// Check if I am also bumping against the pal
+			if(me.bumping){
+				me.stopMovementAction = true;				
+				reply({ outcome: true });
+			} else {
+				reply({ outcome: false });
 			}
-			
+
 			break;
 
 		default:
