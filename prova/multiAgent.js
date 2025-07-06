@@ -727,11 +727,12 @@ class BFSmove extends Plan {
 	}
 
 	async execute(go_to, x, y) {
-		let path = navigateBFS([Math.round(me.x), Math.round(me.y)], [x, y]);
+		// Force pal agent as non-blocking to allow pal bumps (and parcel switch)
+		let path = navigateBFS([Math.round(me.x), Math.round(me.y)], [x, y], true);
 
 		// If no path applicable, then select another cell and go to explore (to not remain still)
 		if (path == undefined) {
-			path = navigateBFS([Math.round(me.x), Math.round(me.y)], distanceExplore());
+			path = navigateBFS([Math.round(me.x), Math.round(me.y)], distanceExplore(), true);
 		}
 
 		me.currentPath = path;
@@ -810,6 +811,7 @@ class BFSmove extends Plan {
 
 				// If stucked
 				if (!moved_horizontally && !moved_vertically) {
+					console.log("BUMP");
 					return true;
 					//throw 'stucked';
 				} else if (me.x == x && me.y == y) {
@@ -833,7 +835,7 @@ async function askPalPath(message) {
 }
 
 /**
- * Compute the list of reachable spawn/delivery zones from the current agent's position
+ * Compute the list of reachable spawn/delivery zones from the current agent's position, ignoring the pal agent collision (I want to BUMP into it to trigger an intention switch)
  * @returns {[Array, Array]} tile items containing [suitableSpawn, suitableDelivery]
  */
 function searchSuitableCellsBFS() {
@@ -866,8 +868,8 @@ function searchSuitableCellsBFS() {
 			// Visit it
 			explored.add(currentNodeId);
 
-			// If node is occupied, ignore its neighbors
-			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
+			// If node is occupied not by my pal, ignore its neighbors
+			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1 && !(currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY))) {
 				continue;
 			}
 
@@ -2012,7 +2014,12 @@ client.onMsg(async (id, name, msg, reply) => {
 			for (let i = 0; i < minLen; i++) {
 				if (mySequence[i].x == palSequence[i].x && mySequence[i].y == palSequence[i].y) {
 					// Then we are bumping somewhere, so replay considering what I am currently doing (dumb version: return always false)
-					switch (myAgent.getCurrentIntention()[0]) {
+					let currentIntention = undefined;
+					if(myAgent.getCurrentIntention()){
+						currentIntention = myAgent.getCurrentIntention()[0];
+					} 
+
+					switch (currentIntention) {
 						case "go_pick_up":
 						case "go_deliver":
 						case "explore":
