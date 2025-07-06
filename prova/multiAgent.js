@@ -835,6 +835,14 @@ async function askPalPath(message) {
 }
 
 /**
+ * Send to pal my updated position info
+ */
+async function sendPosition2Pal() {
+	me.multiAgent_myMessageID = me.multiAgent_myMessageID + 1
+	await client.emitSay(me.multiAgent_palID, { type: "MSG_positionUpdate", content: JSON.stringify({x: me.x, y: me.y, msgID: me.multiAgent_myMessageID}) });
+}
+
+/**
  * Compute the list of reachable spawn/delivery zones from the current agent's position, ignoring the pal agent collision (I want to BUMP into it to trigger an intention switch)
  * @returns {[Array, Array]} tile items containing [suitableSpawn, suitableDelivery]
  */
@@ -1790,6 +1798,8 @@ const me = {
 	multiAgent_palID: null,
 	multiAgent_palX: null,
 	multiAgent_palY: null,
+	multiAgent_myMessageID: 0,
+	multiAgent_palMessageID: 0,
 	myToken: null,
 	initialPathXPosition: undefined,
 	initialPathYPosition: undefined,
@@ -2033,6 +2043,21 @@ client.onMsg(async (id, name, msg, reply) => {
 			// If we are here, we are not bumping, then the path is ok
 			reply({ outcome: true });
 			break;
+		
+		case "MSG_positionUpdate":
+			// Recover message content
+			let palX = JSON.parse(msg.content).x;
+			let palY = JSON.parse(msg.content).y;
+			let palID = JSON.parse(msg.content).msgID;
+
+			// Verify message validity
+			if(me.multiAgent_palMessageID < palID){
+				me.multiAgent_palMessageID = palID;
+				me.multiAgent_palX = palX;
+				me.multiAgent_palY = palY;
+			}
+			
+			break;
 
 		default:
 			break;
@@ -2089,6 +2114,9 @@ client.onYou(({ id, name, x, y, score }) => {
 	me.x = x;
 	me.y = y;
 	me.score = score;
+
+	// Send my updated position info to pal
+	sendPosition2Pal();
 
 	reviseMemory(true);
 });
