@@ -801,14 +801,14 @@ class BFSmove extends Plan {
 						moved_vertically = await client.emitMove("up");
 					} else {
 						// If the pal is in my next position LOG
-						console.log("PAL UP")
+						console.log("PAL UP");
 					}					
 				} else if (path[i] == "D") {
 					if(!((me.y - 1) == me.multiAgent_palY && me.x == me.multiAgent_palX)){
 						moved_vertically = await client.emitMove("down");
 					} else {
 						// If the pal is in my next position LOG
-						console.log("PAL DOWN")
+						console.log("PAL DOWN");
 					}
 				}
 
