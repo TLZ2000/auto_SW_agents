@@ -748,8 +748,8 @@ class BFSmove extends Plan {
 			if (response.outcome == false) {
 				// Then search another path that do not includes the pal
 				// Update Pal position
-				me.multiAgent_palX = response.myX;
-				me.multiAgent_palY = response.myY;
+				me.multiAgent_palX = Math.round(response.myX);
+				me.multiAgent_palY = Math.round(response.myY);
 
 				// Compute a path without Pal
 				path = navigateBFS([Math.round(me.x), Math.round(me.y)], [x, y], true);
@@ -759,10 +759,11 @@ class BFSmove extends Plan {
 			while (i < path.length) {
 				if (this.stopped) throw ["stopped"]; // if stopped then quit
 
+				console.log("MOVING");
+				console.log(me.multiAgent_palX + " - " + me.multiAgent_palY);
+
 				let moved_horizontally;
 				let moved_vertically;
-
-				// this.log('me', me, 'xy', x, y);
 
 				if (path[i] == "R") {
 					moved_horizontally = await client.emitMove("right");
@@ -1951,8 +1952,8 @@ client.onMsg(async (id, name, msg, reply) => {
 		case "MSG_pathSelection":
 			let tmp = JSON.parse(msg.content);
 			let palPath = tmp.path;
-			me.multiAgent_palX = tmp.x;
-			me.multiAgent_palY = tmp.y;
+			me.multiAgent_palX = Math.round(tmp.x);
+			me.multiAgent_palY = Math.round(tmp.y);
 			let tmpPalX = tmp.x;
 			let tmpPalY = tmp.y;
 			let tmpMyX = me.initialPathXPosition;
@@ -2053,8 +2054,8 @@ client.onMsg(async (id, name, msg, reply) => {
 			// Verify message validity
 			if(me.multiAgent_palMessageID < palID){
 				me.multiAgent_palMessageID = palID;
-				me.multiAgent_palX = palX;
-				me.multiAgent_palY = palY;
+				me.multiAgent_palX = Math.round(palX);
+				me.multiAgent_palY = Math.round(palY);
 			}
 			
 			break;
@@ -2101,8 +2102,8 @@ client.onAgentsSensing(async (aa) => {
 		// If a is my pal
 		if (a.id == me.multiAgent_palID) {
 			// Update its coordinates in real time
-			me.multiAgent_palX = a.x;
-			me.multiAgent_palY = a.y;
+			me.multiAgent_palX = Math.round(a.x);
+			me.multiAgent_palY = Math.round(a.y);
 		}
 	});
 });
