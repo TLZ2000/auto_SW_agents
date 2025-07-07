@@ -18,7 +18,7 @@ const MEMORY_REVISION_TIMER = 10000;
 const MEMORY_SHARE_TIMER = 1500;
 const MAX_EXPLORABLE_SPAWN_CELLS = 100;
 const MEMORY_REVISION_PARCELS2IGNORE = 5000;
-const RESTORE_OPTION_GENERATION_SCALE_FACTOR = 4;
+const RESTORE_OPTION_GENERATION_SCALE_FACTOR = 8;
 
 const PARCEL_DISTANCE_LOW = 1;
 const PARCEL_DISTANCE_MID = 2;
@@ -729,7 +729,7 @@ class CorridorResolve extends Plan {
 				break;
 			case "drop_and_move":
 				// Put down my parcels
-				await client.emitPutDown();
+				await client.emitPutdown();
 
 				// Move away
 				var myX = Math.round(me.x);
@@ -743,22 +743,24 @@ class CorridorResolve extends Plan {
 				moveToDirection(myFreeCells[0]);
 
 				// Signal pal agent to move and pickup
-				let response = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridorMovePickupIntention", content: JSON.stringify({ intention: me.stoppedIntention, moves: me.moves, moveToX: myX, moveToY: myY }) });
+				let palResponse = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridorMovePickupIntention", content: JSON.stringify({ intention: me.stoppedIntention, moves: me.moves, moveToX: myX, moveToY: myY }) });
 
 				// Restart movement intention
 				me.pendingBumpRequest = false;
 
 				// Switch the intention with pal
-				me.moves = response.moves;
-				myAgent.push(response.content);
+				me.moves = palResponse.moves;
+				// TODO: vedere perché ogni tanto palResponse.content (intention che gli manda il pal) è undefined e fa crashare tutto
+				// la mia idea è che succede quando l'agente 2 succeed l'intention e prima di riuscire a generarne un altra succede il bump, quindi la stoppedIntention è undefined
+				// infatti ho notato che succede quando un agente è sulla deliver o sulla spawn (non solo in quei casi, ma anche in altri casi)
+				myAgent.push(palResponse.content);
 
-				//TODO: inserire timer
 				// Restart option generation
 				timedRestoreOptionGenerationFlag();
 				break;
 			case "gain_space":
-				var moveToX = JSON.parse(msg.content).moveToX;
-				var moveToY = JSON.parse(msg.content).moveToY;
+				var moveToX = response.moveToX;
+				var moveToY = response.moveToY;
 
 				// Move to direction
 				moveToDirection(computeMovementDirection(moveToX, moveToY));
@@ -767,10 +769,10 @@ class CorridorResolve extends Plan {
 				myAgent.push(["corridor_resolve"]);
 				break;
 			case "move_and_pickup":
-				var moveToX = JSON.parse(msg.content).moveToX;
-				var moveToY = JSON.parse(msg.content).moveToY;
-				var palIntention = JSON.parse(msg.content).intention;
-				var palMoves = JSON.parse(msg.content).moves;
+				var moveToX = response.moveToX;
+				var moveToY = response.moveToY;
+				var palIntention = response.intention;
+				var palMoves = response.moves;
 
 				// Move to direction
 				moveToDirection(computeMovementDirection(moveToX, moveToY));
@@ -1593,20 +1595,21 @@ async function askPalOption(message) {
 		.then((response) => {
 			if (response == true) {
 				// If the pal is OK with my selection, then I push it to my intention
-				me.pendingOptionRequest = false;
 				myAgent.push(message);
+				timedRestoreOptionGenerationFlag();
 			} else {
 				// If the pal is NOT OK with my selection, I must invalidate it
 				switch (message[0]) {
 					case "go_pick_up":
 						// Add the parcel to the set of parcels to ignore
 						me.parcels2Ignore.set(message[3], Date.now());
-						me.pendingOptionRequest = false;
+						timedRestoreOptionGenerationFlag();
 						optionsGeneration();
 						break;
 					case "go_deliver":
+						// TODO: dopo un po di tempo agente 1 risponde timeout e finisce qui
 						console.log("Deliver refused somehow?!?");
-						me.pendingOptionRequest = false;
+						timedRestoreOptionGenerationFlag();
 						break;
 				}
 			}
@@ -2373,7 +2376,7 @@ client.onMsg(async (id, name, msg, reply) => {
 			var palIntention = JSON.parse(msg.content).intention;
 			let palParcelsNo = JSON.parse(msg.content).parcelsNo;
 			let palFreeCells = JSON.parse(msg.content).freeCells;
-			let myIntention = me.stoppedIntention;
+			var myIntention = me.stoppedIntention;
 			let myParcelsNo = carryingParcels().length;
 			let myAdjacentCells = checkFreeAdjacentCells();
 
@@ -2383,7 +2386,6 @@ client.onMsg(async (id, name, msg, reply) => {
 
 				// Restart movement intention
 				me.pendingBumpRequest = false;
-
 				myAgent.push(palIntention);
 
 				// Restart option generation
@@ -2474,8 +2476,9 @@ client.onMsg(async (id, name, msg, reply) => {
 			reply({ outcome: moveToDirection(direction) });
 			break;
 		case "MSG_corridorMovePickupIntention":
-			var palIntention = JSON.parse(msg.content).intentions;
+			var palIntention = JSON.parse(msg.content).intention;
 			var palMoves = JSON.parse(msg.content).moves;
+			var myIntention = me.stoppedIntention;
 			var moveToX = JSON.parse(msg.content).moveToX;
 			var moveToY = JSON.parse(msg.content).moveToY;
 
