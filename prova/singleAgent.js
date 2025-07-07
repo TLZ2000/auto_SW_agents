@@ -434,7 +434,6 @@ class IntentionRevision {
 				const intention = this.intention_queue[0];
 
 				// Is queued intention still valid? Do I still want to achieve it?
-				// TODO this hard-coded implementation is an example
 				let id = intention.predicate[2];
 				let p = parcels.get(id);
 				if (p && p.carriedBy) {
@@ -1286,7 +1285,6 @@ function distance({ x: x1, y: y1 }, { x: x2, y: y2 }) {
 function reviseMemory(generateOptions) {
 	let parcels2 = new Map();
 	let agents2 = new Map();
-	let stopFlag = false;
 
 	// Revise memory information
 	parcels.forEach((parcel) => {
@@ -1296,8 +1294,6 @@ function reviseMemory(generateOptions) {
 			if (Date.now() - parcel.time < MEMORY_DIFFERENCE_THRESHOLD) {
 				// If so, preserve it
 				parcels2.set(parcel.id, parcel);
-			} else {
-				stopFlag = true;
 			}
 		} else {
 			parcels2.set(parcel.id, parcel);
@@ -1312,8 +1308,6 @@ function reviseMemory(generateOptions) {
 			if (Date.now() - agent.time < MEMORY_DIFFERENCE_THRESHOLD) {
 				// If so, preserve it
 				agents2.set(agent.id, agent);
-			} else {
-				stopFlag = true;
 			}
 		} else {
 			agents2.set(agent.id, agent);
@@ -1329,12 +1323,6 @@ function reviseMemory(generateOptions) {
 		if (grafo.agentsNearby != undefined) {
 			grafo.agentsNearby[Math.round(a[1].x)][Math.round(a[1].y)] = 1;
 		}
-	}
-
-	// If the memory has been updated
-	if (stopFlag) {
-		// Stop current intention and revise
-		// myAgent.stopCurrentTask();
 	}
 
 	if (generateOptions) {
