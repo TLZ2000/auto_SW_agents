@@ -1166,6 +1166,12 @@ function optionsGeneration() {
 					push = true;
 				}
 			}
+
+			// If my best option is go_deliver but my current intention is go_pick_up
+			if (currentIntention[0] == "go_pick_up" && best_option[0] == "go_deliver") {
+				// First finish the go_pick_up
+				return;
+			}
 		}
 
 		// If yes, push the best option
