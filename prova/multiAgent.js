@@ -714,9 +714,8 @@ class CorridorResolve extends Plan {
 	async execute(corridor_resolve) {
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 
-		console.log("FREE CELLS: " + checkFreeAdjacentCells());
-
-		let response = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridor_initialState", content: JSON.stringify({ intention: me.stoppedIntention, parcelsNo: carryingParcels().length }) });
+		let myFreeCells = checkFreeAdjacentCells();
+		let response = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridor_initialState", content: JSON.stringify({ intention: me.stoppedIntention, parcelsNo: carryingParcels().length, freeCells: myFreeCells }) });
 		switch (response.outcome) {
 			case "switch_intention":
 				// Restart movement intention
@@ -727,6 +726,14 @@ class CorridorResolve extends Plan {
 
 				// Restart option generation
 				me.pendingOptionRequest = false;
+				break;
+			case "drop_and_move":
+				break;
+			case "move_drop_move":
+				break;
+			case "move_and_pickup":
+				break;
+			case "move":
 				break;
 		}
 		return true;
@@ -1874,6 +1881,33 @@ function checkFreeAdjacentCells() {
 	return freeCells;
 }
 
+/**
+ * Move to specified direction
+ * @param {String} direction - direction to move
+ * @returns {Boolean} true if successful move, false otherwise
+ */
+async function moveToDirection(direction) {
+	let response;
+	switch (direction) {
+		case "U":
+			response = await client.emitMove("up");
+			break;
+		case "D":
+			response = await client.emitMove("down");
+			break;
+		case "R":
+			response = await client.emitMove("right");
+			break;
+		case "L":
+			response = await client.emitMove("left");
+			break;
+		default:
+			response = false;
+			break;
+	}
+	return response;
+}
+
 function mapToJSON(map) {
 	return JSON.stringify(Object.fromEntries(map));
 }
@@ -2236,10 +2270,10 @@ client.onMsg(async (id, name, msg, reply) => {
 		case "MSG_corridor_initialState":
 			let palIntention = JSON.parse(msg.content).intention;
 			let palParcelsNo = JSON.parse(msg.content).parcelsNo;
+			let palFreeCells = JSON.parse(msg.content).freeCells;
 			let myIntention = me.stoppedIntention;
 			let myParcelsNo = carryingParcels().length;
-
-			console.log("FREE CELLS: " + checkFreeAdjacentCells());
+			let myAdjacentCells = checkFreeAdjacentCells();
 
 			// If no one has parcels, just switch intentions
 			if (palParcelsNo == 0 && myParcelsNo == 0) {
@@ -2255,8 +2289,78 @@ client.onMsg(async (id, name, msg, reply) => {
 
 				// If only the pal is carrying parcels
 			} else if (palParcelsNo > 0 && myParcelsNo == 0) {
+				// Check if pal has space to move
+				if (palFreeCells.length > 0) {
+					// Tell him to drop parcels and move
+					reply({ outcome: "drop_and_move", content: myIntention });
+				} else {
+					// Check if I have space to move
+					if (myAdjacentCells.length > 0) {
+						// If so, then move
+
+						let myX = Math.round(me.x);
+						let myY = Math.round(me.y);
+						moveToDirection(myAdjacentCells[0]);
+
+						// Tell him to move
+						reply({ outcome: "move_drop_move", content: myIntention, moveToX: myX, moveToY: myY });
+					}
+				}
+
 				// If only I am carrying parcels
 			} else if (palParcelsNo == 0 && myParcelsNo > 0) {
+				// Check if I have space to move
+				if (myAdjacentCells.length > 0) {
+					// If so, drop parcels and move
+					client.emitPutdown();
+					let myX = Math.round(me.x);
+					let myY = Math.round(me.y);
+					moveToDirection(myAdjacentCells[0]);
+
+					// Tell him to move to get parcels
+					reply({ outcome: "move_and_pickup", content: myIntention, moveToX: myX, moveToY: myY });
+				} else {
+					// Tell him to move
+					reply({ outcome: "move" });
+				}
+
+				// Both have parcels
+			} else {
+				// Check if my intention is to go deliver
+				if (myIntention[0] == "go_deliver") {
+					// Check if I have space to move
+					if (myAdjacentCells.length > 0) {
+						// If so, drop parcels and move
+						client.emitPutdown();
+						let myX = Math.round(me.x);
+						let myY = Math.round(me.y);
+						moveToDirection(myAdjacentCells[0]);
+
+						// Tell him to move to get parcels
+						reply({ outcome: "move_and_pickup", content: myIntention, moveToX: myX, moveToY: myY });
+					} else {
+						// Tell him to move
+						reply({ outcome: "move" });
+					}
+				} else if (palIntention == "go_deliver") {
+					// Check if pal has space to move
+					if (palFreeCells.length > 0) {
+						// Tell him to drop parcels and move
+						reply({ outcome: "drop_and_move", content: myIntention });
+					} else {
+						// Check if I have space to move
+						if (myAdjacentCells.length > 0) {
+							// If so, then move
+
+							let myX = Math.round(me.x);
+							let myY = Math.round(me.y);
+							moveToDirection(myAdjacentCells[0]);
+
+							// Tell him to move
+							reply({ outcome: "move_drop_move", content: myIntention, moveToX: myX, moveToY: myY });
+						}
+					}
+				}
 			}
 			break;
 		default:
