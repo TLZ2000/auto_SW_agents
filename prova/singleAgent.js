@@ -12,9 +12,9 @@ const MEMORY_REVISION_TIMER = 10000;
 const PARCEL_DISTANCE_LOW = 1;
 const PARCEL_DISTANCE_MID = 2;
 const PARCEL_DISTANCE_HIGH = 3;
-const PARCEL_WEIGHT_LOW = 6;
-const PARCEL_WEIGHT_MID = 3;
-const PARCEL_WEIGHT_HIGH = 1.5;
+const PARCEL_WEIGHT_LOW = 10;
+const PARCEL_WEIGHT_MID = 5;
+const PARCEL_WEIGHT_HIGH = 2.5;
 
 /**
  * Queue class
@@ -1039,7 +1039,7 @@ function expectedRewardCarriedAndPickup(carriedParcels, parcel2Pickup) {
 	let pickUpReward = parcelCostReward(parcel2Pickup);
 
 	// If we can reach the parcel to pickup
-	if (pickUpReward.pathToDeliver != Infinity && pickUpReward.pathToParcel != Infinity && pickUpReward != 0 && pickUpReward.pathToDeliver != undefined && pickUpReward.pathToParcel != undefined) {
+	if (pickUpReward != 0 && pickUpReward.pathToDeliver != undefined && pickUpReward.pathToParcel != undefined) {
 		// Compute expected reward for the carried parcels
 		let totalScore = pickUpReward.expectedReward + expectedRewardOfCarriedParcels(carriedParcels, pickUpReward.pathToParcel.concat(pickUpReward.pathToDeliver));
 
