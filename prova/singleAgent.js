@@ -9,6 +9,13 @@ const OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD = 10000; // Threshold for parcels and 
 const MOVES_SCALE_FACTOR = 100;
 const MEMORY_REVISION_TIMER = 10000;
 
+const PARCEL_DISTANCE_LOW = 1;
+const PARCEL_DISTANCE_MID = 2;
+const PARCEL_DISTANCE_HIGH = 3;
+const PARCEL_WEIGHT_LOW = 6;
+const PARCEL_WEIGHT_MID = 3;
+const PARCEL_WEIGHT_HIGH = 1.5;
+
 /**
  * Queue class
  */
@@ -1214,6 +1221,15 @@ function parcelCostReward(parcel) {
 
 	// Compute expected reward for [parX, parY] parcel
 	let expectedReward = parcelScoreAfterMsPath(pathToParcel.concat(pathToDeliver), parScore, lastVisitTime);
+
+	// Increase the reward based on distance from parcel
+	if (pathToParcel.length <= PARCEL_DISTANCE_LOW) {
+		expectedReward = expectedReward * PARCEL_WEIGHT_LOW;
+	} else if (pathToParcel.length <= PARCEL_DISTANCE_MID) {
+		expectedReward = expectedReward * PARCEL_WEIGHT_MID;
+	} else if (pathToParcel.length <= PARCEL_DISTANCE_HIGH) {
+		expectedReward = expectedReward * PARCEL_WEIGHT_HIGH;
+	}
 
 	// Return paths a->p, p->d, expected reward
 	return {
