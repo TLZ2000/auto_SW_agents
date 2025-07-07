@@ -714,8 +714,7 @@ class CorridorResolve extends Plan {
 	async execute(corridor_resolve) {
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 
-		let myFreeCells = checkFreeAdjacentCells();
-		let response = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridor_initialState", content: JSON.stringify({ intention: me.stoppedIntention, parcelsNo: carryingParcels().length, freeCells: myFreeCells }) });
+		let response = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridor_initialState", content: JSON.stringify({ intention: me.stoppedIntention, parcelsNo: carryingParcels().length, freeCells: checkFreeAdjacentCells() }) });
 		switch (response.outcome) {
 			case "switch_intention":
 				// Restart movement intention
@@ -728,12 +727,81 @@ class CorridorResolve extends Plan {
 				me.pendingOptionRequest = false;
 				break;
 			case "drop_and_move":
+				// Put down my parcels
+				await client.emitPutDown();
+
+				// Move away
+				var myX = Math.round(me.x);
+				var myY = Math.round(me.y);
+				var myFreeCells = checkFreeAdjacentCells();
+				while (myFreeCells.length == 0) {
+					// Wait a movement duration
+					await new Promise((res) => setTimeout(res, currentConfig.MOVEMENT_DURATION));
+					myFreeCells = checkFreeAdjacentCells();
+				}
+				moveToDirection(myFreeCells[0]);
+
+				// Signal pal agent to move and pickup
+				let response = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridorMovePickupIntention", content: JSON.stringify({ intention: me.stoppedIntention, moves: me.moves, moveToX: myX, moveToY: myY }) });
+
+				// Restart movement intention
+				me.pendingBumpRequest = false;
+
+				// Switch the intention with pal
+				me.moves = response.moves;
+				myAgent.push(response.content);
+
+				//TODO: inserire timer
+				// Restart option generation
+				me.pendingOptionRequest = false;
 				break;
-			case "move_drop_move":
+			case "gain_space":
+				var moveToX = JSON.parse(msg.content).moveToX;
+				var moveToY = JSON.parse(msg.content).moveToY;
+
+				// Move to direction
+				moveToDirection(computeMovementDirection(moveToX, moveToY));
+
+				// Repeat all the corridor resolution
+				myAgent.push(["corridor_resolve"]);
 				break;
 			case "move_and_pickup":
+				var moveToX = JSON.parse(msg.content).moveToX;
+				var moveToY = JSON.parse(msg.content).moveToY;
+				var palIntention = JSON.parse(msg.content).intention;
+				var palMoves = JSON.parse(msg.content).moves;
+
+				// Move to direction
+				moveToDirection(computeMovementDirection(moveToX, moveToY));
+
+				// Pickup parcels
+				await client.emitPickup();
+
+				// Tell pal to switch intention
+				var moveResponse = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridorSwitchIntention", content: JSON.stringify({ intention: me.stoppedIntention, moves: me.moves }) });
+
+				me.moves = palMoves;
+				me.pendingBumpRequest = false;
+				myAgent.push(palIntention);
+				me.pendingOptionRequest = false;
+
 				break;
 			case "move":
+				var myX = Math.round(me.x);
+				var myY = Math.round(me.y);
+				var myFreeCells = checkFreeAdjacentCells();
+				while (myFreeCells.length == 0) {
+					// Wait a movement duration
+					await new Promise((res) => setTimeout(res, currentConfig.MOVEMENT_DURATION));
+					myFreeCells = checkFreeAdjacentCells();
+				}
+				// Move
+				moveToDirection(myFreeCells[0]);
+
+				// Tell the pal I moved so he can move
+				var moveResponse = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridorMoved", content: JSON.stringify({ moveToX: myX, moveToY: myY }) });
+				// Repeat all the corridor resolution
+				myAgent.push(["corridor_resolve"]);
 				break;
 		}
 		return true;
@@ -1881,6 +1949,11 @@ function checkFreeAdjacentCells() {
 	return freeCells;
 }
 
+async function timedRestoreOptionGenerationFlag() {
+	await new Promise((res) => setTimeout(res, currentConfig.MOVEMENT_DURATION * 4));
+	me.pendingOptionRequest = false;
+}
+
 /**
  * Move to specified direction
  * @param {String} direction - direction to move
@@ -1906,6 +1979,31 @@ async function moveToDirection(direction) {
 			break;
 	}
 	return response;
+}
+
+/**
+ * Compute movement direction
+ * @param {Number} x - direction x to move
+ * @param {Number} y - direction y to move
+ * @returns {String} direction to move
+ */
+function computeMovementDirection(x, y) {
+	// Compute the movement direction
+	let direction = undefined;
+	if (x == Math.round(me.x)) {
+		if (y > Math.round(me.y)) {
+			direction = "U";
+		} else {
+			direction = "D";
+		}
+	} else {
+		if (x > Math.round(me.x)) {
+			direction = "R";
+		} else {
+			direction = "L";
+		}
+	}
+	return direction;
 }
 
 function mapToJSON(map) {
@@ -2268,7 +2366,7 @@ client.onMsg(async (id, name, msg, reply) => {
 			break;
 
 		case "MSG_corridor_initialState":
-			let palIntention = JSON.parse(msg.content).intention;
+			var palIntention = JSON.parse(msg.content).intention;
 			let palParcelsNo = JSON.parse(msg.content).parcelsNo;
 			let palFreeCells = JSON.parse(msg.content).freeCells;
 			let myIntention = me.stoppedIntention;
@@ -2303,7 +2401,7 @@ client.onMsg(async (id, name, msg, reply) => {
 						moveToDirection(myAdjacentCells[0]);
 
 						// Tell him to move
-						reply({ outcome: "move_drop_move", content: myIntention, moveToX: myX, moveToY: myY });
+						reply({ outcome: "gain_space", moveToX: myX, moveToY: myY });
 					}
 				}
 
@@ -2312,13 +2410,13 @@ client.onMsg(async (id, name, msg, reply) => {
 				// Check if I have space to move
 				if (myAdjacentCells.length > 0) {
 					// If so, drop parcels and move
-					client.emitPutdown();
+					await client.emitPutdown();
 					let myX = Math.round(me.x);
 					let myY = Math.round(me.y);
 					moveToDirection(myAdjacentCells[0]);
 
 					// Tell him to move to get parcels
-					reply({ outcome: "move_and_pickup", content: myIntention, moveToX: myX, moveToY: myY });
+					reply({ outcome: "move_and_pickup", intention: myIntention, moves: me.moves, moveToX: myX, moveToY: myY });
 				} else {
 					// Tell him to move
 					reply({ outcome: "move" });
@@ -2331,13 +2429,13 @@ client.onMsg(async (id, name, msg, reply) => {
 					// Check if I have space to move
 					if (myAdjacentCells.length > 0) {
 						// If so, drop parcels and move
-						client.emitPutdown();
+						await client.emitPutdown();
 						let myX = Math.round(me.x);
 						let myY = Math.round(me.y);
 						moveToDirection(myAdjacentCells[0]);
 
 						// Tell him to move to get parcels
-						reply({ outcome: "move_and_pickup", content: myIntention, moveToX: myX, moveToY: myY });
+						reply({ outcome: "move_and_pickup", intention: myIntention, moves: me.moves, moveToX: myX, moveToY: myY });
 					} else {
 						// Tell him to move
 						reply({ outcome: "move" });
@@ -2357,12 +2455,55 @@ client.onMsg(async (id, name, msg, reply) => {
 							moveToDirection(myAdjacentCells[0]);
 
 							// Tell him to move
-							reply({ outcome: "move_drop_move", content: myIntention, moveToX: myX, moveToY: myY });
+							reply({ outcome: "gain_space", moveToX: myX, moveToY: myY });
 						}
 					}
 				}
 			}
 			break;
+		case "MSG_corridorMoved":
+			var moveToX = JSON.parse(msg.content).moveToX;
+			var moveToY = JSON.parse(msg.content).moveToY;
+			var direction = computeMovementDirection(moveToX, moveToY);
+
+			// Move to direction and tell the pal
+			reply({ outcome: moveToDirection(direction) });
+			break;
+		case "MSG_corridorMovePickupIntention":
+			var palIntention = JSON.parse(msg.content).intentions;
+			var palMoves = JSON.parse(msg.content).moves;
+			var moveToX = JSON.parse(msg.content).moveToX;
+			var moveToY = JSON.parse(msg.content).moveToY;
+
+			// Move
+			moveToDirection(computeMovementDirection(moveToX, moveToY));
+
+			// Pickup
+			await client.emitPickup();
+
+			// Switch intention
+			let myMoves = me.moves;
+			me.moves = palMoves;
+
+			me.pendingBumpRequest = false;
+			myAgent.push(palIntention);
+			me.pendingOptionRequest = false;
+
+			// Reply
+			reply({ outcome: true, content: myIntention, moves: myMoves });
+			break;
+		case "MSG_corridorSwitchIntention":
+			var palIntention = JSON.parse(msg.content).intentions;
+			var palMoves = JSON.parse(msg.content).moves;
+
+			me.moves = palMoves;
+
+			me.pendingBumpRequest = false;
+			myAgent.push(palIntention);
+			me.pendingOptionRequest = false;
+
+			reply({ outcome: true });
+
 		default:
 			break;
 	}
