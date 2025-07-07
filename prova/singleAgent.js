@@ -4,7 +4,8 @@ const DISTANCE_NEAREST_PARCEL = 5;
 const SPAWN_NON_SPAWN_RATIO = 0.5;
 const DELIVERY_AREA_EXPLORE = 0.1;
 const TIMED_EXPLORE = 0.99;
-const MEMORY_DIFFERENCE_THRESHOLD = 2000;
+const INVIEW_MEMORY_DIFFERENCE_THRESHOLD = 2000; // Threshold for parcels and agent in our vision range
+const OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD = 10000; // Threshold for parcels and agent not in our vision range
 const MOVES_SCALE_FACTOR = 100;
 const MEMORY_REVISION_TIMER = 10000;
 
@@ -1286,34 +1287,43 @@ function reviseMemory(generateOptions) {
 	let parcels2 = new Map();
 	let agents2 = new Map();
 
-	// Revise memory information
+	// Revise memory information about parcels
 	parcels.forEach((parcel) => {
 		// Check if I see old parcels position
 		if (distance({ x: parcel.x, y: parcel.y }, { x: me.x, y: me.y }) < currentConfig.PARCELS_OBSERVATION_DISTANCE) {
-			// Check if I saw the parcel recently (aka. the onParcelSensing was called by it)
-			if (Date.now() - parcel.time < MEMORY_DIFFERENCE_THRESHOLD) {
+			// Check if I saw the parcel recently (aka. the onParcelsSensing was called by it)
+			if (Date.now() - parcel.time < INVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
 				// If so, preserve it
 				parcels2.set(parcel.id, parcel);
 			}
 		} else {
-			parcels2.set(parcel.id, parcel);
+			// Check if I saw the parcel (not in our vision range) recently
+			if (Date.now() - parcel.time < OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
+				// If so, preserve it
+				parcels2.set(parcel.id, parcel);
+			}
 		}
 	});
+
 	parcels = parcels2;
 
+	// Revise memory information about agents
 	agents.forEach((agent) => {
 		// Check if I see old agents position
 		if (distance({ x: agent.x, y: agent.y }, { x: me.x, y: me.y }) < currentConfig.AGENTS_OBSERVATION_DISTANCE) {
 			// Check if I saw the agent recently (aka. the onAgentSensing was called by it)
-			if (Date.now() - agent.time < MEMORY_DIFFERENCE_THRESHOLD) {
+			if (Date.now() - agent.time < INVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
 				// If so, preserve it
 				agents2.set(agent.id, agent);
 			}
 		} else {
-			agents2.set(agent.id, agent);
+			// Check if I saw the agent (not in our vision range) recently
+			if (Date.now() - agent.time < OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
+				// If so, preserve it
+				agents2.set(agent.id, agent);
+			}
 		}
 	});
-
 	agents = agents2;
 
 	grafo.resetAgentsNearby();
