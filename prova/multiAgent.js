@@ -714,6 +714,8 @@ class CorridorResolve extends Plan {
 	async execute(corridor_resolve) {
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 
+		console.log("FREE CELLS: " + checkFreeAdjacentCells());
+
 		let response = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridor_initialState", content: JSON.stringify({ intention: me.stoppedIntention, parcelsNo: carryingParcels().length }) });
 		switch (response.outcome) {
 			case "switch_intention":
@@ -1846,6 +1848,32 @@ function nearestDeliveryFromHereCoords(x, y) {
 	return nearestDeliveryFromHere(x, y)[0];
 }
 
+/**
+ * Check if the cells adjacents to me are free to walk to
+ * @returns {Array} list containing directions of free cells (U, D, R, L), empty list if no free cells
+ */
+function checkFreeAdjacentCells() {
+	let freeCells = [];
+
+	// Check if cell UP is free
+	if (grafo.graphMap[Math.round(me.x)][Math.round(me.y) + 1] != undefined && grafo.graphMap[Math.round(me.x)][Math.round(me.y) + 1].type != 0 && grafo.agentsNearby[Math.round(me.x)][Math.round(me.y) + 1] != 1) {
+		freeCells.push("U");
+	}
+	// Check if cell DOWN is free
+	if (grafo.graphMap[Math.round(me.x)][Math.round(me.y) - 1] != undefined && grafo.graphMap[Math.round(me.x)][Math.round(me.y) - 1].type != 0 && grafo.agentsNearby[Math.round(me.x)][Math.round(me.y) - 1] != 1) {
+		freeCells.push("D");
+	}
+	// Check if cell RIGHT is free
+	if (grafo.graphMap[Math.round(me.x) + 1][Math.round(me.y)] != undefined && grafo.graphMap[Math.round(me.x) + 1][Math.round(me.y)].type != 0 && grafo.agentsNearby[Math.round(me.x) + 1][Math.round(me.y)] != 1) {
+		freeCells.push("R");
+	}
+	// Check if cell LEFT is free
+	if (grafo.graphMap[Math.round(me.x) - 1][Math.round(me.y)] != undefined && grafo.graphMap[Math.round(me.x) - 1][Math.round(me.y)].type != 0 && grafo.agentsNearby[Math.round(me.x) - 1][Math.round(me.y)] != 1) {
+		freeCells.push("L");
+	}
+	return freeCells;
+}
+
 function mapToJSON(map) {
 	return JSON.stringify(Object.fromEntries(map));
 }
@@ -2210,6 +2238,8 @@ client.onMsg(async (id, name, msg, reply) => {
 			let palParcelsNo = JSON.parse(msg.content).parcelsNo;
 			let myIntention = me.stoppedIntention;
 			let myParcelsNo = carryingParcels().length;
+
+			console.log("FREE CELLS: " + checkFreeAdjacentCells());
 
 			// If no one has parcels, just switch intentions
 			if (palParcelsNo == 0 && myParcelsNo == 0) {
