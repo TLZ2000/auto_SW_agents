@@ -517,12 +517,12 @@ class IntentionRevisionReplace extends IntentionRevision {
 		return undefined;
 	}
 
-	stopCurrentIntention(){
+	stopCurrentIntention() {
 		const last = this.intention_queue.at(this.intention_queue.length - 1);
 
 		// Force current intention stop
 		if (last) {
-			me.stoppedIntention = last;
+			me.stoppedIntention = last.predicate;
 			last.stop();
 		}
 	}
@@ -714,6 +714,19 @@ class CorridorResolve extends Plan {
 	async execute(corridor_resolve) {
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 
+		let response = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridor_initialState", content: JSON.stringify({ intention: me.stoppedIntention, parcelsNo: carryingParcels().length }) });
+		switch (response.outcome) {
+			case "switch_intention":
+				// Restart movement intention
+				me.pendingBumpRequest = false;
+
+				// Switch the intention with pal
+				myAgent.push(response.content);
+
+				// Restart option generation
+				me.pendingOptionRequest = false;
+				break;
+		}
 		return true;
 	}
 }
@@ -766,7 +779,6 @@ class BFSmove extends Plan {
 		me.initialPathTime = Date.now();
 
 		if (path != undefined) {
-
 			// TODO: controllare se rimuovere askPalPath (per switchare parcels vogliamo che gli agenti si incontrino)
 			/*
 			// Once I have computed the path, ask confirmation to Pal
@@ -786,10 +798,10 @@ class BFSmove extends Plan {
 			let i = 0;
 			while (i < path.length) {
 				// If stopped then quit
-				if (this.stopped) throw ["stopped"]; 
+				if (this.stopped) throw ["stopped"];
 
 				// If there is a bump request in progress
-				if(me.pendingBumpRequest){
+				if (me.pendingBumpRequest) {
 					// Pause the movement intent
 					continue;
 				}
@@ -800,7 +812,7 @@ class BFSmove extends Plan {
 
 				if (path[i] == "R") {
 					// Emit move only if the pal is not in my next position
-					if(!(me.y == me.multiAgent_palY && (me.x + 1) == me.multiAgent_palX)){
+					if (!(me.y == me.multiAgent_palY && me.x + 1 == me.multiAgent_palX)) {
 						moved_horizontally = await client.emitMove("right");
 					} else {
 						// If the pal is in my next position LOG
@@ -808,7 +820,7 @@ class BFSmove extends Plan {
 						pal_bump = true;
 					}
 				} else if (path[i] == "L") {
-					if(!(me.y == me.multiAgent_palY && (me.x - 1) == me.multiAgent_palX)){
+					if (!(me.y == me.multiAgent_palY && me.x - 1 == me.multiAgent_palX)) {
 						moved_horizontally = await client.emitMove("left");
 					} else {
 						// If the pal is in my next position LOG
@@ -836,7 +848,7 @@ class BFSmove extends Plan {
 				if (this.stopped) throw ["stopped"]; // if stopped then quit
 
 				if (path[i] == "U") {
-					if(!((me.y + 1) == me.multiAgent_palY && me.x == me.multiAgent_palX)){
+					if (!(me.y + 1 == me.multiAgent_palY && me.x == me.multiAgent_palX)) {
 						moved_vertically = await client.emitMove("up");
 					} else {
 						// If the pal is in my next position LOG
@@ -844,9 +856,9 @@ class BFSmove extends Plan {
 						pal_bump = true;
 
 						// Flag option generation
-					}					
+					}
 				} else if (path[i] == "D") {
-					if(!((me.y - 1) == me.multiAgent_palY && me.x == me.multiAgent_palX)){
+					if (!(me.y - 1 == me.multiAgent_palY && me.x == me.multiAgent_palX)) {
 						moved_vertically = await client.emitMove("down");
 					} else {
 						// If the pal is in my next position LOG
@@ -870,46 +882,42 @@ class BFSmove extends Plan {
 
 				// If stucked
 				if (!moved_horizontally && !moved_vertically) {
-
-					if(!pal_bump){
+					if (!pal_bump) {
 						// I am bumping into someone else, so generate another option
 						return true;
 					}
 
-					
 					// Pause movement intention
 					me.pendingBumpRequest = true;
 
 					// Pause option generation
-					me.pendingOptionRequest = true;		
+					me.pendingOptionRequest = true;
 
 					// Reset pal_bump
 					pal_bump = false;
 
 					// Remember that I am bumping into the pal
 					me.bumping = true;
-					
-					
+
 					// Wait a movement duration to avoid spamming
 					await new Promise((res) => setTimeout(res, currentConfig.MOVEMENT_DURATION));
-					
-					if(me.id == AGENT2_ID){
+
+					if (me.id == AGENT2_ID) {
 						// If I am AGENT 2, signal AGENT 1 that I am bumping against him
 						let response = await askPalBump();
-						if(response.outcome){
+						if (response.outcome) {
 							// Also AGENT 1 is bumping into me
 							myAgent.stopCurrentIntention();
 							throw ["stopped"];
 							// wait to be sure that agent 1 is listening
 							// promise to manage stale
-
 						} else {
 							// AGENT 1 is NOT bumping into me (for now)
 							// do nothing
 						}
 					} else {
 						// AGENT 1
-						if(me.stopMovementAction){
+						if (me.stopMovementAction) {
 							// Stop this movement action
 							me.stopMovementAction = false;
 							me.stoppedIntention = myAgent.getCurrentIntention();
@@ -917,28 +925,26 @@ class BFSmove extends Plan {
 							// Push new intention to resolve the corridor problem
 							myAgent.push(["corridor_resolve"]);
 							return true;
-						}						
+						}
 					}
 
-					
 					// Restart movement intention
 					me.pendingBumpRequest = false;
 
 					// Restart option generation
 					me.pendingOptionRequest = false;
-					
-					
+
 					//throw 'stucked';
 				} else if (me.x == x && me.y == y) {
 					// this.log('target reached');
 				}
 
 				// If I actually moved
-				if(!me.bumping){
+				if (!me.bumping) {
 					// Consider next path position
-					i++;	
+					i++;
 				}
-				
+
 				// After motion update the timestamp of the visited cells
 				grafo.updateTimeMap();
 			}
@@ -949,13 +955,13 @@ class BFSmove extends Plan {
 
 async function askPalPath(message) {
 	me.pendingOptionRequest = true;
-	let response = await client.emitAsk(me.multiAgent_palID, {type: "MSG_pathSelection", content: JSON.stringify(message) });
+	let response = await client.emitAsk(me.multiAgent_palID, { type: "MSG_pathSelection", content: JSON.stringify(message) });
 	me.pendingOptionRequest = false;
 	return response;
 }
 
 async function askPalBump(message) {
-	let response = await client.emitAsk(me.multiAgent_palID, {type: "MSG_bumpRequest"});
+	let response = await client.emitAsk(me.multiAgent_palID, { type: "MSG_bumpRequest" });
 	return response;
 }
 
@@ -963,8 +969,8 @@ async function askPalBump(message) {
  * Send to pal my updated position info
  */
 async function sendPosition2Pal() {
-	me.multiAgent_myMessageID = me.multiAgent_myMessageID + 1
-	await client.emitSay(me.multiAgent_palID, { type: "MSG_positionUpdate", content: JSON.stringify({x: me.x, y: me.y, msgID: me.multiAgent_myMessageID}) });
+	me.multiAgent_myMessageID = me.multiAgent_myMessageID + 1;
+	await client.emitSay(me.multiAgent_palID, { type: "MSG_positionUpdate", content: JSON.stringify({ x: me.x, y: me.y, msgID: me.multiAgent_myMessageID }) });
 }
 
 /**
@@ -2155,9 +2161,9 @@ client.onMsg(async (id, name, msg, reply) => {
 				if (mySequence[i].x == palSequence[i].x && mySequence[i].y == palSequence[i].y) {
 					// Then we are bumping somewhere, so replay considering what I am currently doing (dumb version: return always false)
 					let currentIntention = undefined;
-					if(myAgent.getCurrentIntention()){
+					if (myAgent.getCurrentIntention()) {
 						currentIntention = myAgent.getCurrentIntention()[0];
-					} 
+					}
 
 					switch (currentIntention) {
 						case "go_pick_up":
@@ -2173,7 +2179,7 @@ client.onMsg(async (id, name, msg, reply) => {
 			// If we are here, we are not bumping, then the path is ok
 			reply({ outcome: true });
 			break;
-		
+
 		case "MSG_positionUpdate":
 			// Recover message content
 			let palX = JSON.parse(msg.content).x;
@@ -2181,17 +2187,17 @@ client.onMsg(async (id, name, msg, reply) => {
 			let palID = JSON.parse(msg.content).msgID;
 
 			// Verify message validity
-			if(me.multiAgent_palMessageID < palID){
+			if (me.multiAgent_palMessageID < palID) {
 				me.multiAgent_palMessageID = palID;
 				me.multiAgent_palX = Math.round(palX);
 				me.multiAgent_palY = Math.round(palY);
-			}			
+			}
 			break;
 
 		case "MSG_bumpRequest":
 			// Check if I am also bumping against the pal
-			if(me.bumping){
-				me.stopMovementAction = true;				
+			if (me.bumping) {
+				me.stopMovementAction = true;
 				reply({ outcome: true });
 			} else {
 				reply({ outcome: false });
@@ -2199,6 +2205,30 @@ client.onMsg(async (id, name, msg, reply) => {
 
 			break;
 
+		case "MSG_corridor_initialState":
+			let palIntention = JSON.parse(msg.content).intention;
+			let palParcelsNo = JSON.parse(msg.content).parcelsNo;
+			let myIntention = me.stoppedIntention;
+			let myParcelsNo = carryingParcels().length;
+
+			// If no one has parcels, just switch intentions
+			if (palParcelsNo == 0 && myParcelsNo == 0) {
+				reply({ outcome: "switch_intention", content: myIntention });
+
+				// Restart movement intention
+				me.pendingBumpRequest = false;
+
+				myAgent.push(palIntention);
+
+				// Restart option generation
+				me.pendingOptionRequest = false;
+
+				// If only the pal is carrying parcels
+			} else if (palParcelsNo > 0 && myParcelsNo == 0) {
+				// If only I am carrying parcels
+			} else if (palParcelsNo == 0 && myParcelsNo > 0) {
+			}
+			break;
 		default:
 			break;
 	}
