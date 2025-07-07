@@ -18,6 +18,7 @@ const MEMORY_REVISION_TIMER = 10000;
 const MEMORY_SHARE_TIMER = 1500;
 const MAX_EXPLORABLE_SPAWN_CELLS = 100;
 const MEMORY_REVISION_PARCELS2IGNORE = 5000;
+const RESTORE_OPTION_GENERATION_SCALE_FACTOR = 4;
 
 const PARCEL_DISTANCE_LOW = 1;
 const PARCEL_DISTANCE_MID = 2;
@@ -724,7 +725,7 @@ class CorridorResolve extends Plan {
 				myAgent.push(response.content);
 
 				// Restart option generation
-				me.pendingOptionRequest = false;
+				timedRestoreOptionGenerationFlag();
 				break;
 			case "drop_and_move":
 				// Put down my parcels
@@ -753,7 +754,7 @@ class CorridorResolve extends Plan {
 
 				//TODO: inserire timer
 				// Restart option generation
-				me.pendingOptionRequest = false;
+				timedRestoreOptionGenerationFlag();
 				break;
 			case "gain_space":
 				var moveToX = JSON.parse(msg.content).moveToX;
@@ -783,7 +784,7 @@ class CorridorResolve extends Plan {
 				me.moves = palMoves;
 				me.pendingBumpRequest = false;
 				myAgent.push(palIntention);
-				me.pendingOptionRequest = false;
+				timedRestoreOptionGenerationFlag();
 
 				break;
 			case "move":
@@ -1009,7 +1010,7 @@ class BFSmove extends Plan {
 					me.pendingBumpRequest = false;
 
 					// Restart option generation
-					me.pendingOptionRequest = false;
+					timedRestoreOptionGenerationFlag();
 
 					//throw 'stucked';
 				} else if (me.x == x && me.y == y) {
@@ -1949,8 +1950,11 @@ function checkFreeAdjacentCells() {
 	return freeCells;
 }
 
+/**
+ * Wait some time and then restore the option generation flag
+ */
 async function timedRestoreOptionGenerationFlag() {
-	await new Promise((res) => setTimeout(res, currentConfig.MOVEMENT_DURATION * 4));
+	await new Promise((res) => setTimeout(res, currentConfig.MOVEMENT_DURATION * RESTORE_OPTION_GENERATION_SCALE_FACTOR));
 	me.pendingOptionRequest = false;
 }
 
@@ -2383,7 +2387,7 @@ client.onMsg(async (id, name, msg, reply) => {
 				myAgent.push(palIntention);
 
 				// Restart option generation
-				me.pendingOptionRequest = false;
+				timedRestoreOptionGenerationFlag();
 
 				// If only the pal is carrying parcels
 			} else if (palParcelsNo > 0 && myParcelsNo == 0) {
@@ -2487,7 +2491,7 @@ client.onMsg(async (id, name, msg, reply) => {
 
 			me.pendingBumpRequest = false;
 			myAgent.push(palIntention);
-			me.pendingOptionRequest = false;
+			timedRestoreOptionGenerationFlag();
 
 			// Reply
 			reply({ outcome: true, content: myIntention, moves: myMoves });
@@ -2500,7 +2504,7 @@ client.onMsg(async (id, name, msg, reply) => {
 
 			me.pendingBumpRequest = false;
 			myAgent.push(palIntention);
-			me.pendingOptionRequest = false;
+			timedRestoreOptionGenerationFlag();
 
 			reply({ outcome: true });
 
