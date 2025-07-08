@@ -1,4 +1,6 @@
 import { DeliverooApi } from "@unitn-asa/deliveroo-js-client";
+import { onlineSolver, PddlExecutor, PddlProblem, Beliefset} from "@unitn-asa/pddl-client";
+import fs from 'fs';
 
 const DISTANCE_NEAREST_PARCEL = 5;
 const SPAWN_NON_SPAWN_RATIO = 0.5;
@@ -15,6 +17,8 @@ const PARCEL_DISTANCE_HIGH = 3;
 const PARCEL_WEIGHT_LOW = 10;
 const PARCEL_WEIGHT_MID = 5;
 const PARCEL_WEIGHT_HIGH = 2.5;
+
+const myBeliefset = new Beliefset();
 
 /**
  * Queue class
@@ -784,6 +788,26 @@ class BFSmove extends Plan {
 		return true;
 	}
 }
+
+/**
+ * Read txt file content
+ * @param {String} path - path of file
+ * @returns content of txt file as string
+ */
+function readFile ( path ) {
+    
+    return new Promise( (res, rej) => {
+
+        fs.readFile( path, 'utf8', (err, data) => {
+            if (err) rej(err)
+            else res(data)
+        })
+
+    })
+
+}
+
+
 
 /**
  * Randomly select a cell to explore using the "distance" criterion (distant cells are more probable), if the ratio of spawn/non spawn cells is greater than SPAWN_NON_SPAWN_RATIO, consider also delivery zones
