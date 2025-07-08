@@ -491,13 +491,13 @@ class IntentionRevisionReplace extends IntentionRevision {
 		// Check if already queued
 		const last = this.intention_queue.at(this.intention_queue.length - 1);
 
-		/* if (last) {
-			console.log("LAST: " + last.predicate.join(" "));
-			console.log("NOW: " + predicate.join(" "));
-		} */
-
 		if (last && last.predicate.join(" ") == predicate.join(" ")) {
 			return; // intention is already being achieved
+		}
+
+		// If the current intention is a corridor_resolve, I must solve that first
+		if (last && last.predicate[0] == "corridor_resolve") {
+			return;
 		}
 
 		console.log("IntentionRevisionReplace.push", predicate);
@@ -523,7 +523,6 @@ class IntentionRevisionReplace extends IntentionRevision {
 
 		// Force current intention stop
 		if (last) {
-			me.stoppedIntention = last.predicate;
 			last.stop();
 		}
 	}
@@ -714,98 +713,168 @@ class CorridorResolve extends Plan {
 
 	async execute(corridor_resolve) {
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
+		let staleResolved = false;
 
-		let response = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridor_initialState", content: JSON.stringify({ intention: me.stoppedIntention, parcelsNo: carryingParcels().length, freeCells: checkFreeAdjacentCells() }) });
-		switch (response.outcome) {
-			case "switch_intention":
-				// Restart movement intention
-				me.pendingBumpRequest = false;
+		while(!staleResolved){
+			if (this.stopped) throw ["stopped"]; // if stopped then quit
+			
+			console.log("SENDING: " + JSON.stringify({ intention: me.stoppedIntention, parcelsNo: carryingParcels().length, freeCells: checkFreeAdjacentCells() }));
 
-				// Switch the intention with pal
-				myAgent.push(response.content);
+			let response = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridor_initialState", content: JSON.stringify({ intention: me.stoppedIntention, parcelsNo: carryingParcels().length, freeCells: checkFreeAdjacentCells() }) });
 
-				// Restart option generation
-				timedRestoreOptionGenerationFlag();
-				break;
-			case "drop_and_move":
-				// Put down my parcels
-				await client.emitPutdown();
-
-				// Move away
-				var myX = Math.round(me.x);
-				var myY = Math.round(me.y);
-				var myFreeCells = checkFreeAdjacentCells();
-				while (myFreeCells.length == 0) {
-					// Wait a movement duration
-					await new Promise((res) => setTimeout(res, currentConfig.MOVEMENT_DURATION));
-					myFreeCells = checkFreeAdjacentCells();
+			for(var i = 0; i < 10; i++){
+					console.log("MSG_corridor_initialState RESPONSE " + response.outcome);
 				}
-				moveToDirection(myFreeCells[0]);
 
-				// Signal pal agent to move and pickup
-				let palResponse = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridorMovePickupIntention", content: JSON.stringify({ intention: me.stoppedIntention, moves: me.moves, moveToX: myX, moveToY: myY }) });
+			switch (response.outcome) {
+				case "switch_intention":
+					// Restart movement intention
+					me.pendingBumpRequest = false;
 
-				// Restart movement intention
-				me.pendingBumpRequest = false;
+					// Switch the intention with pal
+					myAgent.push(response.content);
 
-				// Switch the intention with pal
-				me.moves = palResponse.moves;
-				// TODO: vedere perché ogni tanto palResponse.content (intention che gli manda il pal) è undefined e fa crashare tutto
-				// la mia idea è che succede quando l'agente 2 succeed l'intention e prima di riuscire a generarne un altra succede il bump, quindi la stoppedIntention è undefined
-				// infatti ho notato che succede quando un agente è sulla deliver o sulla spawn (non solo in quei casi, ma anche in altri casi)
-				myAgent.push(palResponse.content);
+					// Restart option generation
+					timedRestoreBumpOptionGenerationFlag();
 
-				// Restart option generation
-				timedRestoreOptionGenerationFlag();
-				break;
-			case "gain_space":
-				var moveToX = response.moveToX;
-				var moveToY = response.moveToY;
+					// Signal resolved stale
+					staleResolved = true;
+					break;
+				case "drop_and_move":
+					// Put down my parcels
+					await client.emitPutdown();
 
-				// Move to direction
-				moveToDirection(computeMovementDirection(moveToX, moveToY));
+					// Move away
+					var myX = Math.round(me.x);
+					var myY = Math.round(me.y);
+					var myFreeCells = checkFreeAdjacentCells();
+					while (myFreeCells.length == 0) {
+						// Wait a movement duration
+						console.log("WAITING FREE CELL: " + myFreeCells.length);
+						await new Promise((res) => setTimeout(res, currentConfig.MOVEMENT_DURATION));
+						myFreeCells = checkFreeAdjacentCells();
+					}
 
-				// Repeat all the corridor resolution
-				myAgent.push(["corridor_resolve"]);
-				break;
-			case "move_and_pickup":
-				var moveToX = response.moveToX;
-				var moveToY = response.moveToY;
-				var palIntention = response.intention;
-				var palMoves = response.moves;
+					// Move to direction
+					switch (myFreeCells[0]) {
+						case "U":
+							await client.emitMove("up");
+							break;
+						case "D":
+							await client.emitMove("down");
+							break;
+						case "R":
+							await client.emitMove("right");
+							break;
+						case "L":
+							await client.emitMove("left");
+							break;
+					}
 
-				// Move to direction
-				moveToDirection(computeMovementDirection(moveToX, moveToY));
+					// Signal pal agent to move and pickup
+					let palResponse = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridorMovePickupIntention", content: JSON.stringify({ intention: me.stoppedIntention, moves: me.moves, moveToX: myX, moveToY: myY }) });
 
-				// Pickup parcels
-				await client.emitPickup();
+					// Restart movement intention
+					me.pendingBumpRequest = false;
 
-				// Tell pal to switch intention
-				var moveResponse = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridorSwitchIntention", content: JSON.stringify({ intention: me.stoppedIntention, moves: me.moves }) });
+					// Switch the intention with pal
+					me.moves = palResponse.moves;
+					// TODO: vedere perché ogni tanto palResponse.content (intention che gli manda il pal) è undefined e fa crashare tutto
+					// la mia idea è che succede quando l'agente 2 succeed l'intention e prima di riuscire a generarne un altra succede il bump, quindi la stoppedIntention è undefined
+					// infatti ho notato che succede quando un agente è sulla deliver o sulla spawn (non solo in quei casi, ma anche in altri casi)
+					myAgent.push(palResponse.content);
 
-				me.moves = palMoves;
-				me.pendingBumpRequest = false;
-				myAgent.push(palIntention);
-				timedRestoreOptionGenerationFlag();
+					// Restart option generation
+					timedRestoreBumpOptionGenerationFlag();
+					break;
+				case "gain_space":
+					var moveToX = response.moveToX;
+					var moveToY = response.moveToY;
 
-				break;
-			case "move":
-				var myX = Math.round(me.x);
-				var myY = Math.round(me.y);
-				var myFreeCells = checkFreeAdjacentCells();
-				while (myFreeCells.length == 0) {
-					// Wait a movement duration
-					await new Promise((res) => setTimeout(res, currentConfig.MOVEMENT_DURATION));
-					myFreeCells = checkFreeAdjacentCells();
-				}
-				// Move
-				moveToDirection(myFreeCells[0]);
+					console.log("GAIN SPACE TO: " + computeMovementDirection(moveToX, moveToY))
 
-				// Tell the pal I moved so he can move
-				var moveResponse = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridorMoved", content: JSON.stringify({ moveToX: myX, moveToY: myY }) });
-				// Repeat all the corridor resolution
-				myAgent.push(["corridor_resolve"]);
-				break;
+
+					// Move to direction
+					switch (computeMovementDirection(moveToX, moveToY)) {
+						case "U":
+							await client.emitMove("up");
+							break;
+						case "D":
+							await client.emitMove("down");
+							break;
+						case "R":
+							await client.emitMove("right");
+							break;
+						case "L":
+							await client.emitMove("left");
+							break;
+					}
+					break;
+				case "move_and_pickup":
+					var moveToX = response.moveToX;
+					var moveToY = response.moveToY;
+					var palIntention = response.intention;
+					var palMoves = response.moves;
+
+					// Move to direction
+					switch (computeMovementDirection(moveToX, moveToY)) {
+						case "U":
+							await client.emitMove("up");
+							break;
+						case "D":
+							await client.emitMove("down");
+							break;
+						case "R":
+							await client.emitMove("right");
+							break;
+						case "L":
+							await client.emitMove("left");
+							break;
+					}
+
+					// Pickup parcels
+					await client.emitPickup();
+
+					// Tell pal to switch intention
+					var moveResponse = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridorSwitchIntention", content: JSON.stringify({ intention: me.stoppedIntention, moves: me.moves }) });
+
+					me.moves = palMoves;
+					me.pendingBumpRequest = false;
+					console.log("PAL INTENTION SWITCH: " + palIntention);
+					myAgent.push(palIntention);
+					timedRestoreBumpOptionGenerationFlag();
+					staleResolved = true;
+					break;
+
+				case "move":
+					var myX = Math.round(me.x);
+					var myY = Math.round(me.y);
+					var myFreeCells = checkFreeAdjacentCells();
+					while (myFreeCells.length == 0) {
+						// Wait a movement duration
+						await new Promise((res) => setTimeout(res, currentConfig.MOVEMENT_DURATION));
+						myFreeCells = checkFreeAdjacentCells();
+					}
+					// Move
+					switch (myFreeCells[0]) {
+						case "U":
+							await client.emitMove("up");
+							break;
+						case "D":
+							await client.emitMove("down");
+							break;
+						case "R":
+							await client.emitMove("right");
+							break;
+						case "L":
+							await client.emitMove("left");
+							break;
+					}
+
+					// Tell the pal I moved so he can move
+					var moveResponse = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridorMoved", content: JSON.stringify({ moveToX: myX, moveToY: myY }) });
+					break;
+			}			
 		}
 		return true;
 	}
@@ -883,6 +952,7 @@ class BFSmove extends Plan {
 				// If there is a bump request in progress
 				if (me.pendingBumpRequest) {
 					// Pause the movement intent
+					await new Promise((res) => setTimeout(res, currentConfig.MOVEMENT_DURATION / 2));
 					continue;
 				}
 
@@ -971,7 +1041,7 @@ class BFSmove extends Plan {
 					me.pendingBumpRequest = true;
 
 					// Pause option generation
-					me.pendingOptionRequest = true;
+					me.pendingBumpOptionRequest = true;
 
 					// Reset pal_bump
 					pal_bump = false;
@@ -986,25 +1056,30 @@ class BFSmove extends Plan {
 						// If I am AGENT 2, signal AGENT 1 that I am bumping against him
 						let response = await askPalBump();
 						if (response.outcome) {
-							// Also AGENT 1 is bumping into me
+							// Also AGENT 1 is bumping into me, so save my current intention
+							me.stoppedIntention = myAgent.getCurrentIntention();
+							// Stop my intention
 							myAgent.stopCurrentIntention();
 							throw ["stopped"];
-							// wait to be sure that agent 1 is listening
-							// promise to manage stale
+							// And wait for AGENT 1 to begin stale management
 						} else {
 							// AGENT 1 is NOT bumping into me (for now)
 							// do nothing
 						}
 					} else {
 						// AGENT 1
+						// If the pal is bumping into me
 						if (me.stopMovementAction) {
-							// Stop this movement action
+							// Then save the current intention
 							me.stopMovementAction = false;
 							me.stoppedIntention = myAgent.getCurrentIntention();
 
 							// Push new intention to resolve the corridor problem
+							myAgent.stopCurrentIntention();
 							myAgent.push(["corridor_resolve"]);
-							return true;
+
+							// Stop this movement intention
+							throw ["stopped"];
 						}
 					}
 
@@ -1012,7 +1087,7 @@ class BFSmove extends Plan {
 					me.pendingBumpRequest = false;
 
 					// Restart option generation
-					timedRestoreOptionGenerationFlag();
+					timedRestoreBumpOptionGenerationFlag();
 
 					//throw 'stucked';
 				} else if (me.x == x && me.y == y) {
@@ -1419,7 +1494,7 @@ function carryingParcels() {
  */
 function optionsGeneration() {
 	// If I have already a pending request to my pal
-	if (me.pendingOptionRequest) {
+	if (me.pendingOptionRequest || me.pendingBumpOptionRequest) {
 		// Then I must await his response
 		return;
 	}
@@ -1596,20 +1671,20 @@ async function askPalOption(message) {
 			if (response == true) {
 				// If the pal is OK with my selection, then I push it to my intention
 				myAgent.push(message);
-				timedRestoreOptionGenerationFlag();
+				me.pendingOptionRequest = false; 
 			} else {
 				// If the pal is NOT OK with my selection, I must invalidate it
 				switch (message[0]) {
 					case "go_pick_up":
 						// Add the parcel to the set of parcels to ignore
 						me.parcels2Ignore.set(message[3], Date.now());
-						timedRestoreOptionGenerationFlag();
+						me.pendingOptionRequest = false; 
 						optionsGeneration();
 						break;
 					case "go_deliver":
 						// TODO: dopo un po di tempo agente 1 risponde timeout e finisce qui
 						console.log("Deliver refused somehow?!?");
-						timedRestoreOptionGenerationFlag();
+						me.pendingOptionRequest = false; 
 						break;
 				}
 			}
@@ -1956,36 +2031,9 @@ function checkFreeAdjacentCells() {
 /**
  * Wait some time and then restore the option generation flag
  */
-async function timedRestoreOptionGenerationFlag() {
+async function timedRestoreBumpOptionGenerationFlag() {
 	await new Promise((res) => setTimeout(res, currentConfig.MOVEMENT_DURATION * RESTORE_OPTION_GENERATION_SCALE_FACTOR));
-	me.pendingOptionRequest = false;
-}
-
-/**
- * Move to specified direction
- * @param {String} direction - direction to move
- * @returns {Boolean} true if successful move, false otherwise
- */
-async function moveToDirection(direction) {
-	let response;
-	switch (direction) {
-		case "U":
-			response = await client.emitMove("up");
-			break;
-		case "D":
-			response = await client.emitMove("down");
-			break;
-		case "R":
-			response = await client.emitMove("right");
-			break;
-		case "L":
-			response = await client.emitMove("left");
-			break;
-		default:
-			response = false;
-			break;
-	}
-	return response;
+	me.pendingBumpOptionRequest = false;
 }
 
 /**
@@ -2104,6 +2152,7 @@ const me = {
 	currentPath: undefined,
 	initialPathTime: null,
 	pendingOptionRequest: false,
+	pendingBumpOptionRequest: false,
 	pendingBumpRequest: false,
 	bumping: false,
 	parcels2Ignore: new Map(),
@@ -2373,6 +2422,12 @@ client.onMsg(async (id, name, msg, reply) => {
 			break;
 
 		case "MSG_corridor_initialState":
+
+			for(var i = 0; i < 10; i++){
+				console.log("MSG_corridor_initialState: " + JSON.parse(msg.content));
+				console.log("intent: " + JSON.parse(msg.content).intention);
+			}
+
 			var palIntention = JSON.parse(msg.content).intention;
 			let palParcelsNo = JSON.parse(msg.content).parcelsNo;
 			let palFreeCells = JSON.parse(msg.content).freeCells;
@@ -2389,7 +2444,7 @@ client.onMsg(async (id, name, msg, reply) => {
 				myAgent.push(palIntention);
 
 				// Restart option generation
-				timedRestoreOptionGenerationFlag();
+				timedRestoreBumpOptionGenerationFlag();
 
 				// If only the pal is carrying parcels
 			} else if (palParcelsNo > 0 && myParcelsNo == 0) {
@@ -2399,12 +2454,29 @@ client.onMsg(async (id, name, msg, reply) => {
 					reply({ outcome: "drop_and_move", content: myIntention });
 				} else {
 					// Check if I have space to move
+					while(myAdjacentCells.length == 0){
+						await new Promise((res) => setTimeout(res, currentConfig.MOVEMENT_DURATION / 2));
+					}
 					if (myAdjacentCells.length > 0) {
 						// If so, then move
 
 						let myX = Math.round(me.x);
 						let myY = Math.round(me.y);
-						moveToDirection(myAdjacentCells[0]);
+
+						switch (myAdjacentCells[0]) {
+							case "U":
+								await client.emitMove("up");
+								break;
+							case "D":
+								await client.emitMove("down");
+								break;
+							case "R":
+								await client.emitMove("right");
+								break;
+							case "L":
+								await client.emitMove("left");
+								break;
+						}
 
 						// Tell him to move
 						reply({ outcome: "gain_space", moveToX: myX, moveToY: myY });
@@ -2419,7 +2491,22 @@ client.onMsg(async (id, name, msg, reply) => {
 					await client.emitPutdown();
 					let myX = Math.round(me.x);
 					let myY = Math.round(me.y);
-					moveToDirection(myAdjacentCells[0]);
+
+					// Compute movement
+					switch (myAdjacentCells[0]) {
+							case "U":
+								await client.emitMove("up");
+								break;
+							case "D":
+								await client.emitMove("down");
+								break;
+							case "R":
+								await client.emitMove("right");
+								break;
+							case "L":
+								await client.emitMove("left");
+								break;
+						}
 
 					// Tell him to move to get parcels
 					reply({ outcome: "move_and_pickup", intention: myIntention, moves: me.moves, moveToX: myX, moveToY: myY });
@@ -2438,7 +2525,22 @@ client.onMsg(async (id, name, msg, reply) => {
 						await client.emitPutdown();
 						let myX = Math.round(me.x);
 						let myY = Math.round(me.y);
-						moveToDirection(myAdjacentCells[0]);
+
+						// Compute movement
+						switch (myAdjacentCells[0]) {
+							case "U":
+								await client.emitMove("up");
+								break;
+							case "D":
+								await client.emitMove("down");
+								break;
+							case "R":
+								await client.emitMove("right");
+								break;
+							case "L":
+								await client.emitMove("left");
+								break;
+						}
 
 						// Tell him to move to get parcels
 						reply({ outcome: "move_and_pickup", intention: myIntention, moves: me.moves, moveToX: myX, moveToY: myY });
@@ -2458,7 +2560,22 @@ client.onMsg(async (id, name, msg, reply) => {
 
 							let myX = Math.round(me.x);
 							let myY = Math.round(me.y);
-							moveToDirection(myAdjacentCells[0]);
+
+							// Compute movement
+							switch (myAdjacentCells[0]) {
+							case "U":
+								await client.emitMove("up");
+								break;
+							case "D":
+								await client.emitMove("down");
+								break;
+							case "R":
+								await client.emitMove("right");
+								break;
+							case "L":
+								await client.emitMove("left");
+								break;
+						}
 
 							// Tell him to move
 							reply({ outcome: "gain_space", moveToX: myX, moveToY: myY });
@@ -2473,7 +2590,25 @@ client.onMsg(async (id, name, msg, reply) => {
 			var direction = computeMovementDirection(moveToX, moveToY);
 
 			// Move to direction and tell the pal
-			reply({ outcome: moveToDirection(direction) });
+			let tmpResponse;
+			switch (direction) {
+				case "U":
+					tmpResponse = await client.emitMove("up");
+					break;
+				case "D":
+					tmpResponse = await client.emitMove("down");
+					break;
+				case "R":
+					tmpResponse = await client.emitMove("right");
+					break;
+				case "L":
+					tmpResponse = await client.emitMove("left");
+					break;
+				default:
+					tmpResponse = false;
+					break;
+			}
+			reply({ outcome: tmpResponse });
 			break;
 		case "MSG_corridorMovePickupIntention":
 			var palIntention = JSON.parse(msg.content).intention;
@@ -2483,7 +2618,20 @@ client.onMsg(async (id, name, msg, reply) => {
 			var moveToY = JSON.parse(msg.content).moveToY;
 
 			// Move
-			moveToDirection(computeMovementDirection(moveToX, moveToY));
+			switch (computeMovementDirection(moveToX, moveToY)) {
+				case "U":
+					await client.emitMove("up");
+					break;
+				case "D":
+					await client.emitMove("down");
+					break;
+				case "R":
+					await client.emitMove("right");
+					break;
+				case "L":
+					await client.emitMove("left");
+					break;
+			}
 
 			// Pickup
 			await client.emitPickup();
@@ -2494,7 +2642,7 @@ client.onMsg(async (id, name, msg, reply) => {
 
 			me.pendingBumpRequest = false;
 			myAgent.push(palIntention);
-			timedRestoreOptionGenerationFlag();
+			timedRestoreBumpOptionGenerationFlag();
 
 			// Reply
 			reply({ outcome: true, content: myIntention, moves: myMoves });
@@ -2507,7 +2655,7 @@ client.onMsg(async (id, name, msg, reply) => {
 
 			me.pendingBumpRequest = false;
 			myAgent.push(palIntention);
-			timedRestoreOptionGenerationFlag();
+			timedRestoreBumpOptionGenerationFlag();
 
 			reply({ outcome: true });
 
