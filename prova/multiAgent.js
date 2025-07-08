@@ -2453,7 +2453,7 @@ client.onMsg(async (id, name, msg, reply) => {
 					// Tell him to drop parcels and move
 					reply({ outcome: "drop_and_move", content: myIntention });
 				} else {
-					// Check if I have space to move
+					// I fI have no free cells to move at the m
 					while(myAdjacentCells.length == 0){
 						await new Promise((res) => setTimeout(res, currentConfig.MOVEMENT_DURATION / 2));
 					}
