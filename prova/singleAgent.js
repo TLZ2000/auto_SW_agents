@@ -823,6 +823,88 @@ class BFSmove extends Plan {
 }
 
 /**
+ * Plan class handling the "go_to" intention
+ */
+class PDDLmove extends Plan {
+	static isApplicableTo(go_to, x, y) {
+		return go_to == "go_to";
+	}
+
+	async execute(go_to, x, y) {
+		// Define problem
+		var pddlProblem = new PddlProblem("deliveroo_go_to", myBeliefSet.objects.join(" "), myBeliefSet.toPddlString(), "and (at agent " + x + "_" + y + ")");
+		let problem = pddlProblem.toPddlString();
+
+		// Define domain
+		let domain = await readFile("./deliveroo_domain.pddl");
+
+		// Get the plan
+		var plan = await onlineSolver(domain, problem);
+
+		console.log(plan);
+		/*
+		let i = 0;
+		while (path != undefined && i < path.length) {
+			if (this.stopped) throw ["stopped"]; // if stopped then quit
+
+			let moved_horizontally;
+			let moved_vertically;
+
+			// this.log('me', me, 'xy', x, y);
+
+			if (path[i] == "R") {
+				moved_horizontally = await client.emitMove("right");
+				// status_x = await this.subIntention( 'go_to', {x: me.x+1, y: me.y} );
+			} else if (path[i] == "L") {
+				moved_horizontally = await client.emitMove("left");
+				// status_x = await this.subIntention( 'go_to', {x: me.x-1, y: me.y} );
+			}
+
+			let carriedParcels = carryingParcels();
+
+			if (moved_horizontally) {
+				updateMePosition(moved_horizontally.x, moved_horizontally.y);
+
+				if (carriedParcels.length > 0) {
+					me.moves += 1;
+				}
+			}
+
+			if (this.stopped) throw ["stopped"]; // if stopped then quit
+
+			if (path[i] == "U") {
+				moved_vertically = await client.emitMove("up");
+				// status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y+1} );
+			} else if (path[i] == "D") {
+				moved_vertically = await client.emitMove("down");
+				// status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y-1} );
+			}
+
+			if (moved_vertically) {
+				updateMePosition(moved_vertically.x, moved_vertically.y);
+
+				if (carriedParcels.length > 0) {
+					me.moves += 1;
+				}
+			}
+
+			// If stucked
+			if (!moved_horizontally && !moved_vertically) {
+				return true;
+				//throw 'stucked';
+			} else if (me.x == x && me.y == y) {
+				// this.log('target reached');
+			}
+
+			i++;
+			// After motion update the timestamp of the visited cells
+			grafo.updateTimeMap();
+		}*/
+		return true;
+	}
+}
+
+/**
  * Read txt file content
  * @param {String} path - path of file
  * @returns content of txt file as string
@@ -1490,13 +1572,10 @@ var currentMap = undefined;
 var grafo = undefined;
 var currentConfig = undefined;
 
-// Planning
-//let domain = await readFile("/deliveroo_domain.pddl");
-let problem;
-
 // Plan classes are added to plan library
 planLibrary.push(GoPickUp);
-planLibrary.push(BFSmove);
+//planLibrary.push(BFSmove);
+planLibrary.push(PDDLmove);
 planLibrary.push(GoDeliver);
 planLibrary.push(Explore);
 
