@@ -434,29 +434,29 @@ class GameMap {
 				// Check if the tile in position [x,y] is walkable
 				if (this.map[x][y] != 0) {
 					// If so, add it in the belief set
-					let tileName = x + "_" + y;
+					let tileName = "x" + x + "y" + y;
 					myBeliefSet.declare("tile " + tileName);
 					myBeliefSet.declare("free " + tileName);
 
 					// Check its neighbors
 					if (y - 1 >= 0 && this.map[x][y - 1] != 0) {
 						// If cell has down walkable neighbor, add it to the belief set
-						myBeliefSet.declare("down " + x + "_" + (y - 1) + " " + tileName);
+						myBeliefSet.declare("down " + "x" + x + "y" + (y - 1) + " " + tileName);
 					}
 
 					if (y + 1 < this.height && this.map[x][y + 1] != 0) {
 						// If cell has up walkable neighbor, add it to the belief set
-						myBeliefSet.declare("up " + x + "_" + (y + 1) + " " + tileName);
+						myBeliefSet.declare("up " + "x" + x + "y" + (y + 1) + " " + tileName);
 					}
 
 					if (x - 1 >= 0 && this.map[x - 1][y] != 0) {
 						// If cell has left walkable neighbor, add it to the belief set
-						myBeliefSet.declare("left " + (x - 1) + "_" + y + " " + tileName);
+						myBeliefSet.declare("left " + "x" + (x - 1) + "y" + y + " " + tileName);
 					}
 
 					if (x + 1 < this.width && this.map[x + 1][y] != 0) {
-						// If cell has left walkable neighbor, add it to the belief set
-						myBeliefSet.declare("left " + (x + 1) + "_" + y + " " + tileName);
+						// If cell has right walkable neighbor, add it to the belief set
+						myBeliefSet.declare("right " + "x" + (x + 1) + "y" + y + " " + tileName);
 					}
 				}
 			}
@@ -831,18 +831,40 @@ class PDDLmove extends Plan {
 	}
 
 	async execute(go_to, x, y) {
+		console.log("GOTO POSITION: " + x + " " + y);
 		// Define problem
-		var pddlProblem = new PddlProblem("deliveroo_go_to", myBeliefSet.objects.join(" "), myBeliefSet.toPddlString(), "and (at agent " + x + "_" + y + ")");
+		var pddlProblem = new PddlProblem("deliveroo_go_to", myBeliefSet.objects.join(" "), myBeliefSet.toPddlString(), "and (at agent " + "x" + x + "y" + y + ")");
 		let problem = pddlProblem.toPddlString();
 
 		// Define domain
 		let domain = await readFile("./deliveroo_domain.pddl");
 
 		// Get the plan
-		var plan = await onlineSolver(domain, problem);
+		let plan = await onlineSolver(domain, problem);
 
-		console.log(plan);
-		/*
+		let path = [];
+
+		// If a plan exists
+		if (plan != undefined) {
+			// Cycle the plan and convert it to a path
+			for (let i = 0; i < plan.length; i++) {
+				switch (plan[i].action) {
+					case "RIGHT":
+						path.push("R");
+						break;
+					case "LEFT":
+						path.push("L");
+						break;
+					case "UP":
+						path.push("U");
+						break;
+					case "DOWN":
+						path.push("D");
+						break;
+				}
+			}
+		}
+
 		let i = 0;
 		while (path != undefined && i < path.length) {
 			if (this.stopped) throw ["stopped"]; // if stopped then quit
@@ -899,7 +921,7 @@ class PDDLmove extends Plan {
 			i++;
 			// After motion update the timestamp of the visited cells
 			grafo.updateTimeMap();
-		}*/
+		}
 		return true;
 	}
 }
@@ -1472,7 +1494,7 @@ function reviseMemory(generateOptions) {
 				agents2.set(agent.id, agent);
 			} else {
 				// Declare free the agent that we will remove from set
-				myBeliefSet.declare("free " + Math.round(agent.x) + "_" + Math.round(agent.y));
+				myBeliefSet.declare("free " + "x" + Math.round(agent.x) + "y" + Math.round(agent.y));
 			}
 		} else {
 			// Check if I saw the agent (not in our vision range) recently
@@ -1481,7 +1503,7 @@ function reviseMemory(generateOptions) {
 				agents2.set(agent.id, agent);
 			} else {
 				// Declare free the agent that we will remove from set
-				myBeliefSet.declare("free " + Math.round(agent.x) + "_" + Math.round(agent.y));
+				myBeliefSet.declare("free " + "x" + Math.round(agent.x) + "y" + Math.round(agent.y));
 			}
 		}
 	});
@@ -1504,17 +1526,17 @@ function reviseMemory(generateOptions) {
 function updateMePosition(x, y) {
 	if (me.x != null && me.y != null) {
 		// Undeclare old agent position
-		myBeliefSet.undeclare("at agent " + Math.round(me.x) + "_" + Math.round(me.y));
+		myBeliefSet.undeclare("at agent " + "x" + Math.round(me.x) + "y" + Math.round(me.y));
 
 		// Declare free old agent position
-		myBeliefSet.declare("free " + Math.round(me.x) + "_" + Math.round(me.y));
+		myBeliefSet.declare("free " + "x" + Math.round(me.x) + "y" + Math.round(me.y));
 	}
 
 	// Undeclare free new agent position
-	myBeliefSet.undeclare("free " + Math.round(x) + "_" + Math.round(y));
+	myBeliefSet.undeclare("free " + "x" + Math.round(x) + "y" + Math.round(y));
 
 	// Declare new agent position
-	myBeliefSet.declare("at agent " + Math.round(x) + "_" + Math.round(y));
+	myBeliefSet.declare("at agent " + "x" + Math.round(x) + "y" + Math.round(y));
 
 	// Update agent coordinates
 	me.x = x;
@@ -1526,13 +1548,13 @@ function updateAgent(a) {
 	if (agents.has(a.id)) {
 		let oldAgent = agents.get(a.id);
 		// Declare free the old agent position
-		myBeliefSet.declare("free " + Math.round(oldAgent.x) + "_" + Math.round(oldAgent.y));
+		myBeliefSet.declare("free " + "x" + Math.round(oldAgent.x) + "y" + Math.round(oldAgent.y));
 	}
 	// Add agent to set
 	agents.set(a.id, a);
 
 	// Undeclare free the new agent position
-	myBeliefSet.undeclare("free " + Math.round(a.x) + "_" + Math.round(a.y));
+	myBeliefSet.undeclare("free " + "x" + Math.round(a.x) + "y" + Math.round(a.y));
 }
 
 // ---------------------------------------------------------------------------------------------------------------

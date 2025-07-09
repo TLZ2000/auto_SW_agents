@@ -1,5 +1,6 @@
-(define (domain deliveroo_domain)
+(define (domain default)
     (:requirements :strips)
+    
     (:predicates
         (tile ?t) ;; walkable tile
         (me ?me)
