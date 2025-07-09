@@ -1,6 +1,6 @@
 import { DeliverooApi } from "@unitn-asa/deliveroo-js-client";
-import { onlineSolver, PddlExecutor, PddlProblem, Beliefset} from "@unitn-asa/pddl-client";
-import fs from 'fs';
+import { onlineSolver, PddlExecutor, PddlProblem, Beliefset } from "@unitn-asa/pddl-client";
+import fs from "fs";
 
 const DISTANCE_NEAREST_PARCEL = 5;
 const SPAWN_NON_SPAWN_RATIO = 0.5;
@@ -18,7 +18,8 @@ const PARCEL_WEIGHT_LOW = 10;
 const PARCEL_WEIGHT_MID = 5;
 const PARCEL_WEIGHT_HIGH = 2.5;
 
-const myBeliefset = new Beliefset();
+const myBeliefSet = new Beliefset();
+myBeliefSet.declare("me agent");
 
 /**
  * Queue class
@@ -422,6 +423,45 @@ class GameMap {
 	getItem(x, y) {
 		return this.map[x][y];
 	}
+
+	/**
+	 * Update myBeliefSet with map information
+	 */
+	generateBeliefSetMap() {
+		// Cycle the map
+		for (let x = 0; x < this.width; x++) {
+			for (let y = 0; y < this.height; y++) {
+				// Check if the tile in position [x,y] is walkable
+				if (this.map[x][y] != 0) {
+					// If so, add it in the belief set
+					let tileName = x + "_" + y;
+					myBeliefSet.declare("tile " + tileName);
+					myBeliefSet.declare("free " + tileName);
+
+					// Check its neighbors
+					if (y - 1 >= 0 && this.map[x][y - 1] != 0) {
+						// If cell has down walkable neighbor, add it to the belief set
+						myBeliefSet.declare("down " + x + "_" + (y - 1) + " " + tileName);
+					}
+
+					if (y + 1 < this.height && this.map[x][y + 1] != 0) {
+						// If cell has up walkable neighbor, add it to the belief set
+						myBeliefSet.declare("up " + x + "_" + (y + 1) + " " + tileName);
+					}
+
+					if (x - 1 >= 0 && this.map[x - 1][y] != 0) {
+						// If cell has left walkable neighbor, add it to the belief set
+						myBeliefSet.declare("left " + (x - 1) + "_" + y + " " + tileName);
+					}
+
+					if (x + 1 < this.width && this.map[x + 1][y] != 0) {
+						// If cell has left walkable neighbor, add it to the belief set
+						myBeliefSet.declare("left " + (x + 1) + "_" + y + " " + tileName);
+					}
+				}
+			}
+		}
+	}
 }
 
 /**
@@ -490,11 +530,6 @@ class IntentionRevisionReplace extends IntentionRevision {
 	async push(predicate) {
 		// Check if already queued
 		const last = this.intention_queue.at(this.intention_queue.length - 1);
-
-		if (last) {
-			console.log("LAST: " + last.predicate.join(" "));
-			console.log("NOW: " + predicate.join(" "));
-		}
 
 		if (last && last.predicate.join(" ") == predicate.join(" ")) {
 			return; // intention is already being achieved
@@ -746,8 +781,7 @@ class BFSmove extends Plan {
 			let carriedParcels = carryingParcels();
 
 			if (moved_horizontally) {
-				me.x = moved_horizontally.x;
-				me.y = moved_horizontally.y;
+				updateMePosition(moved_horizontally.x, moved_horizontally.y);
 
 				if (carriedParcels.length > 0) {
 					me.moves += 1;
@@ -765,8 +799,7 @@ class BFSmove extends Plan {
 			}
 
 			if (moved_vertically) {
-				me.x = moved_vertically.x;
-				me.y = moved_vertically.y;
+				updateMePosition(moved_vertically.x, moved_vertically.y);
 
 				if (carriedParcels.length > 0) {
 					me.moves += 1;
@@ -794,20 +827,14 @@ class BFSmove extends Plan {
  * @param {String} path - path of file
  * @returns content of txt file as string
  */
-function readFile ( path ) {
-    
-    return new Promise( (res, rej) => {
-
-        fs.readFile( path, 'utf8', (err, data) => {
-            if (err) rej(err)
-            else res(data)
-        })
-
-    })
-
+function readFile(path) {
+	return new Promise((res, rej) => {
+		fs.readFile(path, "utf8", (err, data) => {
+			if (err) rej(err);
+			else res(data);
+		});
+	});
 }
-
-
 
 /**
  * Randomly select a cell to explore using the "distance" criterion (distant cells are more probable), if the ratio of spawn/non spawn cells is greater than SPAWN_NON_SPAWN_RATIO, consider also delivery zones
@@ -1361,12 +1388,18 @@ function reviseMemory(generateOptions) {
 			if (Date.now() - agent.time < INVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
 				// If so, preserve it
 				agents2.set(agent.id, agent);
+			} else {
+				// Declare free the agent that we will remove from set
+				myBeliefSet.declare("free " + Math.round(agent.x) + "_" + Math.round(agent.y));
 			}
 		} else {
 			// Check if I saw the agent (not in our vision range) recently
 			if (Date.now() - agent.time < OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
 				// If so, preserve it
 				agents2.set(agent.id, agent);
+			} else {
+				// Declare free the agent that we will remove from set
+				myBeliefSet.declare("free " + Math.round(agent.x) + "_" + Math.round(agent.y));
 			}
 		}
 	});
@@ -1384,6 +1417,40 @@ function reviseMemory(generateOptions) {
 	if (generateOptions) {
 		optionsGeneration();
 	}
+}
+
+function updateMePosition(x, y) {
+	if (me.x != null && me.y != null) {
+		// Undeclare old agent position
+		myBeliefSet.undeclare("at agent " + Math.round(me.x) + "_" + Math.round(me.y));
+
+		// Declare free old agent position
+		myBeliefSet.declare("free " + Math.round(me.x) + "_" + Math.round(me.y));
+	}
+
+	// Undeclare free new agent position
+	myBeliefSet.undeclare("free " + Math.round(x) + "_" + Math.round(y));
+
+	// Declare new agent position
+	myBeliefSet.declare("at agent " + Math.round(x) + "_" + Math.round(y));
+
+	// Update agent coordinates
+	me.x = x;
+	me.y = y;
+}
+
+function updateAgent(a) {
+	// Check if agent is already in set
+	if (agents.has(a.id)) {
+		let oldAgent = agents.get(a.id);
+		// Declare free the old agent position
+		myBeliefSet.declare("free " + Math.round(oldAgent.x) + "_" + Math.round(oldAgent.y));
+	}
+	// Add agent to set
+	agents.set(a.id, a);
+
+	// Undeclare free the new agent position
+	myBeliefSet.undeclare("free " + Math.round(a.x) + "_" + Math.round(a.y));
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1423,6 +1490,10 @@ var currentMap = undefined;
 var grafo = undefined;
 var currentConfig = undefined;
 
+// Planning
+//let domain = await readFile("/deliveroo_domain.pddl");
+let problem;
+
 // Plan classes are added to plan library
 planLibrary.push(GoPickUp);
 planLibrary.push(BFSmove);
@@ -1456,38 +1527,15 @@ client.onAgentsSensing(async (aa) => {
 	let now = Date.now();
 	aa.forEach((a) => {
 		a.time = now;
-		agents.set(a.id, a);
+		updateAgent(a);
 	});
-
-	/*
-	// DA MODIFICARE
-	for (const a of agents.values()) {
-		if (aa.map((a) => a.id).find((id) => id == a.id) == undefined) {
-			agents.delete(a.id);
-			if (grafo.agentsNearby != undefined) {
-				grafo.agentsNearby[Math.round(a.x)][Math.round(a.y)] = 0;
-			}
-		}
-	}
-  
-
-	grafo.resetAgentsNearby();
-
-	// Add the agents to the matrix
-	for (const a of agents) {
-		if (grafo.agentsNearby != undefined) {
-			grafo.agentsNearby[Math.round(a[1].x)][Math.round(a[1].y)] = 1;
-		}
-	}
-  */
 });
 
 client.onYou(({ id, name, x, y, score }) => {
 	// Set agent information
 	me.id = id;
 	me.name = name;
-	me.x = x;
-	me.y = y;
+	updateMePosition(x, y);
 	me.score = score;
 
 	reviseMemory(true);
@@ -1503,6 +1551,9 @@ await new Promise((res) => {
 	client.onMap((width, height, tile) => {
 		currentMap = new GameMap(width, height, tile);
 		grafo = new Graph(currentMap);
+
+		// Define planning BeliefSet for map
+		grafo.gameMap.generateBeliefSetMap();
 		res();
 	});
 

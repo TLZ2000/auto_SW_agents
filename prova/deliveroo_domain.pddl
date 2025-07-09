@@ -1,13 +1,14 @@
 (define (domain deliveroo_domain)
     (:requirements :strips)
     (:predicates
-        (tile ?t)
+        (tile ?t) ;; walkable tile
         (me ?me)
-        (right ?t1 ?t2)
-        (left ?t1 ?t2)
-        (up ?t1 ?t2)
-        (down ?t1 ?t2)
-        (free ?tile)
+        (at ?me ?tile)
+        (right ?t1 ?t2) ;; tile t1 is right wrt. t2
+        (left ?t1 ?t2) ;; tile t1 is left wrt. t2
+        (up ?t1 ?t2) ;; tile t1 is up wrt. t2
+        (down ?t1 ?t2) ;; tile t1 is down wrt. t2
+        (free ?tile) ;; tile not occupied by other agents
     )
     
     (:action right
