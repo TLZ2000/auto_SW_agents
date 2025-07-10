@@ -243,7 +243,6 @@ export class BeliefSet {
 				}
 			}
 		}
-
 		return null;
 	}
 
