@@ -41,7 +41,7 @@ client.onAgentsSensing(async (aa) => {
 client.onYou(({ id, name, x, y, score }) => {
 	belief.onYouUpdate(id, name, x, y, score);
 
-	// TODO insert in obyouupdate
+	// TODO insert in onYouUpdate
 	//sendPosition2Pal();
 	//reviseMemory(true);
 });
