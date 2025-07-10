@@ -1,6 +1,7 @@
 import { DeliverooApi } from "@unitn-asa/deliveroo-js-client";
 import { BeliefSet } from "./BeliefSet.js";
 
+// TODO: spostare in belief
 const AGENT1_ID = "a6cdae";
 const AGENT2_ID = "ff8ff0";
 
@@ -11,12 +12,51 @@ const SERVER_ADDRS = "http://localhost:8080";
 const client = new DeliverooApi(SERVER_ADDRS, AGENT1_TOKEN);
 const belief = new BeliefSet();
 
+// Recover command line arguments
+// print process.argv
+process.argv.forEach(function (val, index, array) {
+	if (val == "-a") {
+		if (process.argv[index + 1] == "1") {
+			// I am AGENT1
+			me.multiAgent_myID = AGENT1_ID;
+			me.multiAgent_palID = AGENT2_ID;
+			me.myToken = AGENT1_TOKEN;
+		} else {
+			// I am AGENT2
+			me.multiAgent_myID = AGENT2_ID;
+			me.multiAgent_palID = AGENT1_ID;
+			me.myToken = AGENT2_TOKEN;
+		}
+	}
+});
+
+client.onParcelsSensing(async (pp) => {
+	belief.onParcelSensingUpdate(pp);
+});
+
+client.onAgentsSensing(async (aa) => {
+	belief.onAgentSensingUpdate(aa);
+});
+
+client.onYou(({ id, name, x, y, score }) => {
+	belief.onYouUpdate(id, name, x, y, score);
+
+	// TODO insert in obyouupdate
+	//sendPosition2Pal();
+	//reviseMemory(true);
+});
+
 await new Promise((res) => {
 	// Get the map information
 	client.onMap((width, height, tile) => {
 		belief.instantiateGameMap(width, height, tile);
-		console.log("INSTANT");
 		belief.printRaw();
+		res();
+	});
+
+	// Get the configuration
+	client.onConfig((config) => {
+		currentConfig = config;
 		res();
 	});
 });

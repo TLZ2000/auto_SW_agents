@@ -203,6 +203,9 @@ export class GameMap {
 		}
 	}
 
+	/**
+	 * Print raw map info, for testing
+	 */
 	printRaw() {
 		for (let y = this.#raw.height - 1; y >= 0; y--) {
 			let row = "";
@@ -211,6 +214,20 @@ export class GameMap {
 			}
 			console.log(row);
 		}
+	}
+
+	/**
+	 * Compute Manhattan distance between two positions
+	 * @param {Number} x1 - x of the first position to consider
+	 * @param {Number} y1 - y of the first position to consider
+	 * @param {Number} x2 - x of the second position to consider
+	 * @param {Number} y2 - y of the second position to consider
+	 * @returns {BigInt} Manhattan distance between pos1 and pos2
+	 */
+	distance(x1, y1, x2, y2) {
+		const dx = Math.abs(Math.round(x1) - Math.round(x2));
+		const dy = Math.abs(Math.round(y1) - Math.round(y2));
+		return dx + dy;
 	}
 
 	/**
