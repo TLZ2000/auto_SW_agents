@@ -12,6 +12,111 @@ const SERVER_ADDRS = "http://localhost:8080";
 
 const client = new DeliverooApi(SERVER_ADDRS, AGENT1_TOKEN);
 const belief = new BeliefSet();
+const myAgent = new IntentionRevisionReplace();
+myAgent.loop();
+
+/**
+ * Plan class handling the "explore" intention
+ */
+class Explore extends Plan {
+	static isApplicableTo(explore) {
+		return explore == "explore";
+	}
+
+	async execute(explore, type) {
+		if (this.stopped) throw ["stopped"]; // if stopped then quit
+		let coords;
+
+		if (type == "timed") {
+			coords = belief.timedExplore();
+		} else if (type == "distance") {
+			coords = belief.distanceExplore();
+		}
+
+		// When a valid cell has been found, move to it (and hope to find something interesting)
+		await this.subIntention(["go_to", coords[0], coords[1]], myAgent.getPlanLibrary());
+		if (this.stopped) throw ["stopped"]; // if stopped then quit
+		return true;
+	}
+}
+
+/**
+ * Plan class handling the "go_to" intention
+ */
+class BFSmove extends Plan {
+	static isApplicableTo(go_to, x, y) {
+		return go_to == "go_to";
+	}
+
+	async execute(go_to, x, y) {
+		// Get path
+		let path = belief.pathFromMeTo(x, y);
+
+		// If no path applicable, fail the intention
+		if (path == undefined || path == null) {
+			this.stop();
+			throw ["stopped"];
+		}
+
+		// Otherwise, follow the path
+		let i = 0;
+		while (i < path.length) {
+			// If stopped then quit
+			if (this.stopped) throw ["stopped"];
+
+			let moved_horizontally = undefined;
+			let moved_vertically = undefined;
+
+			if (path[i] == "R") {
+				moved_horizontally = await client.emitMove("right");
+			} else if (path[i] == "L") {
+				moved_horizontally = await client.emitMove("left");
+			}
+
+			// Check if agent is carrying parcels
+			let carriedParcels = belief.getCarriedParcels();
+
+			// If moved horizontally
+			if (moved_horizontally) {
+				belief.updateMePosition(moved_horizontally.x, moved_horizontally.y);
+
+				// And if agent is carrying parcels
+				if (carriedParcels.length > 0) {
+					// Increment the movement penalty (increase probability to go deliver)
+					belief.increaseMeMoves();
+				}
+			}
+
+			if (this.stopped) throw ["stopped"]; // if stopped then quit
+
+			if (path[i] == "U") {
+				moved_vertically = await client.emitMove("up");
+			} else if (path[i] == "D") {
+				moved_vertically = await client.emitMove("down");
+			}
+
+			// If moved vertically
+			if (moved_vertically) {
+				belief.updateMePosition(moved_vertically.x, moved_vertically.y);
+
+				// And if agent is carrying parcels
+				if (carriedParcels.length > 0) {
+					// Increment the movement penalty (increase probability to go deliver)
+					belief.increaseMeMoves();
+				}
+			}
+
+			// If stucked, stop the action
+			if (!moved_horizontally && !moved_vertically) {
+				// TODO capire perché entra qua anche se si muove
+				console.log("go_to stopped due to stucked");
+				this.stop();
+				throw ["stopped"];
+			}
+		}
+		return true;
+	}
+}
 
 /**
  * Generate all possible options, based on the current game state and configuration, perform option filtering and select the best possible option as current intention
@@ -27,22 +132,19 @@ function optionsGeneration() {
 
 	// Cycle all free parcels in belief
 	for (const parcel of belief.getFreeParcels()) {
-			
-			// If the parcel is in my position
-			if (belief.amIHere(parcel.x, parcel.y)) {
-				
-				// Then, I must pick it up
-				options.push([
-					"go_pick_up",
-					parcel.x, // X coord
-					parcel.y, // Y coord
-					parcel.id, // ID
-					Infinity, // Expected reward
-					[], // Path to pickup parcel
-				]);
-			} else {
-				
-				/*
+		// If the parcel is in my position
+		if (belief.amIHere(parcel.x, parcel.y)) {
+			// Then, I must pick it up
+			options.push([
+				"go_pick_up",
+				parcel.x, // X coord
+				parcel.y, // Y coord
+				parcel.id, // ID
+				Infinity, // Expected reward
+				[], // Path to pickup parcel
+			]);
+		} else {
+			/*
 				// Otherwise, compute and save the current expected reward for this parcel from the current agent's position
 				let tmpReward = [];
 				if (me.parcels2Ignore.has(parcel.id)) {
@@ -51,17 +153,16 @@ function optionsGeneration() {
 					tmpReward = expectedRewardCarriedAndPickup(carriedParcels, parcel);
 				}*/
 
-				let tmpReward = expectedRewardCarriedAndPickup(carriedParcels, parcel);
+			let tmpReward = expectedRewardCarriedAndPickup(carriedParcels, parcel);
 
-				options.push([
-					"go_pick_up",
-					parcel.x, // X coord
-					parcel.y, // Y coord
-					parcel.id, // ID
-					tmpReward[0], // Expected reward
-					tmpReward[1], // length of the path to pickup the parcel
-				]);
-			}
+			options.push([
+				"go_pick_up",
+				parcel.x, // X coord
+				parcel.y, // Y coord
+				parcel.id, // ID
+				tmpReward[0], // Expected reward
+				tmpReward[1], // length of the path to pickup the parcel
+			]);
 		}
 	}
 
@@ -190,6 +291,11 @@ function optionsGeneration() {
 	}
 }
 
+myAgent.addPlan(BFSmove);
+myAgent.addPlan(Explore);
+
+/*
+ * TODO sistemare parametri
 // Recover command line arguments
 // print process.argv
 process.argv.forEach(function (val, index, array) {
@@ -207,6 +313,7 @@ process.argv.forEach(function (val, index, array) {
 		}
 	}
 });
+*/
 
 client.onParcelsSensing(async (pp) => {
 	belief.onParcelSensingUpdate(pp);
@@ -238,3 +345,8 @@ await new Promise((res) => {
 		res();
 	});
 });
+
+while (true) {
+	await new Promise((res) => setTimeout(res, 5000));
+	myAgent.push(["explore", "distance"]);
+}

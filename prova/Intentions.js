@@ -1,8 +1,10 @@
 /**
  * Base IntentionRevision class
  */
+
 class IntentionRevision {
 	#intention_queue = new Array();
+	#plan_library = [];
 	get intention_queue() {
 		return this.#intention_queue;
 	}
@@ -19,17 +21,9 @@ class IntentionRevision {
 				// Current intention
 				const intention = this.intention_queue[0];
 
-				// Is queued intention still valid? Do I still want to achieve it?
-				let id = intention.predicate[2];
-				let p = parcels.get(id);
-				if (p && p.carriedBy) {
-					console.log("Skipping intention because no more valid", intention.predicate);
-					continue;
-				}
-
 				// Start achieving intention
 				await intention
-					.achieve()
+					.achieve(this.#plan_library)
 					// Catch eventual error and continue
 					.catch((error) => {
 						// console.log( 'Failed intention', ...intention.predicate, 'with error:', ...error )
@@ -53,6 +47,14 @@ class IntentionRevision {
 		let last = this.intention_queue.at(this.intention_queue.length - 1);
 		console.log("MANUALLY STOPPED TASK");
 		last.stop();
+	}
+
+	addPlan(plan) {
+		this.#plan_library.push(plan);
+	}
+
+	getPlanLibrary() {
+		return this.#plan_library;
 	}
 }
 
@@ -104,7 +106,7 @@ class Intention {
 	/**
 	 * Using the plan library to achieve an intention
 	 */
-	async achieve() {
+	async achieve(planLibrary) {
 		// Cannot start twice
 		if (this.#started) return this;
 		else this.#started = true;
@@ -205,9 +207,9 @@ export class Plan {
 	// this is an array of sub intention. Multiple ones could eventually being achieved in parallel.
 	#sub_intentions = [];
 
-	async subIntention(predicate) {
+	async subIntention(predicate, planLibrary) {
 		const sub_intention = new Intention(this, predicate);
 		this.#sub_intentions.push(sub_intention);
-		return sub_intention.achieve();
+		return sub_intention.achieve(planLibrary);
 	}
 }
