@@ -715,16 +715,16 @@ class CorridorResolve extends Plan {
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		let staleResolved = false;
 
-		while(!staleResolved){
+		while (!staleResolved) {
 			if (this.stopped) throw ["stopped"]; // if stopped then quit
-			
+
 			console.log("SENDING: " + JSON.stringify({ intention: me.stoppedIntention, parcelsNo: carryingParcels().length, freeCells: checkFreeAdjacentCells() }));
 
 			let response = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridor_initialState", content: JSON.stringify({ intention: me.stoppedIntention, parcelsNo: carryingParcels().length, freeCells: checkFreeAdjacentCells() }) });
 
-			for(var i = 0; i < 10; i++){
-					console.log("MSG_corridor_initialState RESPONSE " + response.outcome);
-				}
+			for (var i = 0; i < 10; i++) {
+				console.log("MSG_corridor_initialState RESPONSE " + response.outcome);
+			}
 
 			switch (response.outcome) {
 				case "switch_intention":
@@ -791,8 +791,7 @@ class CorridorResolve extends Plan {
 					var moveToX = response.moveToX;
 					var moveToY = response.moveToY;
 
-					console.log("GAIN SPACE TO: " + computeMovementDirection(moveToX, moveToY))
-
+					console.log("GAIN SPACE TO: " + computeMovementDirection(moveToX, moveToY));
 
 					// Move to direction
 					switch (computeMovementDirection(moveToX, moveToY)) {
@@ -874,7 +873,7 @@ class CorridorResolve extends Plan {
 					// Tell the pal I moved so he can move
 					var moveResponse = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridorMoved", content: JSON.stringify({ moveToX: myX, moveToY: myY }) });
 					break;
-			}			
+			}
 		}
 		return true;
 	}
@@ -1671,20 +1670,20 @@ async function askPalOption(message) {
 			if (response == true) {
 				// If the pal is OK with my selection, then I push it to my intention
 				myAgent.push(message);
-				me.pendingOptionRequest = false; 
+				me.pendingOptionRequest = false;
 			} else {
 				// If the pal is NOT OK with my selection, I must invalidate it
 				switch (message[0]) {
 					case "go_pick_up":
 						// Add the parcel to the set of parcels to ignore
 						me.parcels2Ignore.set(message[3], Date.now());
-						me.pendingOptionRequest = false; 
+						me.pendingOptionRequest = false;
 						optionsGeneration();
 						break;
 					case "go_deliver":
 						// TODO: dopo un po di tempo agente 1 risponde timeout e finisce qui
 						console.log("Deliver refused somehow?!?");
-						me.pendingOptionRequest = false; 
+						me.pendingOptionRequest = false;
 						break;
 				}
 			}
@@ -2228,7 +2227,7 @@ client.onMsg(async (id, name, msg, reply) => {
 			// Cycle all the reconstructed agents
 			agents_map.forEach((a) => {
 				// Check if the agent is already in my memory
-				if (parcels.has(a.id)) {
+				if (agents.has(a.id)) {
 					// If so, check if the received agent information is newer than the agent information in my memory
 					if (agents.get(a.id).time < a.time) {
 						// If so, update my memory
@@ -2422,8 +2421,7 @@ client.onMsg(async (id, name, msg, reply) => {
 			break;
 
 		case "MSG_corridor_initialState":
-
-			for(var i = 0; i < 10; i++){
+			for (var i = 0; i < 10; i++) {
 				console.log("MSG_corridor_initialState: " + JSON.parse(msg.content));
 				console.log("intent: " + JSON.parse(msg.content).intention);
 			}
@@ -2454,7 +2452,7 @@ client.onMsg(async (id, name, msg, reply) => {
 					reply({ outcome: "drop_and_move", content: myIntention });
 				} else {
 					// I fI have no free cells to move at the m
-					while(myAdjacentCells.length == 0){
+					while (myAdjacentCells.length == 0) {
 						await new Promise((res) => setTimeout(res, currentConfig.MOVEMENT_DURATION / 2));
 					}
 					if (myAdjacentCells.length > 0) {
@@ -2494,19 +2492,19 @@ client.onMsg(async (id, name, msg, reply) => {
 
 					// Compute movement
 					switch (myAdjacentCells[0]) {
-							case "U":
-								await client.emitMove("up");
-								break;
-							case "D":
-								await client.emitMove("down");
-								break;
-							case "R":
-								await client.emitMove("right");
-								break;
-							case "L":
-								await client.emitMove("left");
-								break;
-						}
+						case "U":
+							await client.emitMove("up");
+							break;
+						case "D":
+							await client.emitMove("down");
+							break;
+						case "R":
+							await client.emitMove("right");
+							break;
+						case "L":
+							await client.emitMove("left");
+							break;
+					}
 
 					// Tell him to move to get parcels
 					reply({ outcome: "move_and_pickup", intention: myIntention, moves: me.moves, moveToX: myX, moveToY: myY });
@@ -2563,19 +2561,19 @@ client.onMsg(async (id, name, msg, reply) => {
 
 							// Compute movement
 							switch (myAdjacentCells[0]) {
-							case "U":
-								await client.emitMove("up");
-								break;
-							case "D":
-								await client.emitMove("down");
-								break;
-							case "R":
-								await client.emitMove("right");
-								break;
-							case "L":
-								await client.emitMove("left");
-								break;
-						}
+								case "U":
+									await client.emitMove("up");
+									break;
+								case "D":
+									await client.emitMove("down");
+									break;
+								case "R":
+									await client.emitMove("right");
+									break;
+								case "L":
+									await client.emitMove("left");
+									break;
+							}
 
 							// Tell him to move
 							reply({ outcome: "gain_space", moveToX: myX, moveToY: myY });

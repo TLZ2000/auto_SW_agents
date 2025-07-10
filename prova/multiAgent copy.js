@@ -27,236 +27,6 @@ const PARCEL_WEIGHT_LOW = 10;
 const PARCEL_WEIGHT_MID = 5;
 const PARCEL_WEIGHT_HIGH = 2.5;
 
-
-/**
- * Base IntentionRevision class
- */
-class IntentionRevision {
-	#intention_queue = new Array();
-	get intention_queue() {
-		return this.#intention_queue;
-	}
-
-	async loop() {
-		while (true) {
-			// Consumes intention_queue if not empty
-			if (this.intention_queue.length > 0) {
-				console.log(
-					"intentionRevision.loop",
-					this.intention_queue.map((i) => i.predicate)
-				);
-
-				// Current intention
-				const intention = this.intention_queue[0];
-
-				// Is queued intention still valid? Do I still want to achieve it?
-				let id = intention.predicate[2];
-				let p = parcels.get(id);
-				if (p && p.carriedBy) {
-					console.log("Skipping intention because no more valid", intention.predicate);
-					continue;
-				}
-
-				// Start achieving intention
-				await intention
-					.achieve()
-					// Catch eventual error and continue
-					.catch((error) => {
-						// console.log( 'Failed intention', ...intention.predicate, 'with error:', ...error )
-					});
-
-				// Remove from the queue
-				this.intention_queue.shift();
-				optionsGeneration();
-			}
-			// Postpone next iteration at setImmediate
-			await new Promise((res) => setImmediate(res));
-		}
-	}
-
-	// async push ( predicate ) { }
-
-	log(...args) {
-		console.log(...args);
-	}
-
-	stopCurrentTask() {
-		let last = this.intention_queue.at(this.intention_queue.length - 1);
-		console.log("MANUALLY STOPPED TASK");
-		last.stop();
-	}
-}
-
-/**
- * Implementation of the IntentionRevision class considering only a single current intention
- */
-class IntentionRevisionReplace extends IntentionRevision {
-	async push(predicate) {
-		// Check if already queued
-		const last = this.intention_queue.at(this.intention_queue.length - 1);
-
-		if (last && last.predicate.join(" ") == predicate.join(" ")) {
-			return; // intention is already being achieved
-		}
-
-		// If the current intention is a corridor_resolve, I must solve that first
-		if (last && last.predicate[0] == "corridor_resolve") {
-			return;
-		}
-
-		console.log("IntentionRevisionReplace.push", predicate);
-		const intention = new Intention(this, predicate);
-		this.intention_queue.push(intention);
-
-		// Force current intention stop
-		if (last) {
-			last.stop();
-		}
-	}
-
-	// Function to get the current intention
-	getCurrentIntention() {
-		if (this.intention_queue.at(this.intention_queue.length - 1)) {
-			return this.intention_queue.at(this.intention_queue.length - 1).predicate;
-		}
-		return undefined;
-	}
-
-	stopCurrentIntention() {
-		const last = this.intention_queue.at(this.intention_queue.length - 1);
-
-		// Force current intention stop
-		if (last) {
-			last.stop();
-		}
-	}
-}
-
-/**
- * Base Intention class
- */
-class Intention {
-	// Plan currently used for achieving the intention
-	#current_plan;
-
-	// This is used to stop the intention
-	#stopped = false;
-	get stopped() {
-		return this.#stopped;
-	}
-	stop() {
-		// this.log( 'stop intention', ...this.#predicate );
-		this.#stopped = true;
-		if (this.#current_plan) this.#current_plan.stop();
-	}
-
-	/**
-	 * #parent refers to caller
-	 */
-	#parent;
-
-	/**
-	 * @type { any[] } predicate is in the form ['go_to', x, y]
-	 */
-	get predicate() {
-		return this.#predicate;
-	}
-	/**
-	 * @type { any[] } predicate is in the form ['go_to', x, y]
-	 */
-	#predicate;
-
-	constructor(parent, predicate) {
-		this.#parent = parent;
-		this.#predicate = predicate;
-	}
-
-	log(...args) {
-		if (this.#parent && this.#parent.log) this.#parent.log("\t", ...args);
-		else console.log(...args);
-	}
-
-	#started = false;
-	/**
-	 * Using the plan library to achieve an intention
-	 */
-	async achieve() {
-		// Cannot start twice
-		if (this.#started) return this;
-		else this.#started = true;
-
-		// Trying all plans in the library
-		for (const planClass of planLibrary) {
-			// if stopped then quit
-			if (this.stopped) throw ["stopped intention", ...this.predicate];
-
-			// if plan is 'statically' applicable
-			if (planClass.isApplicableTo(...this.predicate)) {
-				// plan is instantiated
-				this.#current_plan = new planClass(this.#parent);
-				this.log("achieving intention", ...this.predicate, "with plan", planClass.name);
-				// and plan is executed and result returned
-				try {
-					const plan_res = await this.#current_plan.execute(...this.predicate);
-					this.log("successful intention", ...this.predicate, "with plan", planClass.name, "with result:", plan_res);
-					return plan_res;
-					// or errors are caught so to continue with next plan
-				} catch (error) {
-					this.log("failed intention", ...this.predicate, "with plan", planClass.name, "with error:", error);
-				}
-			}
-		}
-
-		// if stopped then quit
-		if (this.stopped) throw ["stopped intention", ...this.predicate];
-
-		// no plans have been found to satisfy the intention
-		// this.log( 'no plan satisfied the intention ', ...this.predicate );
-		throw ["no plan satisfied the intention ", ...this.predicate];
-	}
-}
-
-/**
- * Base Plan class
- */
-class Plan {
-	// This is used to stop the plan
-	#stopped = false;
-	stop() {
-		// this.log( 'stop plan' );
-		this.#stopped = true;
-		for (const i of this.#sub_intentions) {
-			i.stop();
-		}
-	}
-	get stopped() {
-		return this.#stopped;
-	}
-
-	/**
-	 * #parent refers to caller
-	 */
-	#parent;
-
-	constructor(parent) {
-		this.#parent = parent;
-	}
-
-	log(...args) {
-		if (this.#parent && this.#parent.log) this.#parent.log("\t", ...args);
-		else console.log(...args);
-	}
-
-	// this is an array of sub intention. Multiple ones could eventually being achieved in parallel.
-	#sub_intentions = [];
-
-	async subIntention(predicate) {
-		const sub_intention = new Intention(this, predicate);
-		this.#sub_intentions.push(sub_intention);
-		return sub_intention.achieve();
-	}
-}
-
 /**
  * Plan class handling the "go_pick_up" intention
  */
@@ -319,16 +89,16 @@ class CorridorResolve extends Plan {
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		let staleResolved = false;
 
-		while(!staleResolved){
+		while (!staleResolved) {
 			if (this.stopped) throw ["stopped"]; // if stopped then quit
-			
+
 			console.log("SENDING: " + JSON.stringify({ intention: me.stoppedIntention, parcelsNo: carryingParcels().length, freeCells: checkFreeAdjacentCells() }));
 
 			let response = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridor_initialState", content: JSON.stringify({ intention: me.stoppedIntention, parcelsNo: carryingParcels().length, freeCells: checkFreeAdjacentCells() }) });
 
-			for(var i = 0; i < 10; i++){
-					console.log("MSG_corridor_initialState RESPONSE " + response.outcome);
-				}
+			for (var i = 0; i < 10; i++) {
+				console.log("MSG_corridor_initialState RESPONSE " + response.outcome);
+			}
 
 			switch (response.outcome) {
 				case "switch_intention":
@@ -395,8 +165,7 @@ class CorridorResolve extends Plan {
 					var moveToX = response.moveToX;
 					var moveToY = response.moveToY;
 
-					console.log("GAIN SPACE TO: " + computeMovementDirection(moveToX, moveToY))
-
+					console.log("GAIN SPACE TO: " + computeMovementDirection(moveToX, moveToY));
 
 					// Move to direction
 					switch (computeMovementDirection(moveToX, moveToY)) {
@@ -478,7 +247,7 @@ class CorridorResolve extends Plan {
 					// Tell the pal I moved so he can move
 					var moveResponse = await client.emitAsk(me.multiAgent_palID, { type: "MSG_corridorMoved", content: JSON.stringify({ moveToX: myX, moveToY: myY }) });
 					break;
-			}			
+			}
 		}
 		return true;
 	}
@@ -937,105 +706,6 @@ function timedExplore() {
 }
 
 /**
- * Compute path from initialPos to finalPos using BFS
- *
- * @param {[int, int]} initialPos
- * @param {[int, int]} finalPos
- * @param {Boolean} palNotBlocking - if false (default) -> pal is not considered a blocking entity, if true -> pal is it
- * @returns path or undefined if path not available
- */
-function navigateBFS(initialPos, finalPos, palNotBlocking = false) {
-	let queue = new Queue();
-	let explored = new Set();
-	let finalPath = undefined;
-
-	let initialNode = grafo.graphMap[initialPos[0]][initialPos[1]];
-
-	if (initialNode == undefined) {
-		return undefined;
-	}
-
-	// Add initial node to the queue
-	queue.enqueue({ currentNode: initialNode, path: [] });
-
-	// Cycle until the queue is empty or a valid path has been found
-	while (!queue.isEmpty()) {
-		// Take the item from the queue
-		let { currentNode, path } = queue.dequeue();
-
-		// If the current position is the final position return the path
-		if (currentNode.x == finalPos[0] && currentNode.y == finalPos[1]) {
-			// Check if in the final node there is no other agent
-			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1) {
-				// If the occupying agent is the pal
-
-				if (palNotBlocking && currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY)) {
-					// then it is ok
-					finalPath = path;
-				} else {
-					// otherwise it is another agent that i can't control
-					finalPath = undefined;
-				}
-			} else {
-				// No agent
-				finalPath = path;
-			}
-			break;
-		}
-
-		let currentNodeId = currentNode.x + " " + currentNode.y;
-
-		// If the node not has not been visited
-		if (!explored.has(currentNodeId)) {
-			// Visit it
-			explored.add(currentNodeId);
-
-			// If node is occupied and it is not my pal, ignore its neighbors
-			if (grafo.agentsNearby != undefined && grafo.agentsNearby[currentNode.x][currentNode.y] == 1 && !(palNotBlocking && currentNode.x == Math.round(me.multiAgent_palX) && currentNode.y == Math.round(me.multiAgent_palY))) {
-				continue;
-			}
-
-			// Explore its neighbors
-			// Up
-			if (currentNode.neighU !== undefined && currentNode.neighU !== null) {
-				let tmp = path.slice();
-				tmp.push("U");
-				queue.enqueue({ currentNode: currentNode.neighU, path: tmp });
-			}
-
-			// Right
-			if (currentNode.neighR !== undefined && currentNode.neighR !== null) {
-				let tmp = path.slice();
-				tmp.push("R");
-				queue.enqueue({ currentNode: currentNode.neighR, path: tmp });
-			}
-
-			// Down
-			if (currentNode.neighD !== undefined && currentNode.neighD !== null) {
-				let tmp = path.slice();
-				tmp.push("D");
-				queue.enqueue({ currentNode: currentNode.neighD, path: tmp });
-			}
-
-			// Left
-			if (currentNode.neighL !== undefined && currentNode.neighL !== null) {
-				let tmp = path.slice();
-				tmp.push("L");
-				queue.enqueue({ currentNode: currentNode.neighL, path: tmp });
-			}
-		}
-	}
-
-	// If there exists a path from the initial to the final tile
-	if (finalPath != undefined) {
-		return finalPath;
-	} else {
-		//console.log("No path found to [" + finalPos[0] + "," + finalPos[1] + "]!");
-		return undefined;
-	}
-}
-
-/**
  * Compute the expected reward of delivering the currently carried parcels following a specific path
  * @param {Array} carriedParcels - list of parcels carried by me
  * @param {Array} path - path the agent will follow to deliver the parcels
@@ -1093,181 +763,6 @@ function carryingParcels() {
 	return carriedParcels;
 }
 
-/**
- * Generate all possible options, based on the current game state and configuration, perform option filtering and select the best possible option as current intention
- */
-function optionsGeneration() {
-	// If I have already a pending request to my pal
-	if (me.pendingOptionRequest || me.pendingBumpOptionRequest) {
-		// Then I must await his response
-		return;
-	}
-
-	// Recover all the parcels I am carrying and the path to the nearest delivery
-	let carriedParcels = carryingParcels();
-
-	// Find path to the nearest delivery
-	let pathNearestDelivery = nearestDeliveryFromHerePath(Math.round(me.x), Math.round(me.y));
-
-	const options = [];
-	for (const parcel of parcels.values()) {
-		if (!parcel.carriedBy) {
-			if (parcel.x == Math.round(me.x) && parcel.y == Math.round(me.y)) {
-				// I am already in this position with this parcel, so I must pick it up
-				options.push([
-					"go_pick_up",
-					parcel.x, // X coord
-					parcel.y, // Y coord
-					parcel.id, // ID
-					Infinity, // Expected reward
-					0, // Path length to pickup
-				]);
-			} else {
-				// Compute and save the current expected reward for this parcel from the current agent's position
-				let tmpReward = [];
-				if (me.parcels2Ignore.has(parcel.id)) {
-					tmpReward = [0, Infinity];
-				} else {
-					tmpReward = expectedRewardCarriedAndPickup(carriedParcels, parcel);
-				}
-
-				options.push([
-					"go_pick_up",
-					parcel.x, // X coord
-					parcel.y, // Y coord
-					parcel.id, // ID
-					tmpReward[0], // Expected reward
-					tmpReward[1], // length of the path to pickup the parcel
-				]);
-			}
-		}
-	}
-
-	// Options filtering
-	let best_option = undefined;
-	let maxExpectedScore = 0;
-	let minDistance = 0;
-
-	// Select best pickup option
-	options.forEach((option) => {
-		let currentExpectedScore = 0;
-		let currentDistance = 0;
-		if (option[0] == "go_pick_up") {
-			currentExpectedScore = option[4];
-			currentDistance = option[5];
-		}
-
-		// Check the best expected score
-		if (currentExpectedScore > maxExpectedScore) {
-			maxExpectedScore = currentExpectedScore;
-			minDistance = currentDistance;
-			best_option = option;
-		} else if (currentExpectedScore == maxExpectedScore) {
-			// If same expected score, then select the nearest parcel
-			if (currentDistance < minDistance) {
-				best_option = option;
-				minDistance = currentDistance;
-			}
-		}
-	});
-
-	// Define a delivery option
-	let delivery_option = undefined;
-	// Check if we are carrying parcels, so it makes sense to deliver them
-	if (carriedParcels.length != 0) {
-		// Check if we are in a delivery cell
-		if (grafo.gameMap.getItem(Math.round(me.x), Math.round(me.y)).type == 2) {
-			// If so, deliver
-			delivery_option = ["go_deliver", Infinity];
-		} else {
-			if (currentConfig.PARCEL_DECADING_INTERVAL == "infinite") {
-				// If there is no parcel decay, then increase the expected reward of the carried parcels using a dedicated scale factor
-				delivery_option = ["go_deliver", expectedRewardOfCarriedParcels(carriedParcels, pathNearestDelivery) * (me.moves / MOVES_SCALE_FACTOR_NO_DECAY + 1)];
-			} else {
-				// If there is parcel decay, let the user weight the parcel reward increase
-				delivery_option = ["go_deliver", expectedRewardOfCarriedParcels(carriedParcels, pathNearestDelivery) * (me.moves / MOVES_SCALE_FACTOR + 1)];
-			}
-		}
-	}
-
-	// Select the deliver option or pickup option (aka. best_option) based on the highest expected reward
-	if (best_option) {
-		if (delivery_option) {
-			// If there is a possible pickup and also a possible deliver, then check the highest reward
-			if (best_option[4] < delivery_option[1]) {
-				best_option = delivery_option;
-			}
-		} else {
-			// If I have a pickup option but no deliver, then do nothing
-		}
-	} else {
-		// If I have no pickup options, then the best option is the delivery by default (if I have no delivery, I will select the explore later)
-		best_option = delivery_option;
-	}
-
-	/**
-	 * Best option is selected
-	 */
-	let push = false;
-
-	if (best_option) {
-		// Get current intention
-		let currentIntention = myAgent.getCurrentIntention();
-		if (currentIntention == undefined) {
-			push = true;
-		} else {
-			// Check if the best option reward is better than the current intention reward
-			if (best_option[0] == "go_pick_up") {
-				if (currentIntention[0] == "go_pick_up") {
-					if (best_option[4] > currentIntention[4]) {
-						push = true;
-					}
-				} else if (currentIntention[0] == "go_deliver") {
-					if (best_option[4] > currentIntention[1]) {
-						push = true;
-					}
-				} else {
-					// Explore
-					push = true;
-				}
-			} else if (best_option[0] == "go_deliver") {
-				if (currentIntention[0] == "go_pick_up") {
-					if (best_option[1] > currentIntention[4]) {
-						push = true;
-					}
-				} else if (currentIntention[0] == "go_deliver") {
-					// I am already delivering, so I don't want to push another deliver
-					push = false;
-				} else {
-					push = true;
-				}
-			}
-
-			// If my best option is go_deliver but my current intention is go_pick_up
-			if (currentIntention[0] == "go_pick_up" && best_option[0] == "go_deliver") {
-				// First finish the go_pick_up
-				return;
-			}
-		}
-
-		// If yes, ask if the pal is ok with my decision
-		if (push) {
-			// Signal the pending response
-			me.pendingOptionRequest = true;
-			askPalOption(best_option);
-		}
-	} else {
-		// If we don't have a valid best option, then explore
-		if (Math.random() < TIMED_EXPLORE) {
-			// Explore oldest tiles
-			myAgent.push(["explore", "timed"]);
-		} else {
-			// Explore distant tiles
-			myAgent.push(["explore", "distance"]);
-		}
-	}
-}
-
 async function askPalOption(message) {
 	client
 		.emitAsk(me.multiAgent_palID, { type: "MSG_optionSelection", content: JSON.stringify(message) })
@@ -1275,20 +770,20 @@ async function askPalOption(message) {
 			if (response == true) {
 				// If the pal is OK with my selection, then I push it to my intention
 				myAgent.push(message);
-				me.pendingOptionRequest = false; 
+				me.pendingOptionRequest = false;
 			} else {
 				// If the pal is NOT OK with my selection, I must invalidate it
 				switch (message[0]) {
 					case "go_pick_up":
 						// Add the parcel to the set of parcels to ignore
 						me.parcels2Ignore.set(message[3], Date.now());
-						me.pendingOptionRequest = false; 
+						me.pendingOptionRequest = false;
 						optionsGeneration();
 						break;
 					case "go_deliver":
 						// TODO: dopo un po di tempo agente 1 risponde timeout e finisce qui
 						console.log("Deliver refused somehow?!?");
-						me.pendingOptionRequest = false; 
+						me.pendingOptionRequest = false;
 						break;
 				}
 			}
@@ -1763,7 +1258,7 @@ client.onMsg(async (id, name, msg, reply) => {
 			// Cycle all the reconstructed agents
 			agents_map.forEach((a) => {
 				// Check if the agent is already in my memory
-				if (parcels.has(a.id)) {
+				if (agents.has(a.id)) {
 					// If so, check if the received agent information is newer than the agent information in my memory
 					if (agents.get(a.id).time < a.time) {
 						// If so, update my memory
@@ -1957,8 +1452,7 @@ client.onMsg(async (id, name, msg, reply) => {
 			break;
 
 		case "MSG_corridor_initialState":
-
-			for(var i = 0; i < 10; i++){
+			for (var i = 0; i < 10; i++) {
 				console.log("MSG_corridor_initialState: " + JSON.parse(msg.content));
 				console.log("intent: " + JSON.parse(msg.content).intention);
 			}
@@ -1989,7 +1483,7 @@ client.onMsg(async (id, name, msg, reply) => {
 					reply({ outcome: "drop_and_move", content: myIntention });
 				} else {
 					// I fI have no free cells to move at the m
-					while(myAdjacentCells.length == 0){
+					while (myAdjacentCells.length == 0) {
 						await new Promise((res) => setTimeout(res, currentConfig.MOVEMENT_DURATION / 2));
 					}
 					if (myAdjacentCells.length > 0) {
@@ -2029,19 +1523,19 @@ client.onMsg(async (id, name, msg, reply) => {
 
 					// Compute movement
 					switch (myAdjacentCells[0]) {
-							case "U":
-								await client.emitMove("up");
-								break;
-							case "D":
-								await client.emitMove("down");
-								break;
-							case "R":
-								await client.emitMove("right");
-								break;
-							case "L":
-								await client.emitMove("left");
-								break;
-						}
+						case "U":
+							await client.emitMove("up");
+							break;
+						case "D":
+							await client.emitMove("down");
+							break;
+						case "R":
+							await client.emitMove("right");
+							break;
+						case "L":
+							await client.emitMove("left");
+							break;
+					}
 
 					// Tell him to move to get parcels
 					reply({ outcome: "move_and_pickup", intention: myIntention, moves: me.moves, moveToX: myX, moveToY: myY });
@@ -2098,19 +1592,19 @@ client.onMsg(async (id, name, msg, reply) => {
 
 							// Compute movement
 							switch (myAdjacentCells[0]) {
-							case "U":
-								await client.emitMove("up");
-								break;
-							case "D":
-								await client.emitMove("down");
-								break;
-							case "R":
-								await client.emitMove("right");
-								break;
-							case "L":
-								await client.emitMove("left");
-								break;
-						}
+								case "U":
+									await client.emitMove("up");
+									break;
+								case "D":
+									await client.emitMove("down");
+									break;
+								case "R":
+									await client.emitMove("right");
+									break;
+								case "L":
+									await client.emitMove("left");
+									break;
+							}
 
 							// Tell him to move
 							reply({ outcome: "gain_space", moveToX: myX, moveToY: myY });
@@ -2209,8 +1703,6 @@ client.onMsg(async (id, name, msg, reply) => {
 		}
 	} */
 });
-
-
 
 client.onParcelsSensing(optionsGeneration);
 client.onAgentsSensing(optionsGeneration);

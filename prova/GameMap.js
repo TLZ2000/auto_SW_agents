@@ -127,7 +127,7 @@ class RawMap {
 export class GameMap {
 	#raw = null;
 	#graphMap = null;
-	#agentsNearby = null;
+	#agentsMap = null;
 
 	/**
 	 * @param {BigInt} width - map width
@@ -137,13 +137,13 @@ export class GameMap {
 	constructor(width, height, tile) {
 		this.#raw = new RawMap(width, height, tile); // Representation of the raw map information
 		this.#graphMap = [];
-		this.#agentsNearby = [];
+		this.#agentsMap = [];
 
 		// Initialize matrix containing all the agents positions (0 -> no agent, 1 -> agent)
 		for (let x = 0; x < this.#raw.width; x++) {
-			this.#agentsNearby[x] = [];
+			this.#agentsMap[x] = [];
 			for (let y = 0; y < this.#raw.height; y++) {
-				this.#agentsNearby[x][y] = 0;
+				this.#agentsMap[x][y] = 0;
 			}
 		}
 
@@ -230,6 +230,21 @@ export class GameMap {
 		return dx + dy;
 	}
 
+	getGraphNode(x, y) {
+		return this.#graphMap[x][y];
+	}
+
+	setAgentAt(x, y) {
+		this.#agentsMap[x][y] = 1;
+	}
+
+	clearAgentAt(x, y) {
+		this.#agentsMap[x][y] = 0;
+	}
+
+	isAgentAt(x, y) {
+		return this.#agentsMap[x][y] == 1;
+	}
 	/**
 	 * Update the timestamp of the last visit for the visible cells at the agent's current location
 	 */
@@ -260,9 +275,9 @@ export class GameMap {
 	resetAgentsNearby() {
 		// Initialize matrix containing all the agents positions (0 -> no agent, 1 -> agent)
 		for (let x = 0; x < this.#raw.width; x++) {
-			this.#agentsNearby[x] = [];
+			this.#agentsMap[x] = [];
 			for (let y = 0; y < this.#raw.height; y++) {
-				this.#agentsNearby[x][y] = 0;
+				this.#agentsMap[x][y] = 0;
 			}
 		}
 	}
