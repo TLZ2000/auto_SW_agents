@@ -113,6 +113,8 @@ class BFSmove extends Plan {
 				this.stop();
 				throw ["stopped"];
 			}
+
+			i++;
 		}
 		return true;
 	}

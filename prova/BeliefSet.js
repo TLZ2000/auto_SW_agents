@@ -103,6 +103,15 @@ export class BeliefSet {
 		return freeParcels;
 	}
 
+	getCarriedParcels() {
+		return this.#carried_parcels;
+	}
+
+	// TODO vedere se lasciare
+	getMePosition() {
+		return [this.#me_memory.x, this.#me_memory.y];
+	}
+
 	updateMePosition(x, y) {
 		this.#me_memory.x = x;
 		this.#me_memory.y = y;
@@ -402,10 +411,6 @@ export class BeliefSet {
 			}
 		});
 		return [randX, randY];
-	}
-
-	getCarriedParcels() {
-		return this.#carried_parcels;
 	}
 
 	/**
