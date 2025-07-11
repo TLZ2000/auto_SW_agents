@@ -121,6 +121,83 @@ class BFSmove extends Plan {
 }
 
 /**
+ * Plan class handling the "go_to" intention
+ */
+class FollowPath extends Plan {
+	static isApplicableTo(follow_path, x, y) {
+		return follow_path == "follow_path";
+	}
+
+	async execute(follow_path, path) {
+		// If no path applicable, fail the intention
+		if (path == undefined || path == null) {
+			this.stop();
+			throw ["stopped"];
+		}
+
+		// Otherwise, follow the path
+		let i = 0;
+		while (i < path.length) {
+			// If stopped then quit
+			if (this.stopped) throw ["stopped"];
+
+			let moved_horizontally = undefined;
+			let moved_vertically = undefined;
+
+			if (path[i] == "R") {
+				moved_horizontally = await client.emitMove("right");
+			} else if (path[i] == "L") {
+				moved_horizontally = await client.emitMove("left");
+			}
+
+			// Check if agent is carrying parcels
+			let carriedParcels = belief.getCarriedParcels();
+
+			// If moved horizontally
+			if (moved_horizontally) {
+				belief.updateMePosition(moved_horizontally.x, moved_horizontally.y);
+
+				// And if agent is carrying parcels
+				if (carriedParcels.length > 0) {
+					// Increment the movement penalty (increase probability to go deliver)
+					belief.increaseMeMoves();
+				}
+			}
+
+			if (this.stopped) throw ["stopped"]; // if stopped then quit
+
+			if (path[i] == "U") {
+				moved_vertically = await client.emitMove("up");
+			} else if (path[i] == "D") {
+				moved_vertically = await client.emitMove("down");
+			}
+
+			// If moved vertically
+			if (moved_vertically) {
+				belief.updateMePosition(moved_vertically.x, moved_vertically.y);
+
+				// And if agent is carrying parcels
+				if (carriedParcels.length > 0) {
+					// Increment the movement penalty (increase probability to go deliver)
+					belief.increaseMeMoves();
+				}
+			}
+
+			// If stucked, stop the action
+			if (!moved_horizontally && !moved_vertically) {
+				// TODO capire perché entra qua anche se si muove
+				console.log("go_to stopped due to stucked");
+				this.stop();
+				throw ["stopped"];
+			}
+
+			i++;
+		}
+		return true;
+	}
+}
+
+/**
  * Plan class handling the "go_pick_up" intention
  */
 class GoPickUp extends Plan {
@@ -138,9 +215,32 @@ class GoPickUp extends Plan {
 	}
 }
 
+/**
+ * Plan class handling the "go_deliver" intention
+ */
+
+class GoDeliver extends Plan {
+	static isApplicableTo(go_deliver) {
+		return go_deliver == "go_deliver";
+	}
+
+	async execute(go_deliver, reward, path) {
+		if (this.stopped) throw ["stopped"]; // if stopped then quit
+
+		await this.subIntention(["follow_path", path], myAgent.getPlanLibrary());
+		if (this.stopped) throw ["stopped"]; // if stopped then quit
+		await client.emitPutdown();
+		belief.resetMeMoves();
+		if (this.stopped) throw ["stopped"]; // if stopped then quit
+		return true;
+	}
+}
+
 myAgent.addPlan(BFSmove);
 myAgent.addPlan(Explore);
 myAgent.addPlan(GoPickUp);
+myAgent.addPlan(GoDeliver);
+myAgent.addPlan(FollowPath);
 
 function optionsGeneration2() {
 	const options = [];
@@ -155,12 +255,20 @@ function optionsGeneration2() {
 		]);
 	}
 
+	// Find path to the nearest delivery
+	let pathNearestDelivery = belief.nearestDeliveryFromHere()[1];
+
+	// TODO gestire undefined e null di pathNearestDelivery
+	myAgent.push(["go_deliver", Infinity, pathNearestDelivery]);
+
+	/*
 	if (options.length != 0) {
 		let randValue = Math.floor(Math.random() * options.length);
 		myAgent.push(options[randValue]);
 	} else {
 		myAgent.push(["explore", "distance"]);
 	}
+		*/
 }
 
 /**

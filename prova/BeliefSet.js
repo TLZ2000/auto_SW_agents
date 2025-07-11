@@ -564,14 +564,87 @@ export class BeliefSet {
 	*/
 
 	/**
+	 * Compute the path to the nearest delivery cell from a given position considering also the other agents as blocking elements
+	 * @returns {Array} [0]: coordinates [x, y] of the nearest delivery (if non existing -> [null, null]); [1]: array containing path to nearest delivery from [x, y] cell (if non existing -> null)
+	 */
+	nearestDeliveryFromHere() {
+		let queue = new Queue();
+		let explored = new Set();
+
+		let initialNode = this.#game_map.getGraphNode(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y));
+
+		if (initialNode == undefined) {
+			return undefined;
+		}
+
+		// Add initial node to the queue
+		queue.enqueue({ currentNode: initialNode, path: [] });
+
+		// Cycle until the queue is empty or a valid path has been found
+		while (!queue.isEmpty()) {
+			// Take the item from the queue
+			let { currentNode, path } = queue.dequeue();
+
+			// If the current position is a delivery zone
+			if (currentNode.type == 2) {
+				// Check if in the final node there is no other agent
+				if (this.#game_map.isAgentAt(currentNode.x, currentNode.y)) {
+					continue;
+				} else {
+					return [[currentNode.x, currentNode.y], path];
+				}
+			}
+
+			let currentNodeId = currentNode.x + " " + currentNode.y;
+
+			// If the node not has not been visited
+			if (!explored.has(currentNodeId)) {
+				// Visit it
+				explored.add(currentNodeId);
+
+				// If node is occupied, ignore its neighbors
+				if (this.#game_map.isAgentAt(currentNode.x, currentNode.y)) {
+					continue;
+				}
+
+				// Explore its neighbors
+				// Up
+				if (currentNode.neighU !== undefined && currentNode.neighU !== null) {
+					let tmp = path.slice();
+					tmp.push("U");
+					queue.enqueue({ currentNode: currentNode.neighU, path: tmp });
+				}
+
+				// Right
+				if (currentNode.neighR !== undefined && currentNode.neighR !== null) {
+					let tmp = path.slice();
+					tmp.push("R");
+					queue.enqueue({ currentNode: currentNode.neighR, path: tmp });
+				}
+
+				// Down
+				if (currentNode.neighD !== undefined && currentNode.neighD !== null) {
+					let tmp = path.slice();
+					tmp.push("D");
+					queue.enqueue({ currentNode: currentNode.neighD, path: tmp });
+				}
+
+				// Left
+				if (currentNode.neighL !== undefined && currentNode.neighL !== null) {
+					let tmp = path.slice();
+					tmp.push("L");
+					queue.enqueue({ currentNode: currentNode.neighL, path: tmp });
+				}
+			}
+		}
+
+		return [[null, null], null];
+	}
+
+	/**
 	 * TODO:IMPLEMENT
 	 */
 
 	parcelReward() {}
 	reviseMemory() {}
-	nearestDeliveryFromHere() {}
-
-	// TODO se serve
-	nearestDeliveryFromHereCoords() {}
-	nearestDeliveryFromHerePath() {}
 }
