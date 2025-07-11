@@ -118,7 +118,6 @@ export class BeliefSet {
 		return this.#carried_parcels;
 	}
 
-	// TODO vedere se lasciare
 	getMePosition() {
 		return [this.#me_memory.x, this.#me_memory.y];
 	}

@@ -121,6 +121,49 @@ class BFSmove extends Plan {
 }
 
 /**
+ * Plan class handling the "go_pick_up" intention
+ */
+class GoPickUp extends Plan {
+	static isApplicableTo(go_pick_up, x, y, id) {
+		return go_pick_up == "go_pick_up" /*|| go_pick_up == "emergency_go_pick_up"*/;
+	}
+
+	async execute(go_pick_up, x, y) {
+		if (this.stopped) throw ["stopped"]; // if stopped then quit
+		await this.subIntention(["go_to", x, y]);
+		if (this.stopped) throw ["stopped"]; // if stopped then quit
+		await client.emitPickup();
+		if (this.stopped) throw ["stopped"]; // if stopped then quit
+		return true;
+	}
+}
+
+myAgent.addPlan(BFSmove);
+myAgent.addPlan(Explore);
+myAgent.addPlan(GoPickUp);
+
+function optionsGeneration2() {
+	const options = [];
+	for (const parcel of belief.getFreeParcels()) {
+		options.push([
+			"go_pick_up",
+			parcel.x, // X coord
+			parcel.y, // Y coord
+			parcel.id, // ID
+			Infinity, // Expected reward
+			[], // Path to pickup parcel
+		]);
+	}
+
+	if (options.length != 0) {
+		let randValue = Math.floor(Math.random() * options.length);
+		myAgent.push(options[randValue]);
+	} else {
+		myAgent.push(["explore", "distance"]);
+	}
+}
+
+/**
  * Generate all possible options, based on the current game state and configuration, perform option filtering and select the best possible option as current intention
  */
 function optionsGeneration() {
@@ -293,9 +336,6 @@ function optionsGeneration() {
 	}
 }
 
-myAgent.addPlan(BFSmove);
-myAgent.addPlan(Explore);
-
 /*
  * TODO sistemare parametri
 // Recover command line arguments
@@ -348,6 +388,6 @@ await new Promise((res) => {
 });
 
 while (true) {
-	await new Promise((res) => setTimeout(res, 100));
-	myAgent.push(["explore", "timed"]);
+	await new Promise((res) => setTimeout(res, 5000));
+	optionsGeneration2();
 }

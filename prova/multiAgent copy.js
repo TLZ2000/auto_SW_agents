@@ -27,32 +27,6 @@ const PARCEL_WEIGHT_MID = 5;
 const PARCEL_WEIGHT_HIGH = 2.5;
 
 /**
- * Plan class handling the "go_pick_up" intention
- */
-class GoPickUp extends Plan {
-	static isApplicableTo(go_pick_up, x, y, id) {
-		return go_pick_up == "go_pick_up" /*|| go_pick_up == "emergency_go_pick_up"*/;
-	}
-
-	async execute(go_pick_up, x, y) {
-		if (this.stopped) throw ["stopped"]; // if stopped then quit
-		await this.subIntention(["go_to", x, y]);
-		if (this.stopped) throw ["stopped"]; // if stopped then quit
-		await client.emitPickup();
-
-		// Say to pal what packages I am carrying
-		await client.emitSay(me.multiAgent_palID, {
-			type: "MSG_carryingPKG",
-			content: JSON.stringify(carryingParcels()),
-		});
-
-		reviseMemory(true);
-		if (this.stopped) throw ["stopped"]; // if stopped then quit
-		return true;
-	}
-}
-
-/**
  * Plan class handling the "go_deliver" intention
  */
 class GoDeliver extends Plan {
