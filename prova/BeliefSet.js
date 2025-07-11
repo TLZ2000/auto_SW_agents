@@ -12,6 +12,7 @@ export class BeliefSet {
 	#parcels_to_ignore = null;
 	#game_config = null;
 	#carried_parcels = null;
+	#time_map = null; // Timestamp of last visit to the tile
 
 	constructor() {
 		this.#agent_memory = new Map();
@@ -62,10 +63,20 @@ export class BeliefSet {
 		};
 		this.#parcels_to_ignore = new Map();
 		this.#carried_parcels = new Map();
+		this.#time_map = [];
 	}
 
 	instantiateGameMap(width, height, tile) {
 		this.#game_map = new GameMap(width, height, tile);
+
+		// Initialize time map
+		let time = Date.now();
+		for (let x = 0; x < width; x++) {
+			this.#time_map[x] = [];
+			for (let y = 0; y < height; y++) {
+				this.#time_map[x][y] = time;
+			}
+		}
 	}
 
 	instantiateGameConfig(config) {
@@ -135,6 +146,10 @@ export class BeliefSet {
 		this.#me_memory.x = x;
 		this.#me_memory.y = y;
 		this.#me_memory.score = score;
+
+		if (Number.isInteger(x) && Number.isInteger(y)) {
+			this.#updateTimeMap(Math.round(x), Math.round(y));
+		}
 
 		//TODO update pal
 		//TODO revise memory
@@ -414,9 +429,145 @@ export class BeliefSet {
 	}
 
 	/**
+	 * Randomly select a cell to explore using the "timed" criterion (cells explored long ago and near to the agent's current position are more probable)
+	 * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "timed" criterion
+	 */
+	timedExplore() {
+		// Explore only spawning zones
+		let suitableCells = this.#searchSuitableCellsBFS();
+
+		let tmp = [];
+		// Do not consider some specific cells
+		for (let i = 0; i < suitableCells.length; i++) {
+			// Ignore current agent cell
+			if (suitableCells[i].x == Math.round(this.#me_memory.x) && suitableCells[i].y == Math.round(this.#me_memory.y)) {
+				continue;
+			}
+
+			// Otherwise consider this cell
+			tmp.push(suitableCells[i]);
+		}
+		suitableCells = tmp;
+
+		// Recover all suitable tiles for explore
+		let totalTime = 0;
+		let now = Date.now();
+		let randX = undefined;
+		let randY = undefined;
+
+		// Compute the last time a tile was visited
+		suitableCells.forEach((element) => {
+			element.timestamp = now - this.#time_map[element.x][element.y];
+			element.distance = this.#distance(this.#me_memory.x, this.#me_memory.y, element.x, element.y);
+			totalTime += element.timestamp;
+		});
+
+		// Normalize timestamp
+		suitableCells.forEach((element) => {
+			element.timestamp /= totalTime; // First normalization
+			element.timestamp /= element.distance * element.distance * element.distance * element.distance + 1; // Penalize distant cells
+		});
+
+		// Second normalization using modified timestamps
+		totalTime = 0;
+		suitableCells.forEach((element) => {
+			totalTime += element.timestamp;
+		});
+
+		suitableCells.forEach((element) => {
+			element.timestamp /= totalTime;
+		});
+
+		let randomValue = Math.random();
+
+		// Recover selected element
+		suitableCells.forEach((element) => {
+			// If we haven't selected a suitable cell
+			if (!randX) {
+				// Try to find one with a probability proportional to its its timestamp (the bigger the time the more probable)
+				randomValue -= element.timestamp;
+				if (randomValue <= 0) {
+					// Recover the element
+					randX = element.x;
+					randY = element.y;
+					return;
+				}
+			}
+		});
+
+		// If timed explore failed
+		if (randX == undefined || randY == undefined) {
+			// If this happens, select a random cell to explore based on distance
+			return distanceExplore();
+		}
+		return [randX, randY];
+	}
+
+	/**
+	 * Update the timestamp of the last visit for the visible cells at the agent's current location
+	 */
+	#updateTimeMap(x, y) {
+		let range = this.#game_config.PARCELS_OBSERVATION_DISTANCE;
+		let currentNode = this.#game_map.getGraphNode(x, y);
+		let time = Date.now();
+
+		this.#recursiveTimeMap(currentNode, time, range);
+	}
+
+	/**
+	 * PRIVATE FUNCTION, recursively explore the graph to update the time map
+	 * @param {GraphNode} node - currently explored node
+	 * @param {BigInt} time - current timestamp to set
+	 * @param {BigInt} remainingRange - remaining vision range
+	 */
+	#recursiveTimeMap(node, time, remainingRange) {
+		// If node not already explored (same timestamp) and remaining range
+		if (this.#time_map[node.x][node.y] != time && remainingRange > 0) {
+			// Explore it
+			this.#time_map[node.x][node.y] = time;
+
+			// Explore neighbors
+			// Explore its neighbors
+			// Up
+			if (node.neighU != null) {
+				this.#recursiveTimeMap(node.neighU, time, remainingRange - 1);
+			}
+
+			// Right
+			if (node.neighR != null) {
+				this.#recursiveTimeMap(node.neighR, time, remainingRange - 1);
+			}
+
+			// Down
+			if (node.neighD != null) {
+				this.#recursiveTimeMap(node.neighD, time, remainingRange - 1);
+			}
+
+			// Left
+			if (node.neighL != null) {
+				this.#recursiveTimeMap(node.neighL, time, remainingRange - 1);
+			}
+		}
+	}
+
+	/*
+	 * TODO sistemare
+	mergeTimeMaps(new_time) {
+		// Cycle all the timestamps in my time map and, if the new_time has a timestamp more recent, update my timestamp
+		for (let x = 0; x < new_time.length; x++) {
+			for (let y = 0; y < new_time[x].length; y++) {
+				if (this.#raw.timeMap[x][y] < new_time[x][y]) {
+					this.#raw.timeMap[x][y] = new_time[x][y];
+				}
+			}
+		}
+	}
+	*/
+
+	/**
 	 * TODO:IMPLEMENT
 	 */
-	timedExplore() {}
+
 	parcelReward() {}
 	reviseMemory() {}
 	nearestDeliveryFromHere() {}

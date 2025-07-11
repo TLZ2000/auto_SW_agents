@@ -337,7 +337,6 @@ await new Promise((res) => {
 	// Get the map information
 	client.onMap((width, height, tile) => {
 		belief.instantiateGameMap(width, height, tile);
-		belief.printRaw();
 		res();
 	});
 
@@ -349,6 +348,6 @@ await new Promise((res) => {
 });
 
 while (true) {
-	await new Promise((res) => setTimeout(res, 5000));
-	myAgent.push(["explore", "distance"]);
+	await new Promise((res) => setTimeout(res, 100));
+	myAgent.push(["explore", "timed"]);
 }

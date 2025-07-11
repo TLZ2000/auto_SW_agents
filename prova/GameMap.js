@@ -33,7 +33,6 @@ class RawMap {
 		this.width = width;
 		this.height = height;
 		this.map = [];
-		this.timeMap = []; // Timestamp of last visit to the tile
 		this.deliveryZones = [];
 		this.deliveryZonesCounter = 0;
 		this.spawnZones = [];
@@ -43,13 +42,11 @@ class RawMap {
 
 		for (let i = 0; i < width; i++) {
 			this.map[i] = [];
-			this.timeMap[i] = [];
 		}
 
 		for (let i = 0; i < width * height; i++) {
 			let currentItem = tile[i];
 			this.map[currentItem.x][currentItem.y] = currentItem;
-			this.timeMap[currentItem.x][currentItem.y] = 0;
 		}
 
 		for (let x = 0; x < width; x++) {
@@ -220,6 +217,8 @@ export class GameMap {
 		return this.#graphMap[x][y];
 	}
 
+	// TODO spostare agentsMap in beliefset
+
 	setAgentAt(x, y) {
 		this.#agentsMap[x][y] = 1;
 	}
@@ -231,29 +230,6 @@ export class GameMap {
 	isAgentAt(x, y) {
 		return this.#agentsMap[x][y] == 1;
 	}
-	/**
-	 * Update the timestamp of the last visit for the visible cells at the agent's current location
-	 */
-	updateTimeMap() {
-		let x = Math.round(me.x);
-		let y = Math.round(me.y);
-		let range = currentConfig.PARCELS_OBSERVATION_DISTANCE;
-		let currentNode = this.#graphMap[x][y];
-		let time = Date.now();
-
-		this.#recursiveTimeMap(currentNode, time, range);
-	}
-
-	mergeTimeMaps(new_time) {
-		// Cycle all the timestamps in my time map and, if the new_time has a timestamp more recent, update my timestamp
-		for (let x = 0; x < new_time.length; x++) {
-			for (let y = 0; y < new_time[x].length; y++) {
-				if (this.#raw.timeMap[x][y] < new_time[x][y]) {
-					this.#raw.timeMap[x][y] = new_time[x][y];
-				}
-			}
-		}
-	}
 
 	/**
 	 * Reset the internal map that represent the cells occupied by other agents (to 0, completely free)
@@ -264,43 +240,6 @@ export class GameMap {
 			this.#agentsMap[x] = [];
 			for (let y = 0; y < this.#raw.height; y++) {
 				this.#agentsMap[x][y] = 0;
-			}
-		}
-	}
-
-	/**
-	 * PRIVATE FUNCTION, recursively explore the graph to update the "visited" time stamp
-	 * @param {GraphNode} node - currently explored node
-	 * @param {BigInt} time - current timestamp to set
-	 * @param {BigInt} remainingRange - remaining vision range
-	 */
-	#recursiveTimeMap(node, time, remainingRange) {
-		// If not node already explored (same timestamp) and remaining range
-		if (this.#raw.timeMap[node.x][node.y] != time && remainingRange > 0) {
-			// Explore it
-			this.#raw.timeMap[node.x][node.y] = time;
-			remainingRange--;
-
-			// Explore neighbors
-			// Explore its neighbors
-			// Up
-			if (node.neighU != null) {
-				this.#recursiveTimeMap(node.neighU, time, remainingRange);
-			}
-
-			// Right
-			if (node.neighR != null) {
-				this.#recursiveTimeMap(node.neighR, time, remainingRange);
-			}
-
-			// Down
-			if (node.neighD != null) {
-				this.#recursiveTimeMap(node.neighD, time, remainingRange);
-			}
-
-			// Left
-			if (node.neighL != null) {
-				this.#recursiveTimeMap(node.neighL, time, remainingRange);
 			}
 		}
 	}
