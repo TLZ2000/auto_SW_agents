@@ -9,6 +9,24 @@ const AGENT2_ID = "ff8ff0";
 const AGENT1_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImE2Y2RhZSIsIm5hbWUiOiJUaGUgUm9ib1NhcGllbnNfMSIsInRlYW1JZCI6ImM1MTFhNCIsInRlYW1OYW1lIjoiVGhlIFJvYm9TYXBpZW5zIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDgzNTk4NTF9.ESkRP2T4LIP4z2ghpnmKFb-xkXldwNhaR2VShlL0dm4";
 const AGENT2_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImZmOGZmMCIsIm5hbWUiOiJUaGUgUm9ib1NhcGllbnNfMiIsInRlYW1JZCI6ImMzZTljYSIsInRlYW1OYW1lIjoiVGhlIFJvYm9TYXBpZW5zIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDgzNTk4NTV9.OOBVcCXkUxyLwY8OyDo6v8hfHiijKcAI2MRvOsrFJmA";
 const SERVER_ADDRS = "http://localhost:8080";
+// const SERVER_ADDRS = "https://deliveroojs.rtibdi.disi.unitn.it";
+//const SERVER_ADDRS = "https://deliveroojs25.azurewebsites.net";
+
+const MAX_EXPLORABLE_SPAWN_CELLS = 100;
+const INVIEW_MEMORY_DIFFERENCE_THRESHOLD = 2000; // Threshold for parcels and agent in our vision range
+const OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD = 10000; // Threshold for parcels and agent not in our vision range
+
+const TIMED_EXPLORE = 0.99;
+
+const PARCEL_DISTANCE_LOW = 1;
+const PARCEL_DISTANCE_MID = 2;
+const PARCEL_DISTANCE_HIGH = 3;
+const PARCEL_WEIGHT_LOW = 10;
+const PARCEL_WEIGHT_MID = 5;
+const PARCEL_WEIGHT_HIGH = 2.5;
+
+const MOVES_SCALE_FACTOR = 30; // Lower values mean I want to deliver more often
+const MOVES_SCALE_FACTOR_NO_DECAY = 5; // Lower values mean I want to deliver more often
 
 const client = new DeliverooApi(SERVER_ADDRS, AGENT1_TOKEN);
 const belief = new BeliefSet();
@@ -258,17 +276,25 @@ function optionsGeneration2() {
 	// Find path to the nearest delivery
 	let pathNearestDelivery = belief.nearestDeliveryFromHere()[1];
 
+	/*
 	// TODO gestire undefined e null di pathNearestDelivery
 	myAgent.push(["go_deliver", Infinity, pathNearestDelivery]);
 
-	/*
 	if (options.length != 0) {
 		let randValue = Math.floor(Math.random() * options.length);
 		myAgent.push(options[randValue]);
 	} else {
 		myAgent.push(["explore", "distance"]);
+	}*/
+
+	// If we don't have a valid best option, then explore
+	if (Math.random() < TIMED_EXPLORE) {
+		// Explore oldest tiles
+		myAgent.push(["explore", "timed"]);
+	} else {
+		// Explore distant tiles
+		myAgent.push(["explore", "distance"]);
 	}
-		*/
 }
 
 /**
@@ -444,6 +470,13 @@ function optionsGeneration() {
 	}
 }
 
+async function memoryRevisionLoop(time) {
+	while (true) {
+		await new Promise((res) => setTimeout(res, time));
+		belief.reviseMemory();
+	}
+}
+
 /*
  * TODO sistemare parametri
 // Recover command line arguments
@@ -490,12 +523,18 @@ await new Promise((res) => {
 
 	// Get the configuration
 	client.onConfig((config) => {
+		// Add some constants to the game config
+		config.MAX_EXPLORABLE_SPAWN_CELLS = MAX_EXPLORABLE_SPAWN_CELLS;
+		config.INVIEW_MEMORY_DIFFERENCE_THRESHOLD = INVIEW_MEMORY_DIFFERENCE_THRESHOLD;
+		config.OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD = OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD;
 		belief.instantiateGameConfig(config);
+
+		memoryRevisionLoop(1000);
 		res();
 	});
 });
 
 while (true) {
-	await new Promise((res) => setTimeout(res, 5000));
+	await new Promise((res) => setTimeout(res, 100));
 	optionsGeneration2();
 }

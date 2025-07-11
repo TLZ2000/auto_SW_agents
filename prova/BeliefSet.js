@@ -1,8 +1,6 @@
 import { GameMap } from "./GameMap.js";
 import { Queue } from "./Queue.js";
 
-const MAX_EXPLORABLE_SPAWN_CELLS = 100;
-
 export class BeliefSet {
 	#game_map = null;
 	#agent_memory = null;
@@ -13,6 +11,7 @@ export class BeliefSet {
 	#game_config = null;
 	#carried_parcels = null;
 	#time_map = null; // Timestamp of last visit to the tile
+	#agents_map = null;
 
 	constructor() {
 		this.#agent_memory = new Map();
@@ -64,6 +63,7 @@ export class BeliefSet {
 		this.#parcels_to_ignore = new Map();
 		this.#carried_parcels = new Map();
 		this.#time_map = [];
+		this.#agents_map = [];
 	}
 
 	instantiateGameMap(width, height, tile) {
@@ -75,6 +75,14 @@ export class BeliefSet {
 			this.#time_map[x] = [];
 			for (let y = 0; y < height; y++) {
 				this.#time_map[x][y] = time;
+			}
+		}
+
+		// Initialize matrix containing all the agents positions (0 -> no agent, 1 -> agent)
+		for (let x = 0; x < width; x++) {
+			this.#agents_map[x] = [];
+			for (let y = 0; y < height; y++) {
+				this.#agents_map[x][y] = 0;
 			}
 		}
 	}
@@ -91,7 +99,7 @@ export class BeliefSet {
 		if (this.#game_config.PARCEL_DECADING_INTERVAL == "infinite") {
 			return Infinity;
 		} else {
-			return Number(decadeInterval.substring(0, decadeInterval.length - 1));
+			return Number(this.#game_config.PARCEL_DECADING_INTERVAL.substring(0, this.#game_config.PARCEL_DECADING_INTERVAL.length - 1));
 		}
 	}
 
@@ -120,6 +128,30 @@ export class BeliefSet {
 
 	getMePosition() {
 		return [this.#me_memory.x, this.#me_memory.y];
+	}
+
+	setAgentAt(x, y) {
+		this.#agents_map[x][y] = 1;
+	}
+
+	clearAgentAt(x, y) {
+		this.#agents_map[x][y] = 0;
+	}
+
+	isAgentAt(x, y) {
+		return this.#agents_map[x][y] == 1;
+	}
+
+	/**
+	 * Reset the internal map that represent the cells occupied by other agents (to 0, completely free)
+	 */
+	#resetAgentsMap() {
+		// Initialize matrix containing all the agents positions (0 -> no agent, 1 -> agent)
+		for (let x = 0; x < this.#game_map.getWidth(); x++) {
+			for (let y = 0; y < this.#game_map.getHeight(); y++) {
+				this.clearAgentAt(x, y);
+			}
+		}
 	}
 
 	updateMePosition(x, y) {
@@ -163,12 +195,12 @@ export class BeliefSet {
 			// Check if agent already in set
 			if (this.#agent_memory.has(a.id)) {
 				// If so, remove old position in agent map
-				this.#game_map.clearAgentAt(Math.round(this.#agent_memory.get(a.id).x), Math.round(this.#agent_memory.get(a.id).y));
+				this.clearAgentAt(Math.round(this.#agent_memory.get(a.id).x), Math.round(this.#agent_memory.get(a.id).y));
 			}
 			// Update agent memory
 			this.#agent_memory.set(a.id, a);
 			// Update agent map
-			this.#game_map.setAgentAt(Math.round(a.x), Math.round(a.y));
+			this.setAgentAt(Math.round(a.x), Math.round(a.y));
 
 			//TODO controlla se serve
 			// If a is my pal
@@ -241,7 +273,7 @@ export class BeliefSet {
 			// If the current position is the final position return the path
 			if (currentNode.x == finalPos[0] && currentNode.y == finalPos[1]) {
 				// Check if in the final node there is another agent
-				if (this.#game_map.isAgentAt(currentNode.x, currentNode.y)) {
+				if (this.isAgentAt(currentNode.x, currentNode.y)) {
 					// If so, there is no valid path
 					return null;
 				} else {
@@ -259,7 +291,7 @@ export class BeliefSet {
 				explored.add(currentNodeId);
 
 				// If node is occupied, ignore its neighbors
-				if (this.#game_map.isAgentAt(currentNode.x, currentNode.y)) {
+				if (this.isAgentAt(currentNode.x, currentNode.y)) {
 					continue;
 				}
 
@@ -321,7 +353,7 @@ export class BeliefSet {
 
 		// Cycle until the queue is empty or a valid path has been found
 		while (!queue.isEmpty()) {
-			if (suitableSpawn.length > MAX_EXPLORABLE_SPAWN_CELLS) {
+			if (suitableSpawn.length > this.#game_config.MAX_EXPLORABLE_SPAWN_CELLS) {
 				break;
 			}
 			// Take the item from the queue
@@ -336,7 +368,7 @@ export class BeliefSet {
 				explored.add(currentNodeId);
 
 				// If node is occupied, ignore it and its neighbors
-				if (this.#game_map.isAgentAt(currentNode.x, currentNode.y)) {
+				if (this.isAgentAt(currentNode.x, currentNode.y)) {
 					continue;
 				}
 
@@ -464,7 +496,7 @@ export class BeliefSet {
 		// Normalize timestamp
 		suitableCells.forEach((element) => {
 			element.timestamp /= totalTime; // First normalization
-			element.timestamp /= element.distance * element.distance * element.distance * element.distance + 1; // Penalize distant cells
+			element.timestamp /= element.distance * element.distance * element.distance + 1; // Penalize distant cells
 		});
 
 		// Second normalization using modified timestamps
@@ -588,7 +620,7 @@ export class BeliefSet {
 			// If the current position is a delivery zone
 			if (currentNode.type == 2) {
 				// Check if in the final node there is no other agent
-				if (this.#game_map.isAgentAt(currentNode.x, currentNode.y)) {
+				if (this.isAgentAt(currentNode.x, currentNode.y)) {
 					continue;
 				} else {
 					return [[currentNode.x, currentNode.y], path];
@@ -603,7 +635,7 @@ export class BeliefSet {
 				explored.add(currentNodeId);
 
 				// If node is occupied, ignore its neighbors
-				if (this.#game_map.isAgentAt(currentNode.x, currentNode.y)) {
+				if (this.isAgentAt(currentNode.x, currentNode.y)) {
 					continue;
 				}
 
@@ -642,9 +674,74 @@ export class BeliefSet {
 	}
 
 	/**
+	 * Compute a revision of the agent's memory regarding parcels and agents positions
+	 */
+	reviseMemory() {
+		let tmpParcels2Ignore = new Map();
+		let tmpParcels = new Map();
+		let tmpAgents = new Map();
+
+		// Revise memory about parcels2Ignore
+		this.#parcels_to_ignore.forEach((timestamp, id) => {
+			// Check if I ignored the parcel recently
+			if (Date.now() - timestamp < MEMORY_REVISION_PARCELS2IGNORE) {
+				// If so, keep ignoring it
+				tmpParcels2Ignore.set(id, timestamp);
+			}
+		});
+		this.#parcels_to_ignore = tmpParcels2Ignore;
+
+		// Revise memory information about parcels
+		this.#parcel_memory.forEach((parcel) => {
+			// Check if I see old parcels position
+			if (this.#distance(parcel.x, parcel.y, this.#me_memory.x, this.#me_memory.y) < this.#game_config.PARCELS_OBSERVATION_DISTANCE) {
+				// Check if I saw the parcel recently (aka. the onParcelsSensing was called by it)
+				if (Date.now() - parcel.time < this.#game_config.INVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
+					// If so, preserve it
+					tmpParcels.set(parcel.id, parcel);
+				}
+			} else {
+				// Check if I saw the parcel (not in our vision range) recently
+				if (Date.now() - parcel.time < this.#game_config.OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
+					// If so, preserve it
+					tmpParcels.set(parcel.id, parcel);
+				}
+			}
+		});
+		this.#parcel_memory = tmpParcels;
+
+		// Revise memory information about agents
+		this.#agent_memory.forEach((agent) => {
+			// Check if I see old agents position
+			if (this.#distance(agent.x, agent.y, this.#me_memory.x, this.#me_memory.y) < this.#game_config.AGENTS_OBSERVATION_DISTANCE) {
+				// Check if I saw the agent recently (aka. the onAgentSensing was called by it)
+				if (Date.now() - agent.time < this.#game_config.INVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
+					// If so, preserve it
+					tmpAgents.set(agent.id, agent);
+				}
+			} else {
+				// Check if I saw the agent (not in our vision range) recently
+				if (Date.now() - agent.time < this.#game_config.OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
+					// If so, preserve it
+					tmpAgents.set(agent.id, agent);
+				}
+			}
+		});
+
+		this.#agent_memory = tmpAgents;
+
+		// Reset agents map
+		this.#resetAgentsMap();
+
+		// Add the agents to the agent map
+		this.#agent_memory.forEach((agent) => {
+			this.setAgentAt(Math.round(agent.x), Math.round(agent.y));
+		});
+	}
+
+	/**
 	 * TODO:IMPLEMENT
 	 */
 
 	parcelReward() {}
-	reviseMemory() {}
 }

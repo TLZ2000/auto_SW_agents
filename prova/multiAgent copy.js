@@ -1,30 +1,9 @@
 import { DeliverooApi } from "@unitn-asa/deliveroo-js-client";
-const AGENT1_ID = "a6cdae";
-const AGENT2_ID = "ff8ff0";
 
-const AGENT1_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImE2Y2RhZSIsIm5hbWUiOiJUaGUgUm9ib1NhcGllbnNfMSIsInRlYW1JZCI6ImM1MTFhNCIsInRlYW1OYW1lIjoiVGhlIFJvYm9TYXBpZW5zIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDgzNTk4NTF9.ESkRP2T4LIP4z2ghpnmKFb-xkXldwNhaR2VShlL0dm4";
-const AGENT2_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImZmOGZmMCIsIm5hbWUiOiJUaGUgUm9ib1NhcGllbnNfMiIsInRlYW1JZCI6ImMzZTljYSIsInRlYW1OYW1lIjoiVGhlIFJvYm9TYXBpZW5zIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDgzNTk4NTV9.OOBVcCXkUxyLwY8OyDo6v8hfHiijKcAI2MRvOsrFJmA";
-const SERVER_ADDRS = "http://localhost:8080";
-// const SERVER_ADDRS = "https://deliveroojs.rtibdi.disi.unitn.it";
-
-const SPAWN_NON_SPAWN_RATIO = 0.5;
-const DELIVERY_AREA_EXPLORE = 0;
-const TIMED_EXPLORE = 0.99;
-const INVIEW_MEMORY_DIFFERENCE_THRESHOLD = 2000; // Threshold for parcels and agent in our vision range
-const OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD = 10000; // Threshold for parcels and agent not in our vision range
-const MOVES_SCALE_FACTOR = 30; // Lower values mean I want to deliver more often
-const MOVES_SCALE_FACTOR_NO_DECAY = 5; // Lower values mean I want to deliver more often
 const MEMORY_REVISION_TIMER = 10000;
 const MEMORY_SHARE_TIMER = 1500;
 const MEMORY_REVISION_PARCELS2IGNORE = 5000;
 const RESTORE_OPTION_GENERATION_SCALE_FACTOR = 8;
-
-const PARCEL_DISTANCE_LOW = 1;
-const PARCEL_DISTANCE_MID = 2;
-const PARCEL_DISTANCE_HIGH = 3;
-const PARCEL_WEIGHT_LOW = 10;
-const PARCEL_WEIGHT_MID = 5;
-const PARCEL_WEIGHT_HIGH = 2.5;
 
 /**
  * Plan class handling the "corridor_resolve" intention
@@ -257,22 +236,6 @@ function expectedRewardCarriedAndPickup(carriedParcels, parcel2Pickup) {
 	}
 }
 
-/**
- * Return the list of parcels carried by me
- * @returns {Array} list of parcels carried by me
- */
-function carryingParcels() {
-	// Compute the set of parcels carried by me
-	var carriedParcels = [];
-	parcels.forEach((parcel) => {
-		if (parcel.carriedBy == me.id) {
-			carriedParcels.push(parcel);
-		}
-	});
-
-	return carriedParcels;
-}
-
 async function askPalOption(message) {
 	client
 		.emitAsk(me.multiAgent_palID, { type: "MSG_optionSelection", content: JSON.stringify(message) })
@@ -402,78 +365,6 @@ function parcelScoreAfterMs(time, parcelScore, lastVisitTime) {
  */
 function parcelScoreAfterMsPath(path, parcelScore, lastVisitTime) {
 	return parcelScoreAfterMs(path.length * currentConfig.MOVEMENT_DURATION, parcelScore, lastVisitTime);
-}
-
-/**
- * Compute a revision of the agent's memory regarding parcels and agents positions
- * @param {Boolean} generateOptions - if True, compute the option generation after the memory revision
- */
-function reviseMemory(generateOptions) {
-	let parcels2Ignore2 = new Map();
-	let parcels2 = new Map();
-	let agents2 = new Map();
-
-	// Revise memory about parcels2Ignore
-	me.parcels2Ignore.forEach((timestamp, id) => {
-		// Check if I ignored the parcel recently
-		if (Date.now() - timestamp < MEMORY_REVISION_PARCELS2IGNORE) {
-			// If so, keep ignoring it
-			parcels2Ignore2.set(id, timestamp);
-		}
-	});
-	me.parcels2Ignore = parcels2Ignore2;
-
-	// Revise memory information about parcels
-	parcels.forEach((parcel) => {
-		// Check if I see old parcels position
-		if (distance({ x: parcel.x, y: parcel.y }, { x: me.x, y: me.y }) < currentConfig.PARCELS_OBSERVATION_DISTANCE) {
-			// Check if I saw the parcel recently (aka. the onParcelsSensing was called by it)
-			if (Date.now() - parcel.time < INVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
-				// If so, preserve it
-				parcels2.set(parcel.id, parcel);
-			}
-		} else {
-			// Check if I saw the parcel (not in our vision range) recently
-			if (Date.now() - parcel.time < OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
-				// If so, preserve it
-				parcels2.set(parcel.id, parcel);
-			}
-		}
-	});
-	parcels = parcels2;
-
-	// Revise memory information about agents
-	agents.forEach((agent) => {
-		// Check if I see old agents position
-		if (distance({ x: agent.x, y: agent.y }, { x: me.x, y: me.y }) < currentConfig.AGENTS_OBSERVATION_DISTANCE) {
-			// Check if I saw the agent recently (aka. the onAgentSensing was called by it)
-			if (Date.now() - agent.time < INVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
-				// If so, preserve it
-				agents2.set(agent.id, agent);
-			}
-		} else {
-			// Check if I saw the agent (not in our vision range) recently
-			if (Date.now() - agent.time < OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
-				// If so, preserve it
-				agents2.set(agent.id, agent);
-			}
-		}
-	});
-
-	agents = agents2;
-
-	grafo.resetAgentsNearby();
-
-	// Add the agents to the matrix
-	for (const a of agents) {
-		if (grafo.agentsNearby != undefined) {
-			grafo.agentsNearby[Math.round(a[1].x)][Math.round(a[1].y)] = 1;
-		}
-	}
-
-	if (generateOptions) {
-		optionsGeneration();
-	}
 }
 
 /**

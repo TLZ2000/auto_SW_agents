@@ -124,7 +124,6 @@ class RawMap {
 export class GameMap {
 	#raw = null;
 	#graphMap = null;
-	#agentsMap = null;
 
 	/**
 	 * @param {BigInt} width - map width
@@ -134,15 +133,6 @@ export class GameMap {
 	constructor(width, height, tile) {
 		this.#raw = new RawMap(width, height, tile); // Representation of the raw map information
 		this.#graphMap = [];
-		this.#agentsMap = [];
-
-		// Initialize matrix containing all the agents positions (0 -> no agent, 1 -> agent)
-		for (let x = 0; x < this.#raw.width; x++) {
-			this.#agentsMap[x] = [];
-			for (let y = 0; y < this.#raw.height; y++) {
-				this.#agentsMap[x][y] = 0;
-			}
-		}
 
 		// Create graph nodes and save them into a matrix
 		for (let x = 0; x < this.#raw.width; x++) {
@@ -217,30 +207,11 @@ export class GameMap {
 		return this.#graphMap[x][y];
 	}
 
-	// TODO spostare agentsMap in beliefset
-
-	setAgentAt(x, y) {
-		this.#agentsMap[x][y] = 1;
+	getWidth() {
+		return this.#raw.width;
 	}
 
-	clearAgentAt(x, y) {
-		this.#agentsMap[x][y] = 0;
-	}
-
-	isAgentAt(x, y) {
-		return this.#agentsMap[x][y] == 1;
-	}
-
-	/**
-	 * Reset the internal map that represent the cells occupied by other agents (to 0, completely free)
-	 */
-	resetAgentsNearby() {
-		// Initialize matrix containing all the agents positions (0 -> no agent, 1 -> agent)
-		for (let x = 0; x < this.#raw.width; x++) {
-			this.#agentsMap[x] = [];
-			for (let y = 0; y < this.#raw.height; y++) {
-				this.#agentsMap[x][y] = 0;
-			}
-		}
+	getHeight() {
+		return this.#raw.height;
 	}
 }
