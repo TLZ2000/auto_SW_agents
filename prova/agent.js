@@ -130,7 +130,7 @@ class GoPickUp extends Plan {
 
 	async execute(go_pick_up, x, y) {
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
-		await this.subIntention(["go_to", x, y]);
+		await this.subIntention(["go_to", x, y], myAgent.getPlanLibrary());
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		await client.emitPickup();
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
