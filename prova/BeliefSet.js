@@ -127,8 +127,16 @@ export class BeliefSet {
 		return this.#carried_parcels;
 	}
 
+	resetCarriedParcels() {
+		this.#carried_parcels = new Map();
+	}
+
 	getMePosition() {
 		return [this.#me_memory.x, this.#me_memory.y];
+	}
+
+	getGraphMapNode(x, y) {
+		return this.#game_map.getGraphNode(x, y);
 	}
 
 	setAgentAt(x, y) {
@@ -166,6 +174,10 @@ export class BeliefSet {
 
 	resetMeMoves() {
 		this.#me_memory.moves = 0;
+	}
+
+	getMeMoves() {
+		return this.#me_memory.moves;
 	}
 
 	printRaw() {
@@ -682,7 +694,7 @@ export class BeliefSet {
 	 * @returns {Array} [0]: coordinates [x, y] of the nearest delivery (if non existing -> [null, null], if initial node undefined -> [undefined, undefined]); [1]: array containing path to nearest delivery from [x, y] cell (if non existing -> null, if initial node undefined -> undefined)
 	 */
 	nearestDeliveryFromHere() {
-		this.nearestDeliveryFromPos(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y));
+		return this.nearestDeliveryFromPos(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y));
 	}
 
 	/**

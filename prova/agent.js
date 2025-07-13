@@ -23,15 +23,12 @@ const PARCEL_WEIGHT_LOW = 10;
 const PARCEL_WEIGHT_MID = 5;
 const PARCEL_WEIGHT_HIGH = 2.5;
 
-const TIMED_EXPLORE = 0.99;
-
 const MOVES_SCALE_FACTOR = 30; // Lower values mean I want to deliver more often
 const MOVES_SCALE_FACTOR_NO_DECAY = 5; // Lower values mean I want to deliver more often
 
-const client = new DeliverooApi(SERVER_ADDRS, AGENT1_TOKEN);
-const belief = new BeliefSet();
-const myAgent = new IntentionRevisionReplace();
-myAgent.loop();
+const TIMED_EXPLORE = 0.99;
+
+//--------------------------------------------------------------------------------------------------------------
 
 /**
  * Plan class handling the "explore" intention
@@ -249,17 +246,15 @@ class GoDeliver extends Plan {
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		await client.emitPutdown();
 		belief.resetMeMoves();
+		belief.resetCarriedParcels();
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		return true;
 	}
 }
 
-myAgent.addPlan(BFSmove);
-myAgent.addPlan(Explore);
-myAgent.addPlan(GoPickUp);
-myAgent.addPlan(GoDeliver);
-myAgent.addPlan(FollowPath);
+//--------------------------------------------------------------------------------------------------------------
 
+/*
 function optionsGeneration2() {
 	const options = [];
 	for (const parcel of belief.getFreeParcels()) {
@@ -286,7 +281,7 @@ function optionsGeneration2() {
 	} else {
 		myAgent.push(["explore", "distance"]);
 	}*/
-
+/*
 	// If we don't have a valid best option, then explore
 	if (Math.random() < TIMED_EXPLORE) {
 		// Explore oldest tiles
@@ -296,21 +291,13 @@ function optionsGeneration2() {
 		myAgent.push(["explore", "distance"]);
 	}
 }
+*/
 
-/**
- * Generate all possible options, based on the current game state and configuration, perform option filtering and select the best possible option as current intention
- */
-function optionsGeneration() {
-	// Recover all the parcels I am carrying and the path to the nearest delivery
-	let carriedParcels = carryingParcels();
-
-	// Find path to the nearest delivery
-	let pathNearestDelivery = nearestDeliveryFromHerePath(Math.round(me.x), Math.round(me.y));
-
+function getBestPickupOption() {
 	const options = [];
 
 	// Cycle all free parcels in belief
-	for (const parcel of belief.getFreeParcels()) {
+	belief.getFreeParcels().forEach((parcel) => {
 		// If the parcel is in my position
 		if (belief.amIHere(parcel.x, parcel.y)) {
 			// Then, I must pick it up
@@ -324,6 +311,7 @@ function optionsGeneration() {
 			]);
 		} else {
 			/*
+				// TODO vedere come aggiungere
 				// Otherwise, compute and save the current expected reward for this parcel from the current agent's position
 				let tmpReward = [];
 				if (me.parcels2Ignore.has(parcel.id)) {
@@ -332,7 +320,7 @@ function optionsGeneration() {
 					tmpReward = expectedRewardCarriedAndPickup(carriedParcels, parcel);
 				}*/
 
-			let tmpReward = expectedRewardCarriedAndPickup(carriedParcels, parcel);
+			let tmpReward = belief.expectedRewardCarriedAndPickup(parcel);
 
 			options.push([
 				"go_pick_up",
@@ -343,10 +331,10 @@ function optionsGeneration() {
 				tmpReward[1], // length of the path to pickup the parcel
 			]);
 		}
-	}
+	});
 
 	// Options filtering
-	let best_option = undefined;
+	let bestOption = undefined;
 	let maxExpectedScore = 0;
 	let minDistance = 0;
 
@@ -354,6 +342,7 @@ function optionsGeneration() {
 	options.forEach((option) => {
 		let currentExpectedScore = 0;
 		let currentDistance = 0;
+		// TODO in teoria si può togliere il controllo, options contiene solo go_pick_up
 		if (option[0] == "go_pick_up") {
 			currentExpectedScore = option[4];
 			currentDistance = option[5];
@@ -363,103 +352,137 @@ function optionsGeneration() {
 		if (currentExpectedScore > maxExpectedScore) {
 			maxExpectedScore = currentExpectedScore;
 			minDistance = currentDistance;
-			best_option = option;
+			bestOption = option;
 		} else if (currentExpectedScore == maxExpectedScore) {
 			// If same expected score, then select the nearest parcel
 			if (currentDistance < minDistance) {
-				best_option = option;
 				minDistance = currentDistance;
+				bestOption = option;
 			}
 		}
 	});
 
+	return bestOption;
+}
+
+function getDeliveryOption() {
 	// Define a delivery option
-	let delivery_option = undefined;
+	let deliveryOption = undefined;
+
 	// Check if we are carrying parcels, so it makes sense to deliver them
-	if (carriedParcels.length != 0) {
+	if (belief.getCarriedParcels().length != 0) {
 		// Check if we are in a delivery cell
-		if (grafo.gameMap.getItem(Math.round(me.x), Math.round(me.y)).type == 2) {
+		if (belief.getGraphMapNode(Math.round(belief.getMePosition()[0]), Math.round(belief.getMePosition()[1])).type == 2) {
 			// If so, deliver
-			delivery_option = ["go_deliver", Infinity];
+			deliveryOption = ["go_deliver", Infinity];
 		} else {
-			if (currentConfig.PARCEL_DECADING_INTERVAL == "infinite") {
+			// Get the path to the nearest delivery
+			let pathNearestDelivery = belief.nearestDeliveryFromHere()[1];
+
+			if (belief.getParcelDecayInterval() == Infinity) {
 				// If there is no parcel decay, then increase the expected reward of the carried parcels using a dedicated scale factor
-				delivery_option = ["go_deliver", expectedRewardOfCarriedParcels(carriedParcels, pathNearestDelivery) * (me.moves / MOVES_SCALE_FACTOR_NO_DECAY + 1)];
+				deliveryOption = ["go_deliver", belief.expectedRewardOfCarriedParcels(pathNearestDelivery) * (belief.getMeMoves() / MOVES_SCALE_FACTOR_NO_DECAY + 1), pathNearestDelivery];
 			} else {
 				// If there is parcel decay, let the user weight the parcel reward increase
-				delivery_option = ["go_deliver", expectedRewardOfCarriedParcels(carriedParcels, pathNearestDelivery) * (me.moves / MOVES_SCALE_FACTOR + 1)];
+				deliveryOption = ["go_deliver", belief.expectedRewardOfCarriedParcels(pathNearestDelivery) * (belief.getMeMoves() / MOVES_SCALE_FACTOR + 1), pathNearestDelivery];
 			}
 		}
 	}
+
+	return deliveryOption;
+}
+
+function getBestOption() {
+	let bestPickupOption = getBestPickupOption();
+
+	let deliveryOption = getDeliveryOption();
 
 	// Select the deliver option or pickup option (aka. best_option) based on the highest expected reward
-	if (best_option) {
-		if (delivery_option) {
+	if (bestPickupOption != undefined) {
+		if (deliveryOption != undefined) {
 			// If there is a possible pickup and also a possible deliver, then check the highest reward
-			if (best_option[4] < delivery_option[1]) {
-				best_option = delivery_option;
+			if (bestPickupOption[4] < deliveryOption[1]) {
+				// If the reward of the delivery option is greater, then choose it
+				return deliveryOption;
+			} else {
+				// If the reward of the pickup option is greater, then choose it
+				return bestPickupOption;
 			}
 		} else {
-			// If I have a pickup option but no deliver, then do nothing
+			// If I have a pickup option but no deliver, then choose the pickup option
+			return bestPickupOption;
 		}
 	} else {
-		// If I have no pickup options, then the best option is the delivery by default (if I have no delivery, I will select the explore later)
-		best_option = delivery_option;
+		// If I have a deliver option but no pickup, then choose the delivery option
+		if (deliveryOption != undefined) {
+			return deliveryOption;
+		} else {
+			// If I have no delivery option and no pickup option, I will select the explore later
+			return undefined;
+		}
 	}
+}
 
-	/**
-	 * Best option is selected
-	 */
+/**
+ * Generate all possible options, based on the current game state and configuration, perform option filtering and select the best possible option as current intention
+ */
+function optionsGeneration() {
+	// Get the best option between go_pick_up and go_deliver
+	let bestOption = getBestOption();
+
 	let push = false;
 
-	if (best_option) {
+	// Check if I should push the best option without waiting to finish the current intention
+	if (bestOption != undefined) {
 		// Get current intention
 		let currentIntention = myAgent.getCurrentIntention();
+
+		// Check if I have a current intention
 		if (currentIntention == undefined) {
+			// If not, then push the best option
 			push = true;
 		} else {
-			// Check if the best option reward is better than the current intention reward
-			if (best_option[0] == "go_pick_up") {
+			// Otherwise, check if the best option reward is better than the current intention reward
+			if (bestOption[0] == "go_pick_up") {
 				if (currentIntention[0] == "go_pick_up") {
-					if (best_option[4] > currentIntention[4]) {
+					if (bestOption[4] > currentIntention[4]) {
 						push = true;
 					}
 				} else if (currentIntention[0] == "go_deliver") {
-					if (best_option[4] > currentIntention[1]) {
+					if (bestOption[4] > currentIntention[1]) {
 						push = true;
 					}
 				} else {
-					// Explore
+					// If the current intention is neither go_pick_up nor go_deliver, then push the best option
 					push = true;
 				}
-			} else if (best_option[0] == "go_deliver") {
+			} else if (bestOption[0] == "go_deliver") {
 				if (currentIntention[0] == "go_pick_up") {
-					if (best_option[1] > currentIntention[4]) {
+					if (bestOption[1] > currentIntention[4]) {
 						push = true;
 					}
 				} else if (currentIntention[0] == "go_deliver") {
 					// I am already delivering, so I don't want to push another deliver
 					push = false;
 				} else {
+					// If the current intention is neither go_pick_up nor go_deliver, then push the best option
 					push = true;
 				}
 			}
 
 			// If my best option is go_deliver but my current intention is go_pick_up
-			if (currentIntention[0] == "go_pick_up" && best_option[0] == "go_deliver") {
-				// First finish the go_pick_up
+			if (currentIntention[0] == "go_pick_up" && bestOption[0] == "go_deliver") {
+				// First finish the go_pick_up, to avoid that the agent moves towards the cell with the parcel to pickup and then change direction to go deliver
 				return;
 			}
 		}
 
-		// If yes, ask if the pal is ok with my decision
+		// Check if I should push
 		if (push) {
-			// Signal the pending response
-			me.pendingOptionRequest = true;
-			askPalOption(best_option);
+			myAgent.push(bestOption);
 		}
 	} else {
-		// If we don't have a valid best option, then explore
+		// If I do not have a valid best option, then explore
 		if (Math.random() < TIMED_EXPLORE) {
 			// Explore oldest tiles
 			myAgent.push(["explore", "timed"]);
@@ -476,6 +499,8 @@ async function memoryRevisionLoop(time) {
 		belief.reviseMemory();
 	}
 }
+
+//--------------------------------------------------------------------------------------------------------------
 
 /*
  * TODO sistemare parametri
@@ -497,6 +522,18 @@ process.argv.forEach(function (val, index, array) {
 	}
 });
 */
+
+const client = new DeliverooApi(SERVER_ADDRS, AGENT1_TOKEN);
+const belief = new BeliefSet();
+const myAgent = new IntentionRevisionReplace();
+
+myAgent.addPlan(BFSmove);
+myAgent.addPlan(Explore);
+myAgent.addPlan(GoPickUp);
+myAgent.addPlan(GoDeliver);
+myAgent.addPlan(FollowPath);
+
+myAgent.loop();
 
 client.onParcelsSensing(async (pp) => {
 	belief.onParcelSensingUpdate(pp);
@@ -540,5 +577,5 @@ await new Promise((res) => {
 
 while (true) {
 	await new Promise((res) => setTimeout(res, 100));
-	optionsGeneration2();
+	optionsGeneration();
 }

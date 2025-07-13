@@ -123,7 +123,7 @@ class RawMap {
  */
 export class GameMap {
 	#raw = null;
-	#graphMap = null;
+	#graph_map = null;
 
 	/**
 	 * @param {BigInt} width - map width
@@ -132,16 +132,16 @@ export class GameMap {
 	 */
 	constructor(width, height, tile) {
 		this.#raw = new RawMap(width, height, tile); // Representation of the raw map information
-		this.#graphMap = [];
+		this.#graph_map = [];
 
 		// Create graph nodes and save them into a matrix
 		for (let x = 0; x < this.#raw.width; x++) {
-			this.#graphMap[x] = [];
+			this.#graph_map[x] = [];
 			for (let y = 0; y < this.#raw.height; y++) {
 				if (this.#raw.getItem(x, y) == 0) {
-					this.#graphMap[x][y] = null;
+					this.#graph_map[x][y] = null;
 				} else {
-					this.#graphMap[x][y] = new GraphNode(this.#raw.getItem(x, y), x, y);
+					this.#graph_map[x][y] = new GraphNode(this.#raw.getItem(x, y), x, y);
 				}
 			}
 		}
@@ -149,40 +149,40 @@ export class GameMap {
 		// Connect each graph node to its neighbors
 		for (let x = 0; x < this.#raw.width; x++) {
 			for (let y = 0; y < this.#raw.height; y++) {
-				if (this.#graphMap[x][y] != null) {
+				if (this.#graph_map[x][y] != null) {
 					// if neighbor in bound
 					if (0 <= y + 1 && y + 1 < this.#raw.height) {
 						// if neighbor walkable
-						if (this.#graphMap[x][y + 1] != null) {
+						if (this.#graph_map[x][y + 1] != null) {
 							// add up neighbor
-							this.#graphMap[x][y].neighU = this.#graphMap[x][y + 1];
+							this.#graph_map[x][y].neighU = this.#graph_map[x][y + 1];
 						}
 					}
 
 					// if neighbor in bound
 					if (0 <= x + 1 && x + 1 < this.#raw.width) {
 						// if neighbor walkable
-						if (this.#graphMap[x + 1][y] != null) {
+						if (this.#graph_map[x + 1][y] != null) {
 							// add right neighbor
-							this.#graphMap[x][y].neighR = this.#graphMap[x + 1][y];
+							this.#graph_map[x][y].neighR = this.#graph_map[x + 1][y];
 						}
 					}
 
 					// if neighbor in bound
 					if (0 <= y - 1 && y - 1 < this.#raw.height) {
 						// if neighbor walkable
-						if (this.#graphMap[x][y - 1] != null) {
+						if (this.#graph_map[x][y - 1] != null) {
 							// add down neighbor
-							this.#graphMap[x][y].neighD = this.#graphMap[x][y - 1];
+							this.#graph_map[x][y].neighD = this.#graph_map[x][y - 1];
 						}
 					}
 
 					// if neighbor in bound
 					if (0 <= x - 1 && x - 1 < this.#raw.width) {
 						// if neighbor walkable
-						if (this.#graphMap[x - 1][y] != null) {
+						if (this.#graph_map[x - 1][y] != null) {
 							// add left neighbor
-							this.#graphMap[x][y].neighL = this.#graphMap[x - 1][y];
+							this.#graph_map[x][y].neighL = this.#graph_map[x - 1][y];
 						}
 					}
 				}
@@ -204,7 +204,7 @@ export class GameMap {
 	}
 
 	getGraphNode(x, y) {
-		return this.#graphMap[x][y];
+		return this.#graph_map[x][y];
 	}
 
 	getWidth() {
