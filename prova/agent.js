@@ -16,14 +16,14 @@ const MAX_EXPLORABLE_SPAWN_CELLS = 100;
 const INVIEW_MEMORY_DIFFERENCE_THRESHOLD = 2000; // Threshold for parcels and agent in our vision range
 const OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD = 10000; // Threshold for parcels and agent not in our vision range
 
-const TIMED_EXPLORE = 0.99;
-
 const PARCEL_DISTANCE_LOW = 1;
 const PARCEL_DISTANCE_MID = 2;
 const PARCEL_DISTANCE_HIGH = 3;
 const PARCEL_WEIGHT_LOW = 10;
 const PARCEL_WEIGHT_MID = 5;
 const PARCEL_WEIGHT_HIGH = 2.5;
+
+const TIMED_EXPLORE = 0.99;
 
 const MOVES_SCALE_FACTOR = 30; // Lower values mean I want to deliver more often
 const MOVES_SCALE_FACTOR_NO_DECAY = 5; // Lower values mean I want to deliver more often
@@ -273,11 +273,11 @@ function optionsGeneration2() {
 		]);
 	}
 
+	// TODO controllare se pathNearestDelivery undefined o null
 	// Find path to the nearest delivery
 	let pathNearestDelivery = belief.nearestDeliveryFromHere()[1];
 
 	/*
-	// TODO gestire undefined e null di pathNearestDelivery
 	myAgent.push(["go_deliver", Infinity, pathNearestDelivery]);
 
 	if (options.length != 0) {
@@ -508,10 +508,6 @@ client.onAgentsSensing(async (aa) => {
 
 client.onYou(({ id, name, x, y, score }) => {
 	belief.onYouUpdate(id, name, x, y, score);
-
-	// TODO insert in onYouUpdate
-	//sendPosition2Pal();
-	//reviseMemory(true);
 });
 
 await new Promise((res) => {
@@ -527,6 +523,14 @@ await new Promise((res) => {
 		config.MAX_EXPLORABLE_SPAWN_CELLS = MAX_EXPLORABLE_SPAWN_CELLS;
 		config.INVIEW_MEMORY_DIFFERENCE_THRESHOLD = INVIEW_MEMORY_DIFFERENCE_THRESHOLD;
 		config.OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD = OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD;
+
+		config.PARCEL_DISTANCE_LOW = PARCEL_DISTANCE_LOW;
+		config.PARCEL_DISTANCE_MID = PARCEL_DISTANCE_MID;
+		config.PARCEL_DISTANCE_HIGH = PARCEL_DISTANCE_HIGH;
+		config.PARCEL_WEIGHT_LOW = PARCEL_WEIGHT_LOW;
+		config.PARCEL_WEIGHT_MID = PARCEL_WEIGHT_MID;
+		config.PARCEL_WEIGHT_HIGH = PARCEL_WEIGHT_HIGH;
+
 		belief.instantiateGameConfig(config);
 
 		memoryRevisionLoop(1000);

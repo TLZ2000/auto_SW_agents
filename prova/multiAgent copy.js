@@ -194,48 +194,6 @@ async function sendPosition2Pal() {
 	await client.emitSay(me.multiAgent_palID, { type: "MSG_positionUpdate", content: JSON.stringify({ x: me.x, y: me.y, msgID: me.multiAgent_myMessageID }) });
 }
 
-/**
- * Compute the expected reward of delivering the currently carried parcels following a specific path
- * @param {Array} carriedParcels - list of parcels carried by me
- * @param {Array} path - path the agent will follow to deliver the parcels
- * @returns expected reward of delivering the currently carried following the provided path
- */
-function expectedRewardOfCarriedParcels(carriedParcels, path) {
-	let totalScore = 0;
-
-	if (path == undefined) {
-		return 0;
-	}
-
-	carriedParcels.forEach((parcel) => {
-		totalScore += parcelScoreAfterMsPath(path, parcel.reward, Date.now());
-	});
-	return totalScore;
-}
-
-/**
- * Compute the expected reward of delivering the currently carried parcels plus a targeted parcel to pick up
- * @param {Array} carriedParcels - list of parcels carried by me
- * @param {{x:BigInt, y: BigInt, reward: BigInt, time:BigInt}} parcel2Pickup - targeted parcel to pick up
- * @returns list containing 0: expected reward of delivering the currently carried parcels and the targeted parcel to pick up, 1: length of path to pickup the parcel
- */
-function expectedRewardCarriedAndPickup(carriedParcels, parcel2Pickup) {
-	let pickUpReward = parcelCostReward(parcel2Pickup);
-
-	// If we can reach the parcel to pickup
-	//if (pickUpReward.pathToDeliver != Infinity && pickUpReward.pathToParcel != Infinity && pickUpReward != 0 && pickUpReward.pathToDeliver != undefined && pickUpReward.pathToParcel != undefined) {
-	if (pickUpReward != 0 && pickUpReward.pathToDeliver != undefined && pickUpReward.pathToParcel != undefined) {
-		// Compute expected reward for the carried parcels
-		let totalScore = pickUpReward.expectedReward + expectedRewardOfCarriedParcels(carriedParcels, pickUpReward.pathToParcel.concat(pickUpReward.pathToDeliver));
-
-		// Return the final expected score
-		return [totalScore, pickUpReward.pathToParcel.length];
-	} else {
-		// Else no reward
-		return [0, 0];
-	}
-}
-
 async function askPalOption(message) {
 	client
 		.emitAsk(me.multiAgent_palID, { type: "MSG_optionSelection", content: JSON.stringify(message) })
@@ -264,107 +222,6 @@ async function askPalOption(message) {
 		.catch((error) => {
 			console.error("Error during askPalOption:", error);
 		});
-}
-
-/**
- * Compute the expected reward of a specific parcel (go pick up and deliver)
- * @param {{x:BigInt, y: BigInt, reward: BigInt, time:BigInt}} parcel
- * @returns Map containing the path from the current agent position to the parcel (pathToParcel, undefined if not reachable), the path from the parcel to nearest delivery zone (pathToDeliver, undefined if not reachable) and expected reward (expectedReward)
- */
-function parcelCostReward(parcel) {
-	let parX = parcel.x;
-	let parY = parcel.y;
-	let parScore = parcel.reward;
-	let lastVisitTime = parcel.time;
-
-	// Compute distance agent -> parcel
-	let pathToParcel = navigateBFS([Math.round(me.x), Math.round(me.y)], [parX, parY]);
-
-	if (pathToParcel == undefined) {
-		return {
-			pathToParcel: undefined,
-			pathToDeliver: undefined,
-			expectedReward: 0,
-		};
-	}
-
-	// Find path to the nearest delivery
-	let pathToDeliver = nearestDeliveryFromHerePath(parX, parY);
-
-	if (pathToDeliver == undefined) {
-		return {
-			pathToParcel: undefined,
-			pathToDeliver: undefined,
-			expectedReward: 0,
-		};
-	}
-
-	// Compute expected reward for [parX, parY] parcel
-	let expectedReward = parcelScoreAfterMsPath(pathToParcel.concat(pathToDeliver), parScore, lastVisitTime);
-
-	// Increase the reward based on distance from parcel
-	if (pathToParcel.length <= PARCEL_DISTANCE_LOW) {
-		expectedReward = expectedReward * PARCEL_WEIGHT_LOW;
-	} else if (pathToParcel.length <= PARCEL_DISTANCE_MID) {
-		expectedReward = expectedReward * PARCEL_WEIGHT_MID;
-	} else if (pathToParcel.length <= PARCEL_DISTANCE_HIGH) {
-		expectedReward = expectedReward * PARCEL_WEIGHT_HIGH;
-	}
-
-	// Return paths a->p, p->d, expected reward
-	return {
-		pathToParcel: pathToParcel,
-		pathToDeliver: pathToDeliver,
-		expectedReward: expectedReward,
-	};
-}
-
-/**
- * Compute the new score of a parcel after a specific time considering the specific map configuration and the last time the parcel was seen
- * @param {BigInt} time - time in milliseconds
- * @param {BigInt} parcelScore - current parcel score
- * @param {BigInt} lastVisitTime - timestamp of the parcel's last visit
- * @returns  the estimated score of the parcel after the provided time
- */
-function parcelScoreAfterMs(time, parcelScore, lastVisitTime) {
-	let decadeInterval = currentConfig.PARCEL_DECADING_INTERVAL; //Seconds
-
-	// Convert decade interval to number (in currentConfig it is a string)
-	if (decadeInterval == "infinite") {
-		decadeInterval = Infinity;
-	} else {
-		decadeInterval = Number(decadeInterval.substring(0, decadeInterval.length - 1));
-	}
-	// Convert to ms
-	decadeInterval *= 1000;
-
-	// Add some additional time margin
-	let marginedTime = time + Number(currentConfig.MOVEMENT_DURATION);
-	let scoreCost = Math.round(marginedTime / decadeInterval);
-
-	// Compute last visit time
-	let timeDifference = Date.now() - lastVisitTime;
-
-	// Compute approximate score difference from lastVisitTime
-	let scoreDiff = Math.round(timeDifference / decadeInterval);
-
-	// Return expected reward for parcel
-	let expected = parcelScore - scoreCost - scoreDiff;
-	if (expected < 0) {
-		expected = 0;
-	}
-	return expected;
-}
-
-/**
- * Compute the new score of a parcel after a specific path considering the specific map configuration and the last time the parcel was seen
- * @param {Array} path - movement path
- * @param {BigInt} parcelScore - current parcel score
- * @param {BigInt} lastVisitTime - timestamp of the parcel's last visit
- * @returns {BigInt} the estimated score of the parcel after the provided path has been completed by the agent
- */
-function parcelScoreAfterMsPath(path, parcelScore, lastVisitTime) {
-	return parcelScoreAfterMs(path.length * currentConfig.MOVEMENT_DURATION, parcelScore, lastVisitTime);
 }
 
 /**
@@ -487,18 +344,11 @@ async function memoryShareLoop() {
 // ===============================================================================================================
 // ---------------------------------------------------------------------------------------------------------------
 
-// Parcels belief set
-var parcels = new Map();
-var agents = new Map();
-
 var currentMap = undefined;
 var grafo = undefined;
 var currentConfig = undefined;
 
 // Plan classes are added to plan library
-planLibrary.push(GoPickUp);
-planLibrary.push(BFSmove);
-planLibrary.push(GoDeliver);
 planLibrary.push(CorridorResolve);
 
 client.onMsg(async (id, name, msg, reply) => {
@@ -980,8 +830,6 @@ client.onMsg(async (id, name, msg, reply) => {
 
 client.onParcelsSensing(optionsGeneration);
 client.onAgentsSensing(optionsGeneration);
-
-myAgent.loop();
 
 memoryRevisionLoop();
 

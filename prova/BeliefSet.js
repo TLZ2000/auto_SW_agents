@@ -96,6 +96,7 @@ export class BeliefSet {
 	}
 
 	getParcelDecayInterval() {
+		// Convert decade interval to number (in the game config it is a string)
 		if (this.#game_config.PARCEL_DECADING_INTERVAL == "infinite") {
 			return Infinity;
 		} else {
@@ -182,8 +183,9 @@ export class BeliefSet {
 			this.#updateTimeMap(Math.round(x), Math.round(y));
 		}
 
-		//TODO update pal
-		//TODO revise memory
+		//TODO add and implement
+		//sendPosition2Pal();
+		//reviseMemory(true);
 	}
 
 	onAgentSensingUpdate(aa) {
@@ -423,6 +425,7 @@ export class BeliefSet {
 	 * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "distance" criterion
 	 */
 	distanceExplore() {
+		// TODO controllare se undefined
 		let suitableCells = this.#searchSuitableCellsBFS();
 
 		// Compute distances
@@ -464,6 +467,7 @@ export class BeliefSet {
 	 * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "timed" criterion
 	 */
 	timedExplore() {
+		// TODO controllare se undefined
 		// Explore only spawning zones
 		let suitableCells = this.#searchSuitableCellsBFS();
 
@@ -596,17 +600,17 @@ export class BeliefSet {
 	*/
 
 	/**
-	 * Compute the path to the nearest delivery cell from a given position considering also the other agents as blocking elements
-	 * @returns {Array} [0]: coordinates [x, y] of the nearest delivery (if non existing -> [null, null]); [1]: array containing path to nearest delivery from [x, y] cell (if non existing -> null)
+	 * Compute the path to the nearest delivery cell from a given position considering the other agents as blocking elements
+	 * @returns {Array} [0]: coordinates [x, y] of the nearest delivery (if non existing -> [null, null], if initial node undefined -> [undefined, undefined]); [1]: array containing path to nearest delivery from [x, y] cell (if non existing -> null, if initial node undefined -> undefined)
 	 */
-	nearestDeliveryFromHere() {
+	nearestDeliveryFromPos(x, y) {
 		let queue = new Queue();
 		let explored = new Set();
 
-		let initialNode = this.#game_map.getGraphNode(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y));
+		let initialNode = this.#game_map.getGraphNode(x, y);
 
 		if (initialNode == undefined) {
-			return undefined;
+			return [[undefined, undefined], undefined];
 		}
 
 		// Add initial node to the queue
@@ -671,6 +675,14 @@ export class BeliefSet {
 		}
 
 		return [[null, null], null];
+	}
+
+	/**
+	 * Compute the path to the nearest delivery cell from the agent (me) position considering the other agents as blocking elements
+	 * @returns {Array} [0]: coordinates [x, y] of the nearest delivery (if non existing -> [null, null], if initial node undefined -> [undefined, undefined]); [1]: array containing path to nearest delivery from [x, y] cell (if non existing -> null, if initial node undefined -> undefined)
+	 */
+	nearestDeliveryFromHere() {
+		this.nearestDeliveryFromPos(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y));
 	}
 
 	/**
@@ -743,5 +755,137 @@ export class BeliefSet {
 	 * TODO:IMPLEMENT
 	 */
 
-	parcelReward() {}
+	/**
+	 * Compute the new score of a parcel after a specific time considering the specific map configuration and the last time the parcel was seen
+	 * @param {BigInt} time - time in milliseconds
+	 * @param {BigInt} parcelScore - current parcel score
+	 * @param {BigInt} lastVisitTime - timestamp of the parcel's last visit
+	 * @returns  the estimated score of the parcel after the provided time
+	 */
+	#parcelScoreAfterMs(time, parcelScore, lastVisitTime) {
+		let decadeInterval = this.getParcelDecayInterval(); //Seconds
+
+		// Convert to ms
+		decadeInterval *= 1000;
+
+		// Add some additional time margin
+		let marginedTime = time + this.getAgentMovementDuration();
+		let scoreCost = Math.round(marginedTime / decadeInterval);
+
+		// Compute last visit time
+		let timeDifference = Date.now() - lastVisitTime;
+
+		// Compute approximate score difference from lastVisitTime
+		let scoreDiff = Math.round(timeDifference / decadeInterval);
+
+		// Return expected reward for parcel
+		let expected = parcelScore - scoreCost - scoreDiff;
+		if (expected < 0) {
+			expected = 0;
+		}
+		return expected;
+	}
+
+	/**
+	 * Compute the new score of a parcel after a specific path considering the specific map configuration and the last time the parcel was seen
+	 * @param {Array} path - movement path
+	 * @param {BigInt} parcelScore - current parcel score
+	 * @param {BigInt} lastVisitTime - timestamp of the parcel's last visit
+	 * @returns {BigInt} the estimated score of the parcel after the provided path has been completed by the agent
+	 */
+	#parcelScoreAfterMsPath(path, parcelScore, lastVisitTime) {
+		return this.#parcelScoreAfterMs(path.length * this.getAgentMovementDuration(), parcelScore, lastVisitTime);
+	}
+
+	/**
+	 * Compute the expected reward of delivering the currently carried parcels following a specific path
+	 * @param {Array} path - path the agent will follow to deliver the parcels
+	 * @returns expected reward of delivering the currently carried following the provided path
+	 */
+	expectedRewardOfCarriedParcels(path) {
+		let totalScore = 0;
+
+		if (path == undefined || path == null) {
+			return 0;
+		}
+
+		this.getCarriedParcels().forEach((parcel) => {
+			totalScore += this.#parcelScoreAfterMsPath(path, parcel.reward, Date.now());
+		});
+		return totalScore;
+	}
+
+	/**
+	 * Compute the expected reward of a specific parcel (go pick up and deliver)
+	 * @param {{x:BigInt, y: BigInt, reward: BigInt, time:BigInt}} parcel
+	 * @returns Map containing the path from the current agent position to the parcel (pathToParcel == undefined if initialNode undefined, == null if path not existing), the path from the parcel to nearest delivery zone (pathToDeliver, undefined if not reachable) and expected reward (expectedReward)
+	 */
+	#parcelCostReward(parcel) {
+		let parX = parcel.x;
+		let parY = parcel.y;
+		let parScore = parcel.reward;
+		let lastVisitTime = parcel.time;
+
+		// Compute distance agent -> parcel
+		let pathToParcel = this.computePathBFS([Math.round(this.#me_memory.x), Math.round(this.#me_memory.y)], [parX, parY]);
+
+		if (pathToParcel == undefined || pathToParcel == null) {
+			return {
+				pathToParcel: pathToParcel,
+				pathToDeliver: pathToParcel,
+				expectedReward: 0,
+			};
+		}
+
+		// Find path to the nearest delivery
+		let pathToDeliver = this.nearestDeliveryFromPos(parX, parY)[1];
+
+		if (pathToDeliver == undefined || pathToDeliver == null) {
+			return {
+				pathToParcel: pathToDeliver,
+				pathToDeliver: pathToDeliver,
+				expectedReward: 0,
+			};
+		}
+
+		// Compute expected reward for [parX, parY] parcel
+		let expectedReward = this.#parcelScoreAfterMsPath(pathToParcel.concat(pathToDeliver), parScore, lastVisitTime);
+
+		// Increase the reward based on distance from parcel
+		if (pathToParcel.length <= this.#game_config.PARCEL_DISTANCE_LOW) {
+			expectedReward = expectedReward * this.#game_config.PARCEL_WEIGHT_LOW;
+		} else if (pathToParcel.length <= this.#game_config.PARCEL_DISTANCE_MID) {
+			expectedReward = expectedReward * this.#game_config.PARCEL_WEIGHT_MID;
+		} else if (pathToParcel.length <= this.#game_config.PARCEL_DISTANCE_HIGH) {
+			expectedReward = expectedReward * this.#game_config.PARCEL_WEIGHT_HIGH;
+		}
+
+		// Return paths a->p, p->d, expected reward
+		return {
+			pathToParcel: pathToParcel,
+			pathToDeliver: pathToDeliver,
+			expectedReward: expectedReward,
+		};
+	}
+
+	/**
+	 * Compute the expected reward of delivering the currently carried parcels plus a targeted parcel to pick up
+	 * @param {{x:BigInt, y: BigInt, reward: BigInt, time:BigInt}} parcel2Pickup - targeted parcel to pick up
+	 * @returns list containing 0: expected reward of delivering the currently carried parcels and the targeted parcel to pick up, 1: length of path to pickup the parcel
+	 */
+	expectedRewardCarriedAndPickup(parcel2Pickup) {
+		let pickUpReward = this.#parcelCostReward(parcel2Pickup);
+
+		// If we can reach the parcel to pickup (pathToDeliver and pathToParcel != undefined and != null) with a reward > 0
+		if (pickUpReward.expectedReward != 0 && pickUpReward.pathToDeliver != undefined && pickUpReward.pathToDeliver != null && pickUpReward.pathToParcel != undefined && pickUpReward.pathToParcel != null) {
+			// Compute expected reward for the carried parcels
+			let totalScore = pickUpReward.expectedReward + this.expectedRewardOfCarriedParcels(pickUpReward.pathToParcel.concat(pickUpReward.pathToDeliver));
+
+			// Return the final expected score
+			return [totalScore, pickUpReward.pathToParcel.length];
+		} else {
+			// Else no reward
+			return [0, 0];
+		}
+	}
 }
