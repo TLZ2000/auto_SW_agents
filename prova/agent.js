@@ -28,6 +28,8 @@ const MOVES_SCALE_FACTOR_NO_DECAY = 5; // Lower values mean I want to deliver mo
 
 const TIMED_EXPLORE = 0.99;
 
+let block_option_generation_flag = false;
+
 //--------------------------------------------------------------------------------------------------------------
 
 /**
@@ -427,69 +429,77 @@ function getBestOption() {
  * Generate all possible options, based on the current game state and configuration, perform option filtering and select the best possible option as current intention
  */
 function optionsGeneration() {
-	// Get the best option between go_pick_up and go_deliver
-	let bestOption = getBestOption();
+	if (!block_option_generation_flag) {
+		block_option_generation_flag = true;
+		console.log("BLOCK_OPTION_GENERATION_FLAG: ", block_option_generation_flag);
+		// Get the best option between go_pick_up and go_deliver
+		let bestOption = getBestOption();
 
-	let push = false;
+		// TODO mettere controllo se agent sta ancora carriando parcels qua e la (vedere dove)
 
-	// Check if I should push the best option without waiting to finish the current intention
-	if (bestOption != undefined) {
-		// Get current intention
-		let currentIntention = myAgent.getCurrentIntention();
+		let push = false;
 
-		// Check if I have a current intention
-		if (currentIntention == undefined) {
-			// If not, then push the best option
-			push = true;
-		} else {
-			// Otherwise, check if the best option reward is better than the current intention reward
-			if (bestOption[0] == "go_pick_up") {
-				if (currentIntention[0] == "go_pick_up") {
-					if (bestOption[4] > currentIntention[4]) {
+		// Check if I should push the best option without waiting to finish the current intention
+		if (bestOption != undefined) {
+			// Get current intention
+			let currentIntention = myAgent.getCurrentIntention();
+
+			// Check if I have a current intention
+			if (currentIntention == undefined) {
+				// If not, then push the best option
+				push = true;
+			} else {
+				// Otherwise, check if the best option reward is better than the current intention reward
+				if (bestOption[0] == "go_pick_up") {
+					if (currentIntention[0] == "go_pick_up") {
+						if (bestOption[4] > currentIntention[4]) {
+							push = true;
+						}
+					} else if (currentIntention[0] == "go_deliver") {
+						if (bestOption[4] > currentIntention[1]) {
+							push = true;
+						}
+					} else {
+						// If the current intention is neither go_pick_up nor go_deliver, then push the best option
 						push = true;
 					}
-				} else if (currentIntention[0] == "go_deliver") {
-					if (bestOption[4] > currentIntention[1]) {
+				} else if (bestOption[0] == "go_deliver") {
+					if (currentIntention[0] == "go_pick_up") {
+						if (bestOption[1] > currentIntention[4]) {
+							push = true;
+						}
+					} else if (currentIntention[0] == "go_deliver") {
+						// I am already delivering, so I don't want to push another deliver
+						push = false;
+					} else {
+						// If the current intention is neither go_pick_up nor go_deliver, then push the best option
 						push = true;
 					}
-				} else {
-					// If the current intention is neither go_pick_up nor go_deliver, then push the best option
-					push = true;
 				}
-			} else if (bestOption[0] == "go_deliver") {
-				if (currentIntention[0] == "go_pick_up") {
-					if (bestOption[1] > currentIntention[4]) {
-						push = true;
-					}
-				} else if (currentIntention[0] == "go_deliver") {
-					// I am already delivering, so I don't want to push another deliver
-					push = false;
-				} else {
-					// If the current intention is neither go_pick_up nor go_deliver, then push the best option
-					push = true;
+
+				// If my best option is go_deliver but my current intention is go_pick_up
+				if (currentIntention[0] == "go_pick_up" && bestOption[0] == "go_deliver") {
+					// First finish the go_pick_up, to avoid that the agent moves towards the cell with the parcel to pickup and then change direction to go deliver
+					return;
 				}
 			}
 
-			// If my best option is go_deliver but my current intention is go_pick_up
-			if (currentIntention[0] == "go_pick_up" && bestOption[0] == "go_deliver") {
-				// First finish the go_pick_up, to avoid that the agent moves towards the cell with the parcel to pickup and then change direction to go deliver
-				return;
+			// Check if I should push
+			if (push) {
+				myAgent.push(bestOption);
+			}
+		} else {
+			// If I do not have a valid best option, then explore
+			if (Math.random() < TIMED_EXPLORE) {
+				// Explore oldest tiles
+				myAgent.push(["explore", "timed"]);
+			} else {
+				// Explore distant tiles
+				myAgent.push(["explore", "distance"]);
 			}
 		}
-
-		// Check if I should push
-		if (push) {
-			myAgent.push(bestOption);
-		}
-	} else {
-		// If I do not have a valid best option, then explore
-		if (Math.random() < TIMED_EXPLORE) {
-			// Explore oldest tiles
-			myAgent.push(["explore", "timed"]);
-		} else {
-			// Explore distant tiles
-			myAgent.push(["explore", "distance"]);
-		}
+		block_option_generation_flag = false;
+		console.log("BLOCK_OPTION_GENERATION_FLAG: ", block_option_generation_flag);
 	}
 }
 
