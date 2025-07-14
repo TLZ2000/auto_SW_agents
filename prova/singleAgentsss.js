@@ -28,6 +28,7 @@ const MOVES_SCALE_FACTOR_NO_DECAY = 5; // Lower values mean I want to deliver mo
 const TIMED_EXPLORE = 0.99;
 
 let block_option_generation_flag = false;
+let block_option_generation_planning_flag = false;
 
 //--------------------------------------------------------------------------------------------------------------
 
@@ -262,14 +263,26 @@ class PDDLmove extends Plan {
 	}
 
 	async execute(go_to, x, y) {
+		// TODO capire perché planning non funziona
+
 		// Define problem
 		let pddlProblem = belief.getPDDLProblemString(x, y);
+		console.log("GOTO PLANNING: " + x + " " + y);
+		console.log(pddlProblem);
 
 		// Define domain
 		let pddlDomain = await readFile("./deliveroo_domain.pddl");
 
 		// Get the plan
+		block_option_generation_planning_flag = true;
 		let plan = await onlineSolver(pddlDomain, pddlProblem);
+		block_option_generation_planning_flag = false;
+
+		if (plan == undefined) {
+			console.log("Plan undefined, stop intention");
+			this.stop();
+			throw ["stopped"];
+		}
 
 		let path = [];
 
@@ -295,7 +308,7 @@ class PDDLmove extends Plan {
 		}
 
 		let i = 0;
-		while (path != undefined && i < path.length) {
+		while (i < path.length) {
 			if (this.stopped) throw ["stopped"]; // if stopped then quit
 
 			let moved_horizontally;
@@ -509,7 +522,7 @@ function getBestOption() {
  * Generate all possible options, based on the current game state and configuration, perform option filtering and select the best possible option as current intention
  */
 function optionsGeneration() {
-	if (!block_option_generation_flag) {
+	if (!block_option_generation_flag && !block_option_generation_planning_flag) {
 		block_option_generation_flag = true;
 		// Get the best option between go_pick_up and go_deliver
 		let bestOption = getBestOption();
@@ -563,10 +576,10 @@ function optionsGeneration() {
 			}
 
 			// Check if I should push
-			if (push) {
+			if (push && !block_option_generation_planning_flag) {
 				myAgent.push(bestOption);
 			}
-		} else {
+		} else if (!block_option_generation_planning_flag) {
 			// If I do not have a valid best option, then explore
 			if (Math.random() < TIMED_EXPLORE) {
 				// Explore oldest tiles
@@ -614,9 +627,6 @@ client.onYou(({ id, name, x, y, score }) => {
 	belief.onYouUpdate(id, name, x, y, score);
 });
 
-client.onParcelsSensing(optionsGeneration);
-client.onAgentsSensing(optionsGeneration);
-
 myAgent.loop();
 
 await new Promise((res) => {
@@ -643,12 +653,12 @@ await new Promise((res) => {
 
 		belief.instantiateGameConfig(config);
 
-		memoryRevisionLoop(1000);
+		memoryRevisionLoop(500);
 		res();
 	});
 });
 
 while (true) {
-	await new Promise((res) => setTimeout(res, 100));
+	await new Promise((res) => setTimeout(res, 4000));
 	optionsGeneration();
 }
