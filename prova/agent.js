@@ -98,7 +98,7 @@ class BFSmove extends Plan {
 				belief.updateMePosition(moved_horizontally.x, moved_horizontally.y);
 
 				// And if agent is carrying parcels
-				if (carriedParcels.length > 0) {
+				if (carriedParcels.size > 0) {
 					// Increment the movement penalty (increase probability to go deliver)
 					belief.increaseMeMoves();
 				}
@@ -117,7 +117,7 @@ class BFSmove extends Plan {
 				belief.updateMePosition(moved_vertically.x, moved_vertically.y);
 
 				// And if agent is carrying parcels
-				if (carriedParcels.length > 0) {
+				if (carriedParcels.size > 0) {
 					// Increment the movement penalty (increase probability to go deliver)
 					belief.increaseMeMoves();
 				}
@@ -175,7 +175,7 @@ class FollowPath extends Plan {
 				belief.updateMePosition(moved_horizontally.x, moved_horizontally.y);
 
 				// And if agent is carrying parcels
-				if (carriedParcels.length > 0) {
+				if (carriedParcels.size > 0) {
 					// Increment the movement penalty (increase probability to go deliver)
 					belief.increaseMeMoves();
 				}
@@ -194,7 +194,7 @@ class FollowPath extends Plan {
 				belief.updateMePosition(moved_vertically.x, moved_vertically.y);
 
 				// And if agent is carrying parcels
-				if (carriedParcels.length > 0) {
+				if (carriedParcels.size > 0) {
 					// Increment the movement penalty (increase probability to go deliver)
 					belief.increaseMeMoves();
 				}
@@ -372,7 +372,7 @@ function getDeliveryOption() {
 	let deliveryOption = undefined;
 
 	// Check if we are carrying parcels, so it makes sense to deliver them
-	if (belief.getCarriedParcels().length != 0) {
+	if (belief.getCarriedParcels().size > 0) {
 		// Check if we are in a delivery cell
 		if (belief.getGraphMapNode(Math.round(belief.getMePosition()[0]), Math.round(belief.getMePosition()[1])).type == 2) {
 			// If so, deliver
@@ -391,7 +391,13 @@ function getDeliveryOption() {
 		}
 	}
 
-	return deliveryOption;
+	// Re-check if I still am carrying parcels, just to be sure
+	if (belief.getCarriedParcels().size > 0) {
+		// If so, return the delivery option
+		return deliveryOption;
+	}
+	// Otherwise, it means that I already delivered the parcels, so there is no point in returning a delivery option
+	return undefined;
 }
 
 function getBestOption() {
@@ -431,7 +437,6 @@ function getBestOption() {
 function optionsGeneration() {
 	if (!block_option_generation_flag) {
 		block_option_generation_flag = true;
-		console.log("BLOCK_OPTION_GENERATION_FLAG: ", block_option_generation_flag);
 		// Get the best option between go_pick_up and go_deliver
 		let bestOption = getBestOption();
 
@@ -480,6 +485,7 @@ function optionsGeneration() {
 				// If my best option is go_deliver but my current intention is go_pick_up
 				if (currentIntention[0] == "go_pick_up" && bestOption[0] == "go_deliver") {
 					// First finish the go_pick_up, to avoid that the agent moves towards the cell with the parcel to pickup and then change direction to go deliver
+					block_option_generation_flag = false;
 					return;
 				}
 			}
@@ -499,7 +505,6 @@ function optionsGeneration() {
 			}
 		}
 		block_option_generation_flag = false;
-		console.log("BLOCK_OPTION_GENERATION_FLAG: ", block_option_generation_flag);
 	}
 }
 
