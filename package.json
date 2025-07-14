@@ -1,25 +1,30 @@
 {
-  "name": "auto_sw_agents",
-  "version": "1.0.0",
-  "description": "Lazzerini and Cappelletti auto. SW agents project",
-  "homepage": "https://github.com/TLZ2000/auto_SW_agents#readme",
-  "bugs": {
-    "url": "https://github.com/TLZ2000/auto_SW_agents/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/TLZ2000/auto_SW_agents.git"
-  },
-  "license": "ISC",
-  "author": "Thomas Lazzerini",
-  "type": "module",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "dependencies": {
-    "@unitn-asa/deliveroo-js-client": "^2.0.3",
-    "@unitn-asa/pddl-client": "^1.6.2",
-    "fs": "^0.0.1-security"
-  }
+	"name": "auto_sw_agents",
+	"version": "1.0.0",
+	"description": "Lazzerini and Cappelletti auto. SW agents project",
+	"homepage": "https://github.com/TLZ2000/auto_SW_agents#readme",
+	"bugs": {
+		"url": "https://github.com/TLZ2000/auto_SW_agents/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/TLZ2000/auto_SW_agents.git"
+	},
+	"license": "ISC",
+	"author": "Thomas Lazzerini",
+	"type": "module",
+	"main": "index.js",
+	"scripts": {
+		"prepublishOnly": "",
+		"start": "cd backend && npm start",
+		"prebuild": "npm install",
+		"build": "cd frontend && npm run build && cd ../backend && npm run build",
+		"postbuild": "",
+		"dev": "cd backend && npm run dev",
+		"dev-ui": "cd frontend && npm run dev"
+	},
+	"dependencies": {
+		"@unitn-asa/deliveroo-js-client": "^2.0.3",
+		"@unitn-asa/pddl-client": "^1.6.2"
+	}
 }
