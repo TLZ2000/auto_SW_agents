@@ -18,9 +18,6 @@ const PARCEL_WEIGHT_LOW = 10;
 const PARCEL_WEIGHT_MID = 5;
 const PARCEL_WEIGHT_HIGH = 2.5;
 
-const myBeliefSet = new Beliefset();
-myBeliefSet.declare("me agent");
-
 /**
  * Queue class
  */
@@ -422,45 +419,6 @@ class GameMap {
 	 */
 	getItem(x, y) {
 		return this.map[x][y];
-	}
-
-	/**
-	 * Update myBeliefSet with map information
-	 */
-	generateBeliefSetMap() {
-		// Cycle the map
-		for (let x = 0; x < this.width; x++) {
-			for (let y = 0; y < this.height; y++) {
-				// Check if the tile in position [x,y] is walkable
-				if (this.map[x][y] != 0) {
-					// If so, add it in the belief set
-					let tileName = "x" + x + "y" + y;
-					myBeliefSet.declare("tile " + tileName);
-					myBeliefSet.declare("free " + tileName);
-
-					// Check its neighbors
-					if (y - 1 >= 0 && this.map[x][y - 1] != 0) {
-						// If cell has down walkable neighbor, add it to the belief set
-						myBeliefSet.declare("down " + "x" + x + "y" + (y - 1) + " " + tileName);
-					}
-
-					if (y + 1 < this.height && this.map[x][y + 1] != 0) {
-						// If cell has up walkable neighbor, add it to the belief set
-						myBeliefSet.declare("up " + "x" + x + "y" + (y + 1) + " " + tileName);
-					}
-
-					if (x - 1 >= 0 && this.map[x - 1][y] != 0) {
-						// If cell has left walkable neighbor, add it to the belief set
-						myBeliefSet.declare("left " + "x" + (x - 1) + "y" + y + " " + tileName);
-					}
-
-					if (x + 1 < this.width && this.map[x + 1][y] != 0) {
-						// If cell has right walkable neighbor, add it to the belief set
-						myBeliefSet.declare("right " + "x" + (x + 1) + "y" + y + " " + tileName);
-					}
-				}
-			}
-		}
 	}
 }
 
