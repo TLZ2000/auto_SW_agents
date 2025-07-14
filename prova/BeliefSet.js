@@ -358,6 +358,8 @@ export class BeliefSet {
 
 		let initialNode = this.#game_map.getGraphNode(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y));
 
+		// Check if the initial node is undefined
+		// TODO it should never be since I am in that node
 		if (initialNode == undefined) {
 			return undefined;
 		}
@@ -762,10 +764,6 @@ export class BeliefSet {
 			this.setAgentAt(Math.round(agent.x), Math.round(agent.y));
 		});
 	}
-
-	/**
-	 * TODO:IMPLEMENT
-	 */
 
 	/**
 	 * Compute the new score of a parcel after a specific time considering the specific map configuration and the last time the parcel was seen

@@ -440,8 +440,6 @@ function optionsGeneration() {
 		// Get the best option between go_pick_up and go_deliver
 		let bestOption = getBestOption();
 
-		// TODO mettere controllo se agent sta ancora carriando parcels qua e la (vedere dove)
-
 		let push = false;
 
 		// Check if I should push the best option without waiting to finish the current intention
