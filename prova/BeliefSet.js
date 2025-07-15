@@ -106,7 +106,12 @@ export class BeliefSet {
 
 	getPDDLProblemString(x, y) {
 		let pddlProblem = new PddlProblem("deliveroo_go_to", this.#belief_set_planning.objects.join(" "), this.#belief_set_planning.toPddlString(), "and (at agent " + "x" + x + "y" + y + ")");
-		return pddlProblem.toPddlString();
+		pddlProblem = pddlProblem.toPddlString();
+
+		// Remove all the undeclares from the problem file, otherwise the planning.domains service stop working after a while
+		let regEx = /\(not \(at agent (.+?)\)\)/g;
+		pddlProblem = pddlProblem.replace(regEx, "");
+		return pddlProblem;
 	}
 
 	instantiateGameMap(width, height, tile) {

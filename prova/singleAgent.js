@@ -836,6 +836,11 @@ class PDDLmove extends Plan {
 		var pddlProblem = new PddlProblem("deliveroo_go_to", myBeliefSet.objects.join(" "), myBeliefSet.toPddlString(), "and (at agent " + "x" + x + "y" + y + ")");
 		let problem = pddlProblem.toPddlString();
 
+		let regEx = /\(not \(at agent (.+?)\)\)/g;
+
+		problem = problem.replace(regEx, "");
+		//console.log(problem);
+
 		// Define domain
 		let domain = await readFile("./deliveroo_domain.pddl");
 
