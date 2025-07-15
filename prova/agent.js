@@ -373,14 +373,14 @@ function getDeliveryOption() {
 
 	// Check if we are carrying parcels, so it makes sense to deliver them
 	if (belief.getCarriedParcels().size > 0) {
+		// Get the path to the nearest delivery
+		let pathNearestDelivery = belief.nearestDeliveryFromHere()[1];
+
 		// Check if we are in a delivery cell
 		if (belief.getGraphMapNode(Math.round(belief.getMePosition()[0]), Math.round(belief.getMePosition()[1])).type == 2) {
 			// If so, deliver
-			deliveryOption = ["go_deliver", Infinity];
+			deliveryOption = ["go_deliver", Infinity, pathNearestDelivery];
 		} else {
-			// Get the path to the nearest delivery
-			let pathNearestDelivery = belief.nearestDeliveryFromHere()[1];
-
 			if (belief.getParcelDecayInterval() == Infinity) {
 				// If there is no parcel decay, then increase the expected reward of the carried parcels using a dedicated scale factor
 				deliveryOption = ["go_deliver", belief.expectedRewardOfCarriedParcels(pathNearestDelivery) * (belief.getMeMoves() / MOVES_SCALE_FACTOR_NO_DECAY + 1), pathNearestDelivery];
@@ -391,13 +391,7 @@ function getDeliveryOption() {
 		}
 	}
 
-	// Re-check if I still am carrying parcels, just to be sure
-	if (belief.getCarriedParcels().size > 0) {
-		// If so, return the delivery option
-		return deliveryOption;
-	}
-	// Otherwise, it means that I already delivered the parcels, so there is no point in returning a delivery option
-	return undefined;
+	return deliveryOption;
 }
 
 function getBestOption() {
