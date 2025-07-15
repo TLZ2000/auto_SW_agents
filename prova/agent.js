@@ -589,6 +589,6 @@ await new Promise((res) => {
 });
 
 while (true) {
-	await new Promise((res) => setTimeout(res, 100));
+	await new Promise((res) => setTimeout(res, 1000));
 	optionsGeneration();
 }
