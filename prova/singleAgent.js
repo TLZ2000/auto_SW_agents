@@ -918,7 +918,6 @@ class PDDLmove extends Plan {
 			// If stucked
 			if (!moved_horizontally && !moved_vertically) {
 				return true;
-				//throw 'stucked';
 			} else if (me.x == x && me.y == y) {
 				// this.log('target reached');
 			}

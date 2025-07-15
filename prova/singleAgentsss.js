@@ -26,6 +26,7 @@ const MOVES_SCALE_FACTOR = 30; // Lower values mean I want to deliver more often
 const MOVES_SCALE_FACTOR_NO_DECAY = 5; // Lower values mean I want to deliver more often
 
 const TIMED_EXPLORE = 0.99;
+const PLANNING_MOVE_PROB = 0.1;
 
 let block_option_generation_flag = false;
 let block_option_generation_planning_flag = false;
@@ -263,8 +264,6 @@ class PDDLmove extends Plan {
 	}
 
 	async execute(go_to, x, y) {
-		// TODO capire perché planning non funziona
-
 		// Define problem
 		let pddlProblem = belief.getPDDLProblemString(x, y);
 
@@ -355,6 +354,146 @@ class PDDLmove extends Plan {
 			// If stucked
 			if (!moved_horizontally && !moved_vertically) {
 				// TODO capire perché entra qua anche se si muove
+				console.log("go_to stopped due to stucked");
+				this.stop();
+				throw ["stopped"];
+			}
+
+			i++;
+		}
+		return true;
+	}
+}
+
+/**
+ * Plan class handling the "go_to" intention (with PLANNING_MOVE_PROB probability it uses planning to compute the path, otherwise it uses the BFS)
+ */
+class Move extends Plan {
+	static isApplicableTo(go_to, x, y) {
+		return go_to == "go_to";
+	}
+
+	async execute(go_to, x, y) {
+		// Compute random value
+		let random = Math.random();
+		let path = undefined;
+
+		// Use the random value to choose to compute the path whether with BFS or Planning
+		if (random > PLANNING_MOVE_PROB) {
+			console.log("Path computed with BFS");
+			// Use the BFS
+			path = belief.pathFromMeTo(x, y);
+		} else {
+			console.log("Path computed with Planning");
+			// Use the Planning
+
+			// Define problem
+			let pddlProblem = belief.getPDDLProblemString(x, y);
+
+			// Define domain
+			let pddlDomain = await readFile("./deliveroo_domain.pddl");
+
+			// Get the plan
+			block_option_generation_planning_flag = true;
+			let plan = await onlineSolver(pddlDomain, pddlProblem);
+			block_option_generation_planning_flag = false;
+
+			if (plan == undefined) {
+				console.log("Plan undefined, stop intention");
+				this.stop();
+				throw ["stopped"];
+			}
+
+			path = [];
+
+			// If a plan exists
+			if (plan != undefined) {
+				// Cycle the plan and convert it to a path
+				for (let i = 0; i < plan.length; i++) {
+					switch (plan[i].action) {
+						case "RIGHT":
+							path.push("R");
+							break;
+						case "LEFT":
+							path.push("L");
+							break;
+						case "UP":
+							path.push("U");
+							break;
+						case "DOWN":
+							path.push("D");
+							break;
+					}
+				}
+			}
+		}
+		console.log("MY POSITION: " + belief.getMePosition());
+		console.log("GOTO POSITION: " + [x, y]);
+		console.log("PATH: " + path);
+
+		// If no path applicable, fail the intention
+		if (path == undefined || path == null) {
+			this.stop();
+			throw ["stopped"];
+		}
+
+		// Otherwise, follow the path
+		let i = 0;
+		while (i < path.length) {
+			// If stopped then quit
+			if (this.stopped) throw ["stopped"];
+
+			let moved_horizontally = undefined;
+			let moved_vertically = undefined;
+
+			if (path[i] == "R") {
+				moved_horizontally = await client.emitMove("right");
+			} else if (path[i] == "L") {
+				moved_horizontally = await client.emitMove("left");
+			}
+
+			console.log("MOVED HORIZONTALLY: \n	");
+			console.log(moved_horizontally);
+
+			// Check if agent is carrying parcels
+			let carriedParcels = belief.getCarriedParcels();
+
+			// If moved horizontally
+			if (moved_horizontally) {
+				belief.updateMePosition(moved_horizontally.x, moved_horizontally.y);
+
+				// And if agent is carrying parcels
+				if (carriedParcels.size > 0) {
+					// Increment the movement penalty (increase probability to go deliver)
+					belief.increaseMeMoves();
+				}
+			}
+
+			if (this.stopped) throw ["stopped"]; // if stopped then quit
+
+			if (path[i] == "U") {
+				moved_vertically = await client.emitMove("up");
+			} else if (path[i] == "D") {
+				moved_vertically = await client.emitMove("down");
+			}
+
+			console.log("MOVED VERTICALLY: \n	");
+			console.log(moved_vertically);
+
+			// If moved vertically
+			if (moved_vertically) {
+				belief.updateMePosition(moved_vertically.x, moved_vertically.y);
+
+				// And if agent is carrying parcels
+				if (carriedParcels.size > 0) {
+					// Increment the movement penalty (increase probability to go deliver)
+					belief.increaseMeMoves();
+				}
+			}
+
+			// If stucked, stop the action
+			if (!moved_horizontally && !moved_vertically) {
+				// TODO capire perché entra qua, ogni tanto l'emit move ritorna false anche se la cella a cui dovrebbe muoversi è libera
 				console.log("go_to stopped due to stucked");
 				this.stop();
 				throw ["stopped"];
@@ -609,7 +748,8 @@ myAgent.addPlan(GoPickUp);
 myAgent.addPlan(GoDeliver);
 myAgent.addPlan(FollowPath);
 //myAgent.addPlan(BFSmove);
-myAgent.addPlan(PDDLmove);
+//myAgent.addPlan(PDDLmove);
+myAgent.addPlan(Move);
 
 myAgent.loop();
 
