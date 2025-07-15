@@ -126,7 +126,7 @@ class BFSmove extends Plan {
 
 			// If stucked, stop the action
 			if (!moved_horizontally && !moved_vertically) {
-				// TODO capire perché entra qua anche se si muove
+				// TODO capire perché entra qua, ogni tanto l'emit move ritorna false anche se la cella a cui dovrebbe muoversi è libera
 				console.log("go_to stopped due to stucked");
 				this.stop();
 				throw ["stopped"];
@@ -203,7 +203,7 @@ class FollowPath extends Plan {
 
 			// If stucked, stop the action
 			if (!moved_horizontally && !moved_vertically) {
-				// TODO capire perché entra qua anche se si muove
+				// TODO capire perché entra qua, ogni tanto l'emit move ritorna false anche se la cella a cui dovrebbe muoversi è libera
 				console.log("go_to stopped due to stucked");
 				this.stop();
 				throw ["stopped"];
@@ -353,7 +353,7 @@ class PDDLmove extends Plan {
 
 			// If stucked
 			if (!moved_horizontally && !moved_vertically) {
-				// TODO capire perché entra qua anche se si muove
+				// TODO capire perché entra qua, ogni tanto l'emit move ritorna false anche se la cella a cui dovrebbe muoversi è libera
 				console.log("go_to stopped due to stucked");
 				this.stop();
 				throw ["stopped"];
