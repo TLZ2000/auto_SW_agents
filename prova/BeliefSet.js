@@ -109,7 +109,7 @@ export class BeliefSet {
 		pddlProblem = pddlProblem.toPddlString();
 
 		// Remove all the undeclares from the problem file, otherwise the planning.domains service stop working after a while
-		let regEx = /\(not \(at agent (.+?)\)\)/g;
+		let regEx = /\(not \((.+?)\)\)/g;
 		pddlProblem = pddlProblem.replace(regEx, "");
 		return pddlProblem;
 	}
