@@ -267,8 +267,6 @@ class PDDLmove extends Plan {
 
 		// Define problem
 		let pddlProblem = belief.getPDDLProblemString(x, y);
-		console.log("GOTO PLANNING: " + x + " " + y);
-		console.log(pddlProblem);
 
 		// Define domain
 		let pddlDomain = await readFile("./deliveroo_domain.pddl");
@@ -460,14 +458,14 @@ function getDeliveryOption() {
 
 	// Check if we are carrying parcels, so it makes sense to deliver them
 	if (belief.getCarriedParcels().size > 0) {
+		// Get the path to the nearest delivery
+		let pathNearestDelivery = belief.nearestDeliveryFromHere()[1];
+
 		// Check if we are in a delivery cell
 		if (belief.getGraphMapNode(Math.round(belief.getMePosition()[0]), Math.round(belief.getMePosition()[1])).type == 2) {
 			// If so, deliver
-			deliveryOption = ["go_deliver", Infinity];
+			deliveryOption = ["go_deliver", Infinity, pathNearestDelivery];
 		} else {
-			// Get the path to the nearest delivery
-			let pathNearestDelivery = belief.nearestDeliveryFromHere()[1];
-
 			if (belief.getParcelDecayInterval() == Infinity) {
 				// If there is no parcel decay, then increase the expected reward of the carried parcels using a dedicated scale factor
 				deliveryOption = ["go_deliver", belief.expectedRewardOfCarriedParcels(pathNearestDelivery) * (belief.getMeMoves() / MOVES_SCALE_FACTOR_NO_DECAY + 1), pathNearestDelivery];
