@@ -606,11 +606,11 @@ const client = new DeliverooApi(SERVER_ADDRS, AGENT_TOKEN);
 const belief = new BeliefSet();
 const myAgent = new IntentionRevisionReplace();
 
-//myAgent.addPlan(BFSmove);
 myAgent.addPlan(Explore);
 myAgent.addPlan(GoPickUp);
 myAgent.addPlan(GoDeliver);
 myAgent.addPlan(FollowPath);
+//myAgent.addPlan(BFSmove);
 myAgent.addPlan(PDDLmove);
 
 myAgent.loop();
@@ -659,6 +659,6 @@ await new Promise((res) => {
 });
 
 while (true) {
-	await new Promise((res) => setTimeout(res, 4000));
+	await new Promise((res) => setTimeout(res, 500));
 	optionsGeneration();
 }

@@ -65,7 +65,7 @@ export class BeliefSet {
 						this.#belief_set_planning.declare("down " + "x" + x + "y" + (y - 1) + " " + tileName);
 					}
 
-					if (y + 1 < this.height && this.#game_map.getItem(x, y + 1) != 0) {
+					if (y + 1 < this.#game_map.getHeight() && this.#game_map.getItem(x, y + 1) != 0) {
 						// If cell has up walkable neighbor, add it to the belief set
 						this.#belief_set_planning.declare("up " + "x" + x + "y" + (y + 1) + " " + tileName);
 					}
@@ -75,7 +75,7 @@ export class BeliefSet {
 						this.#belief_set_planning.declare("left " + "x" + (x - 1) + "y" + y + " " + tileName);
 					}
 
-					if (x + 1 < this.width && this.#game_map.getItem(x + 1, y) != 0) {
+					if (x + 1 < this.#game_map.getWidth() && this.#game_map.getItem(x + 1, y) != 0) {
 						// If cell has right walkable neighbor, add it to the belief set
 						this.#belief_set_planning.declare("right " + "x" + (x + 1) + "y" + y + " " + tileName);
 					}
@@ -109,7 +109,7 @@ export class BeliefSet {
 		pddlProblem = pddlProblem.toPddlString();
 
 		// Remove all the undeclares from the problem file, otherwise the planning.domains service stop working after a while
-		let regEx = /\(not \((.+?)\)\)/g;
+		let regEx = / \(not \((.+?)\)\)/g;
 		pddlProblem = pddlProblem.replace(regEx, "");
 		return pddlProblem;
 	}
