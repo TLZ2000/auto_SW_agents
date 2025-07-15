@@ -42,13 +42,15 @@ export class BeliefSet {
 		this.#time_map = [];
 		this.#agents_map = [];
 		this.#belief_set_planning = new Beliefset();
-		this.#belief_set_planning.declare("me agent");
 	}
 
 	/**
 	 * Update the planning belief set with map information
 	 */
 	generatePlanningBeliefSetMap() {
+		// Add me info to planning belief set
+		this.#belief_set_planning.declare("me agent");
+
 		// Cycle the map
 		for (let x = 0; x < this.#game_map.getWidth(); x++) {
 			for (let y = 0; y < this.#game_map.getHeight(); y++) {
