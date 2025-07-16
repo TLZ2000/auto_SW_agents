@@ -542,39 +542,16 @@ function getBestPickupOption() {
 
 	// Cycle all free parcels in belief
 	belief.getFreeParcels().forEach((parcel) => {
-		// If the parcel is in my position
-		if (belief.amIHere(parcel.x, parcel.y)) {
-			// Then, I must pick it up
-			options.push([
-				"go_pick_up",
-				parcel.x, // X coord
-				parcel.y, // Y coord
-				parcel.id, // ID
-				Infinity, // Expected reward
-				[], // Path to pickup parcel
-			]);
-		} else {
-			/*
-				// TODO vedere come aggiungere
-				// Otherwise, compute and save the current expected reward for this parcel from the current agent's position
-				let tmpReward = [];
-				if (me.parcels2Ignore.has(parcel.id)) {
-					tmpReward = [0, Infinity];
-				} else {
-					tmpReward = expectedRewardCarriedAndPickup(carriedParcels, parcel);
-				}*/
+		let tmpReward = belief.expectedRewardCarriedAndPickup(parcel);
 
-			let tmpReward = belief.expectedRewardCarriedAndPickup(parcel);
-
-			options.push([
-				"go_pick_up",
-				parcel.x, // X coord
-				parcel.y, // Y coord
-				parcel.id, // ID
-				tmpReward[0], // Expected reward
-				tmpReward[1], // length of the path to pickup the parcel
-			]);
-		}
+		options.push([
+			"go_pick_up",
+			parcel.x, // X coord
+			parcel.y, // Y coord
+			parcel.id, // ID
+			tmpReward[0], // Expected reward
+			tmpReward[1], // length of the path to pickup the parcel
+		]);
 	});
 
 	// Options filtering
@@ -618,18 +595,12 @@ function getDeliveryOption() {
 		// Get the path to the nearest delivery
 		let pathNearestDelivery = belief.nearestDeliveryFromHere()[1];
 
-		// Check if we are in a delivery cell
-		if (belief.getGraphMapNode(Math.round(belief.getMePosition()[0]), Math.round(belief.getMePosition()[1])).type == 2) {
-			// If so, deliver
-			deliveryOption = ["go_deliver", Infinity, pathNearestDelivery];
+		if (belief.getParcelDecayInterval() == Infinity) {
+			// If there is no parcel decay, then increase the expected reward of the carried parcels using a dedicated scale factor
+			deliveryOption = ["go_deliver", belief.expectedRewardOfCarriedParcels(pathNearestDelivery) * (belief.getMeMoves() / MOVES_SCALE_FACTOR_NO_DECAY + 1), pathNearestDelivery];
 		} else {
-			if (belief.getParcelDecayInterval() == Infinity) {
-				// If there is no parcel decay, then increase the expected reward of the carried parcels using a dedicated scale factor
-				deliveryOption = ["go_deliver", belief.expectedRewardOfCarriedParcels(pathNearestDelivery) * (belief.getMeMoves() / MOVES_SCALE_FACTOR_NO_DECAY + 1), pathNearestDelivery];
-			} else {
-				// If there is parcel decay, let the user weight the parcel reward increase
-				deliveryOption = ["go_deliver", belief.expectedRewardOfCarriedParcels(pathNearestDelivery) * (belief.getMeMoves() / MOVES_SCALE_FACTOR + 1), pathNearestDelivery];
-			}
+			// If there is parcel decay, let the user weight the parcel reward increase
+			deliveryOption = ["go_deliver", belief.expectedRewardOfCarriedParcels(pathNearestDelivery) * (belief.getMeMoves() / MOVES_SCALE_FACTOR + 1), pathNearestDelivery];
 		}
 	}
 
