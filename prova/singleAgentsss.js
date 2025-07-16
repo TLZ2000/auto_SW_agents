@@ -27,12 +27,11 @@ const MOVES_SCALE_FACTOR_NO_DECAY = 5; // Lower values mean I want to deliver mo
 
 const TIMED_EXPLORE = 0.99;
 const PLANNING_MOVE_PROB = 0.1;
-const OPTION_GENERATION_INTERVAL = 100;
+const OPTION_GENERATION_INTERVAL = 50;
 const MEMORY_REVISION_INTERVAL = 250;
 
 let block_option_generation_flag = false;
 let block_option_generation_planning_flag = false;
-let move_flag = false;
 
 //--------------------------------------------------------------------------------------------------------------
 
@@ -88,9 +87,7 @@ class BFSmove extends Plan {
 			let moved_horizontally = undefined;
 			let moved_vertically = undefined;
 
-			if (path[i] == "R") {
-				moved_horizontally = await myEmitMove(path[i]);
-			} else if (path[i] == "L") {
+			if (path[i] == "R" || path[i] == "L") {
 				moved_horizontally = await myEmitMove(path[i]);
 			}
 
@@ -110,9 +107,7 @@ class BFSmove extends Plan {
 
 			if (this.stopped) throw ["stopped"]; // if stopped then quit
 
-			if (path[i] == "U") {
-				moved_vertically = await myEmitMove(path[i]);
-			} else if (path[i] == "D") {
+			if (path[i] == "U" || path[i] == "D") {
 				moved_vertically = await myEmitMove(path[i]);
 			}
 
@@ -129,8 +124,6 @@ class BFSmove extends Plan {
 
 			// If stucked, stop the action
 			if (!moved_horizontally && !moved_vertically) {
-				// TODO capire perché entra qua, ogni tanto l'emit move ritorna false anche se la cella a cui dovrebbe muoversi è libera
-				console.log("go_to stopped due to stucked");
 				this.stop();
 				throw ["stopped"];
 			}
@@ -165,10 +158,8 @@ class FollowPath extends Plan {
 			let moved_horizontally = undefined;
 			let moved_vertically = undefined;
 
-			if (path[i] == "R") {
-				moved_horizontally = await client.emitMove("right");
-			} else if (path[i] == "L") {
-				moved_horizontally = await client.emitMove("left");
+			if (path[i] == "R" || path[i] == "L") {
+				moved_horizontally = await myEmitMove(path[i]);
 			}
 
 			// Check if agent is carrying parcels
@@ -187,10 +178,8 @@ class FollowPath extends Plan {
 
 			if (this.stopped) throw ["stopped"]; // if stopped then quit
 
-			if (path[i] == "U") {
-				moved_vertically = await client.emitMove("up");
-			} else if (path[i] == "D") {
-				moved_vertically = await client.emitMove("down");
+			if (path[i] == "U" || path[i] == "D") {
+				moved_vertically = await myEmitMove(path[i]);
 			}
 
 			// If moved vertically
@@ -206,8 +195,6 @@ class FollowPath extends Plan {
 
 			// If stucked, stop the action
 			if (!moved_horizontally && !moved_vertically) {
-				// TODO capire perché entra qua, ogni tanto l'emit move ritorna false anche se la cella a cui dovrebbe muoversi è libera
-				console.log("go_to stopped due to stucked");
 				this.stop();
 				throw ["stopped"];
 			}
@@ -230,7 +217,7 @@ class GoPickUp extends Plan {
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		await this.subIntention(["go_to", x, y], myAgent.getPlanLibrary());
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
-		await client.emitPickup();
+		await myEmitPickUp();
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		return true;
 	}
@@ -250,7 +237,7 @@ class GoDeliver extends Plan {
 
 		await this.subIntention(["follow_path", path], myAgent.getPlanLibrary());
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
-		await client.emitPutdown();
+		await myEmitPutDown();
 		belief.resetMeMoves();
 		belief.resetCarriedParcels();
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
@@ -316,12 +303,8 @@ class PDDLmove extends Plan {
 
 			// this.log('me', me, 'xy', x, y);
 
-			if (path[i] == "R") {
-				moved_horizontally = await client.emitMove("right");
-				// status_x = await this.subIntention( 'go_to', {x: me.x+1, y: me.y} );
-			} else if (path[i] == "L") {
-				moved_horizontally = await client.emitMove("left");
-				// status_x = await this.subIntention( 'go_to', {x: me.x-1, y: me.y} );
+			if (path[i] == "R" || path[i] == "L") {
+				moved_horizontally = await myEmitMove(path[i]);
 			}
 
 			// Check if agent is carrying parcels
@@ -338,26 +321,12 @@ class PDDLmove extends Plan {
 
 			if (this.stopped) throw ["stopped"]; // if stopped then quit
 
-			if (path[i] == "U") {
-				moved_vertically = await client.emitMove("up");
-				// status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y+1} );
-			} else if (path[i] == "D") {
-				moved_vertically = await client.emitMove("down");
-				// status_x = await this.subIntention( 'go_to', {x: me.x, y: me.y-1} );
-			}
-
-			if (moved_vertically) {
-				belief.updateMePosition(moved_vertically.x, moved_vertically.y);
-
-				if (carriedParcels.size > 0) {
-					belief.increaseMeMoves();
-				}
+			if (path[i] == "U" || path[i] == "D") {
+				moved_vertically = await myEmitMove(path[i]);
 			}
 
 			// If stucked
 			if (!moved_horizontally && !moved_vertically) {
-				// TODO capire perché entra qua, ogni tanto l'emit move ritorna false anche se la cella a cui dovrebbe muoversi è libera
-				console.log("go_to stopped due to stucked");
 				this.stop();
 				throw ["stopped"];
 			}
@@ -449,10 +418,8 @@ class Move extends Plan {
 			let moved_horizontally = undefined;
 			let moved_vertically = undefined;
 
-			if (path[i] == "R") {
-				moved_horizontally = await client.emitMove("right");
-			} else if (path[i] == "L") {
-				moved_horizontally = await client.emitMove("left");
+			if (path[i] == "R" || path[i] == "L") {
+				moved_horizontally = await myEmitMove(path[i]);
 			}
 
 			console.log("MOVED HORIZONTALLY: \n	");
@@ -474,10 +441,8 @@ class Move extends Plan {
 
 			if (this.stopped) throw ["stopped"]; // if stopped then quit
 
-			if (path[i] == "U") {
-				moved_vertically = await client.emitMove("up");
-			} else if (path[i] == "D") {
-				moved_vertically = await client.emitMove("down");
+			if (path[i] == "U" || path[i] == "D") {
+				moved_vertically = await myEmitMove(path[i]);
 			}
 
 			console.log("MOVED VERTICALLY: \n	");
@@ -496,8 +461,6 @@ class Move extends Plan {
 
 			// If stucked, stop the action
 			if (!moved_horizontally && !moved_vertically) {
-				// TODO capire perché entra qua, ogni tanto l'emit move ritorna false anche se la cella a cui dovrebbe muoversi è libera
-				console.log("go_to stopped due to stucked");
 				this.stop();
 				throw ["stopped"];
 			}
@@ -660,8 +623,7 @@ function getBestOption() {
 
 async function myEmitMove(direction) {
 	let moved = undefined;
-	if (!move_flag) {
-		move_flag = true;
+	if (belief.requireEmit()) {
 		if (direction == "R") {
 			moved = await client.emitMove("right");
 		} else if (direction == "L") {
@@ -671,11 +633,33 @@ async function myEmitMove(direction) {
 		} else if (direction == "D") {
 			moved = await client.emitMove("down");
 		}
-		move_flag = false;
+		belief.releaseEmit();
 	} else {
 		console.log("TOO FAST");
 	}
 	return moved;
+}
+
+async function myEmitPickUp() {
+	let pick = undefined;
+	if (belief.requireEmit()) {
+		pick = await client.emitPickup();
+		belief.releaseEmit();
+	} else {
+		console.log("TOO FAST");
+	}
+	return pick;
+}
+
+async function myEmitPutDown() {
+	let pick = undefined;
+	if (belief.requireEmit()) {
+		pick = await client.emitPutdown();
+		belief.releaseEmit();
+	} else {
+		console.log("TOO FAST");
+	}
+	return pick;
 }
 
 /**

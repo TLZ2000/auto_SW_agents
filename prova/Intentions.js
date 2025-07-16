@@ -148,7 +148,8 @@ class Intention {
 export class IntentionRevisionReplace extends IntentionRevision {
 	async push(predicate) {
 		// Check if already queued
-		const last = this.intention_queue.at(this.intention_queue.length - 1);
+		const last = this.intention_queue[0];
+		//const last = this.intention_queue.at(this.intention_queue.length - 1);
 
 		console.log("LEN " + this.intention_queue.length);
 

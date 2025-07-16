@@ -12,6 +12,7 @@ export class BeliefSet {
 	#time_map = null; // Timestamp of last visit to the tile
 	#agents_map = null;
 	#belief_set_planning = null;
+	#emit_action_pending = false;
 
 	constructor() {
 		this.#agent_memory = new Map();
@@ -199,6 +200,26 @@ export class BeliefSet {
 
 	isAgentAt(x, y) {
 		return this.#agents_map[x][y] == 1;
+	}
+
+	/**
+	 * Ask permission to perform an emit action, the permission is given only if no other emit is pending
+	 * @returns true -> you can proceed with the emit, false -> you cannot proceed with the emit
+	 */
+	requireEmit() {
+		if (!this.#emit_action_pending) {
+			this.#emit_action_pending = true;
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Signal the ending of an emit action, allowing others to perform emits
+	 */
+	releaseEmit() {
+		this.#emit_action_pending = false;
 	}
 
 	/**
