@@ -525,7 +525,6 @@ export class BeliefSet {
 		let initialNode = this.#game_map.getGraphNode(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y));
 
 		// Check if the initial node is undefined
-		// TODO it should never be since I am in that node
 		if (initialNode == undefined) {
 			return undefined;
 		}
@@ -602,11 +601,14 @@ export class BeliefSet {
 
 	/**
 	 * Randomly select a cell to explore using the "distance" criterion (distant cells are more probable)
-	 * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "distance" criterion
+	 * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "distance" criterion, or undefined if error
 	 */
 	distanceExplore() {
-		// TODO controllare se undefined
 		let suitableCells = this.#searchSuitableCellsBFS();
+
+		if (suitableCells == undefined) {
+			return undefined;
+		}
 
 		// Compute distances
 		let totalDistance = 0;
@@ -644,12 +646,15 @@ export class BeliefSet {
 
 	/**
 	 * Randomly select a cell to explore using the "timed" criterion (cells explored long ago and near to the agent's current position are more probable)
-	 * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "timed" criterion
+	 * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "timed" criterion, or undefined if error
 	 */
 	timedExplore() {
-		// TODO controllare se undefined
 		// Explore only spawning zones
 		let suitableCells = this.#searchSuitableCellsBFS();
+
+		if (suitableCells == undefined) {
+			return undefined;
+		}
 
 		let tmp = [];
 		// Do not consider some specific cells

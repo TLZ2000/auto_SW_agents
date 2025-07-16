@@ -4,8 +4,6 @@ import { BeliefSet } from "./BeliefSet.js";
 import { IntentionRevisionReplace, Plan } from "./Intentions.js";
 import fs from "fs";
 
-// TODO: spostare in belief
-const AGENT_ID = "e12f73";
 const AGENT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImUxMmY3MyIsIm5hbWUiOiJUaGUgUm9ib1NhcGllbnMiLCJ0ZWFtSWQiOiJlMzcwNmYiLCJ0ZWFtTmFtZSI6IlRoZSBSb2JvU2FwaWVucyIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzUyNDgxNTE2fQ.04NGjhhl648OjThrneW1JgrK7kNHI3-ioGUdlhIXBiU";
 const SERVER_ADDRS = "http://localhost:8080";
 // const SERVER_ADDRS = "https://deliveroojs.rtibdi.disi.unitn.it";
@@ -48,6 +46,11 @@ class Explore extends Plan {
 			coords = belief.timedExplore();
 		} else if (type == "distance") {
 			coords = belief.distanceExplore();
+		}
+
+		if (coords == undefined) {
+			this.stop();
+			throw ["stopped"];
 		}
 
 		// When a valid cell has been found, move to it (and hope to find something interesting)
@@ -555,11 +558,8 @@ function getBestPickupOption() {
 	options.forEach((option) => {
 		let currentExpectedScore = 0;
 		let currentDistance = 0;
-		// TODO in teoria si può togliere il controllo, options contiene solo go_pick_up
-		if (option[0] == "go_pick_up") {
-			currentExpectedScore = option[4];
-			currentDistance = option[5];
-		}
+		currentExpectedScore = option[4];
+		currentDistance = option[5];
 
 		// Check the best expected score
 		if (currentExpectedScore > maxExpectedScore) {
