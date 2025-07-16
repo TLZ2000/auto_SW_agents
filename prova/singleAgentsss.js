@@ -30,9 +30,6 @@ const PLANNING_MOVE_PROB = 0.1;
 const OPTION_GENERATION_INTERVAL = 50;
 const MEMORY_REVISION_INTERVAL = 250;
 
-let block_option_generation_flag = false;
-let block_option_generation_planning_flag = false;
-
 //--------------------------------------------------------------------------------------------------------------
 
 /**
@@ -261,9 +258,9 @@ class PDDLmove extends Plan {
 		let pddlDomain = await readFile("./deliveroo_domain.pddl");
 
 		// Get the plan
-		block_option_generation_planning_flag = true;
+		belief.setPlannerRunning();
 		let plan = await onlineSolver(pddlDomain, pddlProblem);
-		block_option_generation_planning_flag = false;
+		belief.setPlannerNotRunning();
 
 		if (plan == undefined) {
 			console.log("Plan undefined, stop intention");
@@ -366,9 +363,9 @@ class Move extends Plan {
 			let pddlDomain = await readFile("./deliveroo_domain.pddl");
 
 			// Get the plan
-			block_option_generation_planning_flag = true;
+			belief.setPlannerRunning();
 			let plan = await onlineSolver(pddlDomain, pddlProblem);
-			block_option_generation_planning_flag = false;
+			belief.setPlannerNotRunning();
 
 			if (plan == undefined) {
 				console.log("Plan undefined, stop intention");
@@ -666,8 +663,8 @@ async function myEmitPutDown() {
  * Generate all possible options, based on the current game state and configuration, perform option filtering and select the best possible option as current intention
  */
 function optionsGeneration() {
-	if (!block_option_generation_flag && !block_option_generation_planning_flag) {
-		block_option_generation_flag = true;
+	if (belief.isOptionGenerationAllowed() && belief.isPlannerFree()) {
+		belief.setOptionGenerationRunning();
 		// Get the best option between go_pick_up and go_deliver
 		let bestOption = getBestOption();
 
@@ -714,16 +711,16 @@ function optionsGeneration() {
 				// If my best option is go_deliver but my current intention is go_pick_up
 				if (currentIntention[0] == "go_pick_up" && bestOption[0] == "go_deliver") {
 					// First finish the go_pick_up, to avoid that the agent moves towards the cell with the parcel to pickup and then change direction to go deliver
-					block_option_generation_flag = false;
+					belief.setOptionGenerationNotRunning();
 					return;
 				}
 			}
 
 			// Check if I should push
-			if (push && !block_option_generation_planning_flag) {
+			if (push && belief.isPlannerFree()) {
 				myAgent.push(bestOption);
 			}
-		} else if (!block_option_generation_planning_flag) {
+		} else if (belief.isPlannerFree()) {
 			// If I do not have a valid best option, then explore
 			if (Math.random() < TIMED_EXPLORE) {
 				// Explore oldest tiles
@@ -733,7 +730,7 @@ function optionsGeneration() {
 				myAgent.push(["explore", "distance"]);
 			}
 		}
-		block_option_generation_flag = false;
+		belief.setOptionGenerationNotRunning();
 	}
 }
 

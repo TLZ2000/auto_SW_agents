@@ -13,6 +13,8 @@ export class BeliefSet {
 	#agents_map = null;
 	#belief_set_planning = null;
 	#emit_action_pending = false;
+	#block_option_generation_flag = false;
+	#block_option_generation_planning_flag = false;
 
 	constructor() {
 		this.#agent_memory = new Map();
@@ -220,6 +222,48 @@ export class BeliefSet {
 	 */
 	releaseEmit() {
 		this.#emit_action_pending = false;
+	}
+
+	/**
+	 * @returns true -> I have no option generation running so you can do option generation, false -> I have option generation running so you can't do option generation
+	 */
+	isOptionGenerationAllowed() {
+		return !this.#block_option_generation_flag;
+	}
+
+	/**
+	 * Signal that an option generation is currently running
+	 */
+	setOptionGenerationRunning() {
+		this.#block_option_generation_flag = true;
+	}
+
+	/**
+	 * Signal that the option generation is finished
+	 */
+	setOptionGenerationNotRunning() {
+		this.#block_option_generation_flag = false;
+	}
+
+	/**
+	 * @returns true -> I have no planner running so you can do option generation, false -> I have planner running so you can't do option generation
+	 */
+	isPlannerFree() {
+		return !this.#block_option_generation_planning_flag;
+	}
+
+	/**
+	 * Signal that a planner is currently running
+	 */
+	setPlannerRunning() {
+		this.#block_option_generation_planning_flag = true;
+	}
+
+	/**
+	 * Signal that the planner has finished
+	 */
+	setPlannerNotRunning() {
+		this.#block_option_generation_planning_flag = false;
 	}
 
 	/**
