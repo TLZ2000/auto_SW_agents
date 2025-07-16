@@ -148,12 +148,7 @@ class Intention {
 export class IntentionRevisionReplace extends IntentionRevision {
 	async push(predicate) {
 		// Check if already queued
-<<<<<<< HEAD
-		const last = this.intention_queue[0];
-		//const last = this.intention_queue.at(this.intention_queue.length - 1);
-=======
 		const last = this.intention_queue.at(this.intention_queue.length - 1);
->>>>>>> RevertedTrade
 
 		if (last && last.predicate.join(" ") == predicate.join(" ")) {
 			return; // intention is already being achieved
@@ -162,10 +157,7 @@ export class IntentionRevisionReplace extends IntentionRevision {
 		console.log("IntentionRevisionReplace.push", predicate);
 		const intention = new Intention(this, predicate);
 		this.intention_queue.push(intention);
-<<<<<<< HEAD
-=======
 
->>>>>>> RevertedTrade
 		// Force current intention stop
 		if (last) {
 			last.stop();

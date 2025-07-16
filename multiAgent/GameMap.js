@@ -207,13 +207,6 @@ export class GameMap {
 		return this.#graph_map[x][y];
 	}
 
-<<<<<<< HEAD
-	getItem(x, y) {
-		return this.#raw.getItem(x, y);
-	}
-
-=======
->>>>>>> RevertedTrade
 	getWidth() {
 		return this.#raw.width;
 	}

@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-import { PddlProblem, Beliefset } from "@unitn-asa/pddl-client";
-=======
->>>>>>> RevertedTrade
 import { GameMap } from "./GameMap.js";
 import { Queue } from "./Queue.js";
 
@@ -10,23 +6,12 @@ export class BeliefSet {
 	#agent_memory = null;
 	#parcel_memory = null;
 	#me_memory = null;
-<<<<<<< HEAD
-=======
 	#pal_memory = null;
 	#parcels_to_ignore = null;
->>>>>>> RevertedTrade
 	#game_config = null;
 	#carried_parcels = null;
 	#time_map = null; // Timestamp of last visit to the tile
 	#agents_map = null;
-<<<<<<< HEAD
-	#parcels_map = null;
-	#belief_set_planning = null;
-	#emit_action_pending = false;
-	#block_option_generation_flag = false;
-	#block_option_generation_planning_flag = false;
-=======
->>>>>>> RevertedTrade
 
 	constructor() {
 		this.#agent_memory = new Map();
@@ -40,105 +25,6 @@ export class BeliefSet {
 			moves: 0,
 			msgId: 0,
 			token: null,
-<<<<<<< HEAD
-		};
-		this.#carried_parcels = new Map();
-		this.#time_map = [];
-		this.#agents_map = [];
-		this.#parcels_map = [];
-		this.#belief_set_planning = new Beliefset();
-	}
-
-	/**
-	 * Update the planning belief set with map information
-	 */
-	generatePlanningBeliefSetMap() {
-		// Add me info to planning belief set
-		this.#belief_set_planning.declare("me agent");
-
-		// Cycle the map
-		for (let x = 0; x < this.#game_map.getWidth(); x++) {
-			for (let y = 0; y < this.#game_map.getHeight(); y++) {
-				// Check if the tile in position [x,y] is walkable
-				if (this.#game_map.getItem(x, y) != 0) {
-					// If so, add it in the belief set
-					let tileName = "x" + x + "y" + y;
-					this.#belief_set_planning.declare("tile " + tileName);
-					this.#belief_set_planning.declare("free " + tileName);
-
-					// Check its neighbors
-					if (y - 1 >= 0 && this.#game_map.getItem(x, y - 1) != 0) {
-						// If cell has down walkable neighbor, add it to the belief set
-						this.#belief_set_planning.declare("down " + "x" + x + "y" + (y - 1) + " " + tileName);
-					}
-
-					if (y + 1 < this.#game_map.getHeight() && this.#game_map.getItem(x, y + 1) != 0) {
-						// If cell has up walkable neighbor, add it to the belief set
-						this.#belief_set_planning.declare("up " + "x" + x + "y" + (y + 1) + " " + tileName);
-					}
-
-					if (x - 1 >= 0 && this.#game_map.getItem(x - 1, y) != 0) {
-						// If cell has left walkable neighbor, add it to the belief set
-						this.#belief_set_planning.declare("left " + "x" + (x - 1) + "y" + y + " " + tileName);
-					}
-
-					if (x + 1 < this.#game_map.getWidth() && this.#game_map.getItem(x + 1, y) != 0) {
-						// If cell has right walkable neighbor, add it to the belief set
-						this.#belief_set_planning.declare("right " + "x" + (x + 1) + "y" + y + " " + tileName);
-					}
-				}
-			}
-		}
-	}
-
-	/**
-	 * Update the agent coordinates and the planning belief set
-	 * @param {Number} x - agent current x coordinate
-	 * @param {Number} y - agent current y coordinate
-	 */
-	updateMePosition(x, y) {
-		if (this.#me_memory.x != null && this.#me_memory.y != null) {
-			// Undeclare old agent position
-			this.#belief_set_planning.undeclare("at agent " + "x" + Math.round(this.#me_memory.x) + "y" + Math.round(this.#me_memory.y));
-
-			// Declare free old agent position
-			this.#belief_set_planning.declare("free " + "x" + Math.round(this.#me_memory.x) + "y" + Math.round(this.#me_memory.y));
-		}
-
-		// Undeclare free new agent position
-		this.#belief_set_planning.undeclare("free " + "x" + Math.round(x) + "y" + Math.round(y));
-
-		// Declare new agent position
-		this.#belief_set_planning.declare("at agent " + "x" + Math.round(x) + "y" + Math.round(y));
-
-		// Update agent coordinates
-		this.#me_memory.x = x;
-		this.#me_memory.y = y;
-	}
-
-	/**
-	 * Use planning belief set to compute PddlProblem, remove all the negative prepositions (they violate PDDL closed-world assumption) from the PddlProblem and return it
-	 * @param {Number} x - agent current x coordinate
-	 * @param {Number} y - agent current y coordinate
-	 * @return {String} pddlProblem
-	 */
-	getPDDLProblemString(x, y) {
-		let pddlProblem = new PddlProblem("deliveroo_go_to", this.#belief_set_planning.objects.join(" "), this.#belief_set_planning.toPddlString(), "and (at agent " + "x" + x + "y" + y + ")");
-		pddlProblem = pddlProblem.toPddlString();
-
-		// Remove all the undeclares from the problem file, otherwise the planning.domains service stop working after a while
-		let regEx = / \(not \((.+?)\)\)/g;
-		pddlProblem = pddlProblem.replace(regEx, "");
-		return pddlProblem;
-	}
-
-	/**
-	 * Initialize game_map, time_map, agents_map and parcels_map
-	 * @param {Number} width - width of the game map
-	 * @param {Number} height - height of the game map
-	 * @param {Array<Map>} tile - array containing the type of cells formatted as {x, y, type}
-	 */
-=======
 
 			//TODO: riguardare questi se servono
 			initialPathXPosition: undefined,
@@ -180,7 +66,6 @@ export class BeliefSet {
 		this.#agents_map = [];
 	}
 
->>>>>>> RevertedTrade
 	instantiateGameMap(width, height, tile) {
 		this.#game_map = new GameMap(width, height, tile);
 
@@ -193,21 +78,11 @@ export class BeliefSet {
 			}
 		}
 
-<<<<<<< HEAD
-		// Initialize matrix containing all the agents positions (0 -> no agent/parcel, 1 -> agent/parcel)
-		for (let x = 0; x < width; x++) {
-			this.#agents_map[x] = [];
-			this.#parcels_map[x] = [];
-			for (let y = 0; y < height; y++) {
-				this.#agents_map[x][y] = 0;
-				this.#parcels_map[x][y] = 0;
-=======
 		// Initialize matrix containing all the agents positions (0 -> no agent, 1 -> agent)
 		for (let x = 0; x < width; x++) {
 			this.#agents_map[x] = [];
 			for (let y = 0; y < height; y++) {
 				this.#agents_map[x][y] = 0;
->>>>>>> RevertedTrade
 			}
 		}
 	}
@@ -237,25 +112,10 @@ export class BeliefSet {
 		return this.#game_config.AGENTS_OBSERVATION_DISTANCE;
 	}
 
-<<<<<<< HEAD
-	/**
-	 * Compute the list of parcels that are carried by nobody and return it
-	 * @returns {Array} freeParcels
-	 */
-	getFreeParcels() {
-		let freeParcels = [];
-
-		// Cycle the parcels in my memory
-		for (const parcel of this.#parcel_memory.values()) {
-			// Check if the parcel is carried by someone
-			if (!parcel.carriedBy) {
-				// If not, add it to the list
-=======
 	getFreeParcels() {
 		let freeParcels = [];
 		for (const parcel of this.#parcel_memory.values()) {
 			if (!parcel.carriedBy) {
->>>>>>> RevertedTrade
 				freeParcels.push(parcel);
 			}
 		}
@@ -291,103 +151,6 @@ export class BeliefSet {
 		return this.#agents_map[x][y] == 1;
 	}
 
-<<<<<<< HEAD
-	setParcelAt(x, y) {
-		this.#parcels_map[x][y] = 1;
-	}
-
-	clearParcelAt(x, y) {
-		this.#parcels_map[x][y] = 0;
-	}
-
-	isParcelAt(x, y) {
-		return this.#parcels_map[x][y] == 1;
-	}
-
-	/**
-	 * Check if there are parcels it the tile where I am
-	 * @returns {Boolean}
-	 */
-	amIOnParcel() {
-		return this.isParcelAt(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y));
-	}
-
-	/**
-	 * Check if I am on a delivery tile
-	 * @returns {Boolean}
-	 */
-	amIOnDelivery() {
-		return this.#game_map.getItem(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y)) == 2;
-	}
-
-	amIHere(x, y) {
-		return x == Math.round(this.#me_memory.x) && y == Math.round(this.#me_memory.y);
-	}
-
-	/**
-	 * Ask permission to perform an emit action, the permission is given only if no other emit is pending
-	 * @returns {Boolean} true -> you can proceed with the emit, false -> you cannot proceed with the emit
-	 */
-	requireEmit() {
-		if (!this.#emit_action_pending) {
-			this.#emit_action_pending = true;
-			return true;
-		} else {
-			return false;
-		}
-	}
-
-	/**
-	 * Signal the ending of an emit action, allowing others to perform emits
-	 */
-	releaseEmit() {
-		this.#emit_action_pending = false;
-	}
-
-	/**
-	 * @returns {Boolean} true -> I have no option generation running so you can do option generation, false -> I have option generation running so you can't do option generation
-	 */
-	isOptionGenerationAllowed() {
-		return !this.#block_option_generation_flag;
-	}
-
-	/**
-	 * Signal that an option generation is currently running
-	 */
-	setOptionGenerationRunning() {
-		this.#block_option_generation_flag = true;
-	}
-
-	/**
-	 * Signal that the option generation is finished
-	 */
-	setOptionGenerationNotRunning() {
-		this.#block_option_generation_flag = false;
-	}
-
-	/**
-	 * @returns {Boolean} true -> I have no planner running so you can do option generation, false -> I have planner running so you can't do option generation
-	 */
-	isPlannerFree() {
-		return !this.#block_option_generation_planning_flag;
-	}
-
-	/**
-	 * Signal that a planner is currently running
-	 */
-	setPlannerRunning() {
-		this.#block_option_generation_planning_flag = true;
-	}
-
-	/**
-	 * Signal that the planner has finished
-	 */
-	setPlannerNotRunning() {
-		this.#block_option_generation_planning_flag = false;
-	}
-
-=======
->>>>>>> RevertedTrade
 	/**
 	 * Reset the internal map that represent the cells occupied by other agents (to 0, completely free)
 	 */
@@ -400,22 +163,9 @@ export class BeliefSet {
 		}
 	}
 
-<<<<<<< HEAD
-	/**
-	 * Reset the internal map that represent the cells where there are parcels (to 0, completely free)
-	 */
-	#resetParcelsMap() {
-		// Initialize matrix containing all the parcels positions (0 -> no parcels, 1 -> parcels)
-		for (let x = 0; x < this.#game_map.getWidth(); x++) {
-			for (let y = 0; y < this.#game_map.getHeight(); y++) {
-				this.clearParcelAt(x, y);
-			}
-		}
-=======
 	updateMePosition(x, y) {
 		this.#me_memory.x = x;
 		this.#me_memory.y = y;
->>>>>>> RevertedTrade
 	}
 
 	increaseMeMoves() {
@@ -437,24 +187,17 @@ export class BeliefSet {
 	onYouUpdate(id, name, x, y, score) {
 		this.#me_memory.id = id;
 		this.#me_memory.name = name;
-<<<<<<< HEAD
-		this.updateMePosition(x, y);
-=======
 		this.#me_memory.x = x;
 		this.#me_memory.y = y;
->>>>>>> RevertedTrade
 		this.#me_memory.score = score;
 
 		if (Number.isInteger(x) && Number.isInteger(y)) {
 			this.#updateTimeMap(Math.round(x), Math.round(y));
 		}
-<<<<<<< HEAD
-=======
 
 		//TODO add and implement
 		//sendPosition2Pal();
 		//reviseMemory(true);
->>>>>>> RevertedTrade
 	}
 
 	onAgentSensingUpdate(aa) {
@@ -465,25 +208,6 @@ export class BeliefSet {
 
 			// Check if agent already in set
 			if (this.#agent_memory.has(a.id)) {
-<<<<<<< HEAD
-				// If so
-
-				// Remove old position in agent map
-				let oldAgent = this.#agent_memory.get(a.id);
-				this.clearAgentAt(Math.round(oldAgent.x), Math.round(oldAgent.y));
-
-				// Declare free the old agent position
-				this.#belief_set_planning.declare("free " + "x" + Math.round(oldAgent.x) + "y" + Math.round(oldAgent.y));
-			}
-			// Update agent memory
-			this.#agent_memory.set(a.id, a);
-
-			// Update agent map
-			this.setAgentAt(Math.round(a.x), Math.round(a.y));
-
-			// Undeclare free the new agent position
-			this.#belief_set_planning.undeclare("free " + "x" + Math.round(a.x) + "y" + Math.round(a.y));
-=======
 				// If so, remove old position in agent map
 				this.clearAgentAt(Math.round(this.#agent_memory.get(a.id).x), Math.round(this.#agent_memory.get(a.id).y));
 			}
@@ -501,7 +225,6 @@ export class BeliefSet {
 				this.#pal_memory.x = Math.round(a.x);
 				this.#pal_memory.y = Math.round(a.y);
 			}
->>>>>>> RevertedTrade
 		});
 	}
 
@@ -509,11 +232,6 @@ export class BeliefSet {
 		// Reset carried parcels
 		this.#carried_parcels = new Map();
 
-<<<<<<< HEAD
-		this.#resetParcelsMap();
-
-=======
->>>>>>> RevertedTrade
 		// Add the sensed parcels to the parcel belief set
 		let now = Date.now();
 		for (const p of pp) {
@@ -525,14 +243,6 @@ export class BeliefSet {
 				// Push it in the carried parcels set
 				this.#carried_parcels.set(p.id, p);
 			}
-<<<<<<< HEAD
-
-			// Update parcel map only with the free parcels
-			if (!p.carriedBy) {
-				this.setParcelAt(Math.round(p.x), Math.round(p.y));
-			}
-=======
->>>>>>> RevertedTrade
 		}
 
 		// Remove carried parcels after delivery
@@ -543,33 +253,22 @@ export class BeliefSet {
 		}
 	}
 
-<<<<<<< HEAD
-	/**
-=======
 	amIHere(x, y) {
 		return x == Math.round(this.#me_memory.x) && y == Math.round(this.#me_memory.y);
 	}
 
 	/**
 	 * TODO vedere se considerare il pal
->>>>>>> RevertedTrade
 	 * Compute path from initialPos to finalPos using BFS
 	 *
 	 * @param {[int, int]} initialPos
 	 * @param {[int, int]} finalPos
-<<<<<<< HEAD
-	 * @returns path, undefined (if initialNode is undefined) or null (if path not existing)
-=======
 	 * @returns path or undefined if path not available
->>>>>>> RevertedTrade
 	 */
 	computePathBFS(initialPos, finalPos) {
 		let queue = new Queue();
 		let explored = new Set();
-<<<<<<< HEAD
-=======
 		let finalPath = undefined;
->>>>>>> RevertedTrade
 
 		let initialNode = this.#game_map.getGraphNode(initialPos[0], initialPos[1]);
 
@@ -648,10 +347,7 @@ export class BeliefSet {
 	}
 
 	/**
-<<<<<<< HEAD
-=======
 	 * TODO vedere se considerare il pal
->>>>>>> RevertedTrade
 	 * Compute the list of reachable spawn zones from the current agent's position
 	 * @returns {Array} list of tile items containing at most MAX_EXPLORABLE_SPAWN_CELLS spawn cells
 	 */
@@ -663,10 +359,7 @@ export class BeliefSet {
 		let initialNode = this.#game_map.getGraphNode(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y));
 
 		// Check if the initial node is undefined
-<<<<<<< HEAD
-=======
 		// TODO it should never be since I am in that node
->>>>>>> RevertedTrade
 		if (initialNode == undefined) {
 			return undefined;
 		}
@@ -743,24 +436,12 @@ export class BeliefSet {
 
 	/**
 	 * Randomly select a cell to explore using the "distance" criterion (distant cells are more probable)
-<<<<<<< HEAD
-	 * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "distance" criterion, or undefined if error
-	 */
-	distanceExplore() {
-		let suitableCells = this.#searchSuitableCellsBFS();
-
-		if (suitableCells == undefined) {
-			return undefined;
-		}
-
-=======
 	 * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "distance" criterion
 	 */
 	distanceExplore() {
 		// TODO controllare se undefined
 		let suitableCells = this.#searchSuitableCellsBFS();
 
->>>>>>> RevertedTrade
 		// Compute distances
 		let totalDistance = 0;
 		let randX = undefined;
@@ -797,18 +478,6 @@ export class BeliefSet {
 
 	/**
 	 * Randomly select a cell to explore using the "timed" criterion (cells explored long ago and near to the agent's current position are more probable)
-<<<<<<< HEAD
-	 * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "timed" criterion, or undefined if error
-	 */
-	timedExplore() {
-		// Explore only spawning zones
-		let suitableCells = this.#searchSuitableCellsBFS();
-
-		if (suitableCells == undefined) {
-			return undefined;
-		}
-
-=======
 	 * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "timed" criterion
 	 */
 	timedExplore() {
@@ -816,7 +485,6 @@ export class BeliefSet {
 		// Explore only spawning zones
 		let suitableCells = this.#searchSuitableCellsBFS();
 
->>>>>>> RevertedTrade
 		let tmp = [];
 		// Do not consider some specific cells
 		for (let i = 0; i < suitableCells.length; i++) {
@@ -896,11 +564,7 @@ export class BeliefSet {
 	}
 
 	/**
-<<<<<<< HEAD
-	 * Recursively explore the graph to update the time map
-=======
 	 * PRIVATE FUNCTION, recursively explore the graph to update the time map
->>>>>>> RevertedTrade
 	 * @param {GraphNode} node - currently explored node
 	 * @param {BigInt} time - current timestamp to set
 	 * @param {BigInt} remainingRange - remaining vision range
@@ -911,10 +575,7 @@ export class BeliefSet {
 			// Explore it
 			this.#time_map[node.x][node.y] = time;
 
-<<<<<<< HEAD
-=======
 			// Explore neighbors
->>>>>>> RevertedTrade
 			// Explore its neighbors
 			// Up
 			if (node.neighU != null) {
@@ -938,8 +599,6 @@ export class BeliefSet {
 		}
 	}
 
-<<<<<<< HEAD
-=======
 	/*
 	 * TODO sistemare
 	mergeTimeMaps(new_time) {
@@ -954,7 +613,6 @@ export class BeliefSet {
 	}
 	*/
 
->>>>>>> RevertedTrade
 	/**
 	 * Compute the path to the nearest delivery cell from a given position considering the other agents as blocking elements
 	 * @returns {Array} [0]: coordinates [x, y] of the nearest delivery (if non existing -> [null, null], if initial node undefined -> [undefined, undefined]); [1]: array containing path to nearest delivery from [x, y] cell (if non existing -> null, if initial node undefined -> undefined)
@@ -1045,11 +703,6 @@ export class BeliefSet {
 	 * Compute a revision of the agent's memory regarding parcels and agents positions
 	 */
 	reviseMemory() {
-<<<<<<< HEAD
-		let tmpParcels = new Map();
-		let tmpAgents = new Map();
-
-=======
 		let tmpParcels2Ignore = new Map();
 		let tmpParcels = new Map();
 		let tmpAgents = new Map();
@@ -1064,7 +717,6 @@ export class BeliefSet {
 		});
 		this.#parcels_to_ignore = tmpParcels2Ignore;
 
->>>>>>> RevertedTrade
 		// Revise memory information about parcels
 		this.#parcel_memory.forEach((parcel) => {
 			// Check if I see old parcels position
@@ -1092,24 +744,12 @@ export class BeliefSet {
 				if (Date.now() - agent.time < this.#game_config.INVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
 					// If so, preserve it
 					tmpAgents.set(agent.id, agent);
-<<<<<<< HEAD
-				} else {
-					// Declare free the agent that we will remove from set
-					this.#belief_set_planning.declare("free " + "x" + Math.round(agent.x) + "y" + Math.round(agent.y));
-=======
->>>>>>> RevertedTrade
 				}
 			} else {
 				// Check if I saw the agent (not in our vision range) recently
 				if (Date.now() - agent.time < this.#game_config.OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
 					// If so, preserve it
 					tmpAgents.set(agent.id, agent);
-<<<<<<< HEAD
-				} else {
-					// Declare free the agent that we will remove from set
-					this.#belief_set_planning.declare("free " + "x" + Math.round(agent.x) + "y" + Math.round(agent.y));
-=======
->>>>>>> RevertedTrade
 				}
 			}
 		});
@@ -1123,17 +763,6 @@ export class BeliefSet {
 		this.#agent_memory.forEach((agent) => {
 			this.setAgentAt(Math.round(agent.x), Math.round(agent.y));
 		});
-<<<<<<< HEAD
-
-		// Reset parcels map
-		this.#resetParcelsMap();
-
-		// Add the agents to the agent map
-		this.#parcel_memory.forEach((parcel) => {
-			this.setParcelAt(Math.round(parcel.x), Math.round(parcel.y));
-		});
-=======
->>>>>>> RevertedTrade
 	}
 
 	/**
