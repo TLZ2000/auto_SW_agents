@@ -29,18 +29,6 @@ export class BeliefSet {
 			moves: 0,
 			msgId: 0,
 			token: null,
-
-			//TODO: riguardare questi se servono
-			initialPathXPosition: undefined,
-			initialPathYPosition: undefined,
-			currentPath: undefined,
-			initialPathTime: null,
-			pendingOptionRequest: false,
-			pendingBumpOptionRequest: false,
-			pendingBumpRequest: false,
-			bumping: false,
-			stoppedIntention: null,
-			stopMovementAction: false,
 		};
 		this.#carried_parcels = new Map();
 		this.#time_map = [];
@@ -91,6 +79,11 @@ export class BeliefSet {
 		}
 	}
 
+	/**
+	 * Update the agent coordinates and the planning belief set
+	 * @param {Number} x - agent current x coordinate
+	 * @param {Number} y - agent current y coordinate
+	 */
 	updateMePosition(x, y) {
 		if (this.#me_memory.x != null && this.#me_memory.y != null) {
 			// Undeclare old agent position
@@ -111,6 +104,12 @@ export class BeliefSet {
 		this.#me_memory.y = y;
 	}
 
+	/**
+	 * Use planning belief set to compute PddlProblem, remove all the negative prepositions (they violate PDDL closed-world assumption) from the PddlProblem and return it
+	 * @param {Number} x - agent current x coordinate
+	 * @param {Number} y - agent current y coordinate
+	 * @return {String} pddlProblem
+	 */
 	getPDDLProblemString(x, y) {
 		let pddlProblem = new PddlProblem("deliveroo_go_to", this.#belief_set_planning.objects.join(" "), this.#belief_set_planning.toPddlString(), "and (at agent " + "x" + x + "y" + y + ")");
 		pddlProblem = pddlProblem.toPddlString();
@@ -121,6 +120,12 @@ export class BeliefSet {
 		return pddlProblem;
 	}
 
+	/**
+	 * Initialize game_map, time_map, agents_map and parcels_map
+	 * @param {Number} width - width of the game map
+	 * @param {Number} height - height of the game map
+	 * @param {Array<Map>} tile - array containing the type of cells formatted as {x, y, type}
+	 */
 	instantiateGameMap(width, height, tile) {
 		this.#game_map = new GameMap(width, height, tile);
 
@@ -169,10 +174,18 @@ export class BeliefSet {
 		return this.#game_config.AGENTS_OBSERVATION_DISTANCE;
 	}
 
+	/**
+	 * Compute the list of parcels that are carried by nobody and return it
+	 * @returns {Array} freeParcels
+	 */
 	getFreeParcels() {
 		let freeParcels = [];
+
+		// Cycle the parcels in my memory
 		for (const parcel of this.#parcel_memory.values()) {
+			// Check if the parcel is carried by someone
 			if (!parcel.carriedBy) {
+				// If not, add it to the list
 				freeParcels.push(parcel);
 			}
 		}
@@ -220,17 +233,29 @@ export class BeliefSet {
 		return this.#parcels_map[x][y] == 1;
 	}
 
+	/**
+	 * Check if there are parcels it the tile where I am
+	 * @returns {Boolean}
+	 */
 	amIOnParcel() {
 		return this.isParcelAt(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y));
 	}
 
+	/**
+	 * Check if I am on a delivery tile
+	 * @returns {Boolean}
+	 */
 	amIOnDelivery() {
 		return this.#game_map.getItem(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y)) == 2;
 	}
 
+	amIHere(x, y) {
+		return x == Math.round(this.#me_memory.x) && y == Math.round(this.#me_memory.y);
+	}
+
 	/**
 	 * Ask permission to perform an emit action, the permission is given only if no other emit is pending
-	 * @returns true -> you can proceed with the emit, false -> you cannot proceed with the emit
+	 * @returns {Boolean} true -> you can proceed with the emit, false -> you cannot proceed with the emit
 	 */
 	requireEmit() {
 		if (!this.#emit_action_pending) {
@@ -249,7 +274,7 @@ export class BeliefSet {
 	}
 
 	/**
-	 * @returns true -> I have no option generation running so you can do option generation, false -> I have option generation running so you can't do option generation
+	 * @returns {Boolean} true -> I have no option generation running so you can do option generation, false -> I have option generation running so you can't do option generation
 	 */
 	isOptionGenerationAllowed() {
 		return !this.#block_option_generation_flag;
@@ -270,7 +295,7 @@ export class BeliefSet {
 	}
 
 	/**
-	 * @returns true -> I have no planner running so you can do option generation, false -> I have planner running so you can't do option generation
+	 * @returns {Boolean} true -> I have no planner running so you can do option generation, false -> I have planner running so you can't do option generation
 	 */
 	isPlannerFree() {
 		return !this.#block_option_generation_planning_flag;
@@ -302,8 +327,11 @@ export class BeliefSet {
 		}
 	}
 
+	/**
+	 * Reset the internal map that represent the cells where there are parcels (to 0, completely free)
+	 */
 	#resetParcelsMap() {
-		// Initialize matrix containing all the agents positions (0 -> no agent, 1 -> agent)
+		// Initialize matrix containing all the parcels positions (0 -> no parcels, 1 -> parcels)
 		for (let x = 0; x < this.#game_map.getWidth(); x++) {
 			for (let y = 0; y < this.#game_map.getHeight(); y++) {
 				this.clearParcelAt(x, y);
@@ -336,9 +364,6 @@ export class BeliefSet {
 		if (Number.isInteger(x) && Number.isInteger(y)) {
 			this.#updateTimeMap(Math.round(x), Math.round(y));
 		}
-
-		//TODO add and implement
-		//reviseMemory(true);
 	}
 
 	onAgentSensingUpdate(aa) {
@@ -401,21 +426,16 @@ export class BeliefSet {
 		}
 	}
 
-	amIHere(x, y) {
-		return x == Math.round(this.#me_memory.x) && y == Math.round(this.#me_memory.y);
-	}
-
 	/**
 	 * Compute path from initialPos to finalPos using BFS
 	 *
 	 * @param {[int, int]} initialPos
 	 * @param {[int, int]} finalPos
-	 * @returns path or undefined if path not available
+	 * @returns path, undefined (if initialNode is undefined) or null (if path not existing)
 	 */
 	computePathBFS(initialPos, finalPos) {
 		let queue = new Queue();
 		let explored = new Set();
-		let finalPath = undefined;
 
 		let initialNode = this.#game_map.getGraphNode(initialPos[0], initialPos[1]);
 
@@ -710,7 +730,7 @@ export class BeliefSet {
 	}
 
 	/**
-	 * PRIVATE FUNCTION, recursively explore the graph to update the time map
+	 * Recursively explore the graph to update the time map
 	 * @param {GraphNode} node - currently explored node
 	 * @param {BigInt} time - current timestamp to set
 	 * @param {BigInt} remainingRange - remaining vision range
@@ -721,7 +741,6 @@ export class BeliefSet {
 			// Explore it
 			this.#time_map[node.x][node.y] = time;
 
-			// Explore neighbors
 			// Explore its neighbors
 			// Up
 			if (node.neighU != null) {
@@ -744,20 +763,6 @@ export class BeliefSet {
 			}
 		}
 	}
-
-	/*
-	 * TODO sistemare
-	mergeTimeMaps(new_time) {
-		// Cycle all the timestamps in my time map and, if the new_time has a timestamp more recent, update my timestamp
-		for (let x = 0; x < new_time.length; x++) {
-			for (let y = 0; y < new_time[x].length; y++) {
-				if (this.#raw.timeMap[x][y] < new_time[x][y]) {
-					this.#raw.timeMap[x][y] = new_time[x][y];
-				}
-			}
-		}
-	}
-	*/
 
 	/**
 	 * Compute the path to the nearest delivery cell from a given position considering the other agents as blocking elements
