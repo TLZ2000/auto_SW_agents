@@ -27,9 +27,12 @@ const MOVES_SCALE_FACTOR_NO_DECAY = 5; // Lower values mean I want to deliver mo
 
 const TIMED_EXPLORE = 0.99;
 const PLANNING_MOVE_PROB = 0.1;
+const OPTION_GENERATION_INTERVAL = 100;
+const MEMORY_REVISION_INTERVAL = 250;
 
 let block_option_generation_flag = false;
 let block_option_generation_planning_flag = false;
+let move_flag = false;
 
 //--------------------------------------------------------------------------------------------------------------
 
@@ -86,9 +89,9 @@ class BFSmove extends Plan {
 			let moved_vertically = undefined;
 
 			if (path[i] == "R") {
-				moved_horizontally = await client.emitMove("right");
+				moved_horizontally = await myEmitMove(path[i]);
 			} else if (path[i] == "L") {
-				moved_horizontally = await client.emitMove("left");
+				moved_horizontally = await myEmitMove(path[i]);
 			}
 
 			// Check if agent is carrying parcels
@@ -108,9 +111,9 @@ class BFSmove extends Plan {
 			if (this.stopped) throw ["stopped"]; // if stopped then quit
 
 			if (path[i] == "U") {
-				moved_vertically = await client.emitMove("up");
+				moved_vertically = await myEmitMove(path[i]);
 			} else if (path[i] == "D") {
-				moved_vertically = await client.emitMove("down");
+				moved_vertically = await myEmitMove(path[i]);
 			}
 
 			// If moved vertically
@@ -655,6 +658,26 @@ function getBestOption() {
 	}
 }
 
+async function myEmitMove(direction) {
+	let moved = undefined;
+	if (!move_flag) {
+		move_flag = true;
+		if (direction == "R") {
+			moved = await client.emitMove("right");
+		} else if (direction == "L") {
+			moved = await client.emitMove("left");
+		} else if (direction == "U") {
+			moved = await client.emitMove("up");
+		} else if (direction == "D") {
+			moved = await client.emitMove("down");
+		}
+		move_flag = false;
+	} else {
+		console.log("TOO FAST");
+	}
+	return moved;
+}
+
 /**
  * Generate all possible options, based on the current game state and configuration, perform option filtering and select the best possible option as current intention
  */
@@ -747,9 +770,9 @@ myAgent.addPlan(Explore);
 myAgent.addPlan(GoPickUp);
 myAgent.addPlan(GoDeliver);
 myAgent.addPlan(FollowPath);
-//myAgent.addPlan(BFSmove);
+myAgent.addPlan(BFSmove);
 //myAgent.addPlan(PDDLmove);
-myAgent.addPlan(Move);
+//myAgent.addPlan(Move);
 
 myAgent.loop();
 
@@ -791,12 +814,12 @@ await new Promise((res) => {
 
 		belief.instantiateGameConfig(config);
 
-		memoryRevisionLoop(500);
+		memoryRevisionLoop(MEMORY_REVISION_INTERVAL);
 		res();
 	});
 });
 
 while (true) {
-	await new Promise((res) => setTimeout(res, 500));
+	await new Promise((res) => setTimeout(res, OPTION_GENERATION_INTERVAL));
 	optionsGeneration();
 }
