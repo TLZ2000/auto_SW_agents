@@ -22,8 +22,8 @@ const PARCEL_WEIGHT_LOW = 10;
 const PARCEL_WEIGHT_MID = 5;
 const PARCEL_WEIGHT_HIGH = 2.5;
 
-const MOVES_SCALE_FACTOR = 30; // Lower values mean I want to deliver more often
-const MOVES_SCALE_FACTOR_NO_DECAY = 5; // Lower values mean I want to deliver more often
+const MOVES_SCALE_FACTOR = 100; // Lower values mean I want to deliver more often
+const MOVES_SCALE_FACTOR_NO_DECAY = 40; // Lower values mean I want to deliver more often
 
 const TIMED_EXPLORE = 0.99;
 const PLANNING_MOVE_PROB = 0.1;
@@ -126,6 +126,21 @@ class BFSmove extends Plan {
 			}
 
 			i++;
+			// If I am not at the final position already
+			if (i < path.length) {
+				// If I am on a parcel
+				if (belief.amIOnParcel()) {
+					// Then force a pickup because it is free
+					await myEmitPickUp();
+				}
+
+				console.log("AM I ON PARCEL " + belief.amIOnDelivery() + "AM I CARRING " + belief.getCarriedParcels().size);
+				// If I am on a deliver and I am carrying parcels
+				if (belief.amIOnDelivery() && belief.getCarriedParcels().size > 0) {
+					// Then deliver the parcels because it is free
+					await myEmitPutDown();
+				}
+			}
 		}
 		return true;
 	}
@@ -197,6 +212,20 @@ class FollowPath extends Plan {
 			}
 
 			i++;
+			// If I am not at the final position already
+			if (i < path.length) {
+				// If I am on a parcel
+				if (belief.amIOnParcel()) {
+					// Then force a pickup because it is free
+					await myEmitPickUp();
+				}
+
+				// If I am on a deliver and I am carrying parcels
+				if (belief.amIOnDelivery() && belief.getCarriedParcels().size > 0) {
+					// Then deliver the parcels because it is free
+					await myEmitPutDown();
+				}
+			}
 		}
 		return true;
 	}
@@ -235,8 +264,6 @@ class GoDeliver extends Plan {
 		await this.subIntention(["follow_path", path], myAgent.getPlanLibrary());
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		await myEmitPutDown();
-		belief.resetMeMoves();
-		belief.resetCarriedParcels();
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		return true;
 	}
@@ -329,6 +356,20 @@ class PDDLmove extends Plan {
 			}
 
 			i++;
+			// If I am not at the final position already
+			if (i < path.length) {
+				// If I am on a parcel
+				if (belief.amIOnParcel()) {
+					// Then force a pickup because it is free
+					await myEmitPickUp();
+				}
+
+				// If I am on a deliver and I am carrying parcels
+				if (belief.amIOnDelivery() && belief.getCarriedParcels().size > 0) {
+					// Then deliver the parcels because it is free
+					await myEmitPutDown();
+				}
+			}
 		}
 		return true;
 	}
@@ -463,6 +504,20 @@ class Move extends Plan {
 			}
 
 			i++;
+			// If I am not at the final position already
+			if (i < path.length) {
+				// If I am on a parcel
+				if (belief.amIOnParcel()) {
+					// Then force a pickup because it is free
+					await myEmitPickUp();
+				}
+
+				// If I am on a deliver and I am carrying parcels
+				if (belief.amIOnDelivery() && belief.getCarriedParcels().size > 0) {
+					// Then deliver the parcels because it is free
+					await myEmitPutDown();
+				}
+			}
 		}
 		return true;
 	}
@@ -652,6 +707,8 @@ async function myEmitPutDown() {
 	let pick = undefined;
 	if (belief.requireEmit()) {
 		pick = await client.emitPutdown();
+		belief.resetMeMoves();
+		belief.resetCarriedParcels();
 		belief.releaseEmit();
 	} else {
 		console.log("TOO FAST");

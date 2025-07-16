@@ -11,6 +11,7 @@ export class BeliefSet {
 	#carried_parcels = null;
 	#time_map = null; // Timestamp of last visit to the tile
 	#agents_map = null;
+	#parcels_map = null;
 	#belief_set_planning = null;
 	#emit_action_pending = false;
 	#block_option_generation_flag = false;
@@ -44,6 +45,7 @@ export class BeliefSet {
 		this.#carried_parcels = new Map();
 		this.#time_map = [];
 		this.#agents_map = [];
+		this.#parcels_map = [];
 		this.#belief_set_planning = new Beliefset();
 	}
 
@@ -131,11 +133,13 @@ export class BeliefSet {
 			}
 		}
 
-		// Initialize matrix containing all the agents positions (0 -> no agent, 1 -> agent)
+		// Initialize matrix containing all the agents positions (0 -> no agent/parcel, 1 -> agent/parcel)
 		for (let x = 0; x < width; x++) {
 			this.#agents_map[x] = [];
+			this.#parcels_map[x] = [];
 			for (let y = 0; y < height; y++) {
 				this.#agents_map[x][y] = 0;
+				this.#parcels_map[x][y] = 0;
 			}
 		}
 	}
@@ -202,6 +206,26 @@ export class BeliefSet {
 
 	isAgentAt(x, y) {
 		return this.#agents_map[x][y] == 1;
+	}
+
+	setParcelAt(x, y) {
+		this.#parcels_map[x][y] = 1;
+	}
+
+	clearParcelAt(x, y) {
+		this.#parcels_map[x][y] = 0;
+	}
+
+	isParcelAt(x, y) {
+		return this.#parcels_map[x][y] == 1;
+	}
+
+	amIOnParcel() {
+		return this.isParcelAt(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y));
+	}
+
+	amIOnDelivery() {
+		return this.#game_map.getItem(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y)) == 2;
 	}
 
 	/**
@@ -278,6 +302,15 @@ export class BeliefSet {
 		}
 	}
 
+	#resetParcelsMap() {
+		// Initialize matrix containing all the agents positions (0 -> no agent, 1 -> agent)
+		for (let x = 0; x < this.#game_map.getWidth(); x++) {
+			for (let y = 0; y < this.#game_map.getHeight(); y++) {
+				this.clearParcelAt(x, y);
+			}
+		}
+	}
+
 	increaseMeMoves() {
 		this.#me_memory.moves += 1;
 	}
@@ -340,6 +373,8 @@ export class BeliefSet {
 		// Reset carried parcels
 		this.#carried_parcels = new Map();
 
+		this.#resetParcelsMap();
+
 		// Add the sensed parcels to the parcel belief set
 		let now = Date.now();
 		for (const p of pp) {
@@ -350,6 +385,11 @@ export class BeliefSet {
 			if (p.carriedBy == this.#me_memory.id) {
 				// Push it in the carried parcels set
 				this.#carried_parcels.set(p.id, p);
+			}
+
+			// Update parcel map only with the free parcels
+			if (!p.carriedBy) {
+				this.setParcelAt(Math.round(p.x), Math.round(p.y));
 			}
 		}
 
@@ -863,6 +903,14 @@ export class BeliefSet {
 		// Add the agents to the agent map
 		this.#agent_memory.forEach((agent) => {
 			this.setAgentAt(Math.round(agent.x), Math.round(agent.y));
+		});
+
+		// Reset parcels map
+		this.#resetParcelsMap();
+
+		// Add the agents to the agent map
+		this.#parcel_memory.forEach((parcel) => {
+			this.setParcelAt(Math.round(parcel.x), Math.round(parcel.y));
 		});
 	}
 
