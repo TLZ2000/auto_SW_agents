@@ -26,7 +26,7 @@ const MOVES_SCALE_FACTOR = 100; // Lower values mean I want to deliver more ofte
 const MOVES_SCALE_FACTOR_NO_DECAY = 40; // Lower values mean I want to deliver more often
 
 const TIMED_EXPLORE = 0.99;
-const PLANNING_MOVE_PROB = 0.1;
+const PLANNING_MOVE_PROB = 0.05;
 const OPTION_GENERATION_INTERVAL = 50;
 const MEMORY_REVISION_INTERVAL = 250;
 
@@ -134,7 +134,6 @@ class BFSmove extends Plan {
 					await myEmitPickUp();
 				}
 
-				console.log("AM I ON PARCEL " + belief.amIOnDelivery() + "AM I CARRING " + belief.getCarriedParcels().size);
 				// If I am on a deliver and I am carrying parcels
 				if (belief.amIOnDelivery() && belief.getCarriedParcels().size > 0) {
 					// Then deliver the parcels because it is free
@@ -390,11 +389,9 @@ class Move extends Plan {
 
 		// Use the random value to choose to compute the path whether with BFS or Planning
 		if (random > PLANNING_MOVE_PROB) {
-			console.log("Path computed with BFS");
 			// Use the BFS
 			path = belief.pathFromMeTo(x, y);
 		} else {
-			console.log("Path computed with Planning");
 			// Use the Planning
 
 			// Define problem
@@ -437,9 +434,6 @@ class Move extends Plan {
 				}
 			}
 		}
-		console.log("MY POSITION: " + belief.getMePosition());
-		console.log("GOTO POSITION: " + [x, y]);
-		console.log("PATH: " + path);
 
 		// If no path applicable, fail the intention
 		if (path == undefined || path == null) {
@@ -460,9 +454,6 @@ class Move extends Plan {
 				moved_horizontally = await myEmitMove(path[i]);
 			}
 
-			console.log("MOVED HORIZONTALLY: \n	");
-			console.log(moved_horizontally);
-
 			// Check if agent is carrying parcels
 			let carriedParcels = belief.getCarriedParcels();
 
@@ -482,9 +473,6 @@ class Move extends Plan {
 			if (path[i] == "U" || path[i] == "D") {
 				moved_vertically = await myEmitMove(path[i]);
 			}
-
-			console.log("MOVED VERTICALLY: \n	");
-			console.log(moved_vertically);
 
 			// If moved vertically
 			if (moved_vertically) {
@@ -537,6 +525,10 @@ function readFile(path) {
 	});
 }
 
+/**
+ * Consider all the pickup options and return the one with highest reward
+ * * @returns {Array} bestOption containing specifications of best pickup option, null if no pickup option exists
+ */
 function getBestPickupOption() {
 	const options = [];
 
@@ -555,7 +547,7 @@ function getBestPickupOption() {
 	});
 
 	// Options filtering
-	let bestOption = undefined;
+	let bestOption = null;
 	let maxExpectedScore = 0;
 	let minDistance = 0;
 
@@ -586,9 +578,13 @@ function getBestPickupOption() {
 	return bestOption;
 }
 
+/**
+ * Find and return the nearest delivery option
+ * @returns {Array} deliveryOption containing specifications of nearest delivery option, null if no delivery option exists
+ */
 function getDeliveryOption() {
 	// Define a delivery option
-	let deliveryOption = undefined;
+	let deliveryOption = null;
 
 	// Check if we are carrying parcels, so it makes sense to deliver them
 	if (belief.getCarriedParcels().size > 0) {
@@ -610,17 +606,21 @@ function getDeliveryOption() {
 		return deliveryOption;
 	}
 	// Otherwise, it means that I already delivered the parcels, so there is no point in returning a delivery option
-	return undefined;
+	return null;
 }
 
+/**
+ * Find and return the best option between go_pick_up and go_deliver
+ * @returns {Array} option containing specifications of best option, null if no option exists
+ */
 function getBestOption() {
 	let bestPickupOption = getBestPickupOption();
 
 	let deliveryOption = getDeliveryOption();
 
 	// Select the deliver option or pickup option (aka. best_option) based on the highest expected reward
-	if (bestPickupOption != undefined) {
-		if (deliveryOption != undefined) {
+	if (bestPickupOption != null) {
+		if (deliveryOption != null) {
 			// If there is a possible pickup and also a possible deliver, then check the highest reward
 			if (bestPickupOption[4] < deliveryOption[1]) {
 				// If the reward of the delivery option is greater, then choose it
@@ -635,15 +635,20 @@ function getBestOption() {
 		}
 	} else {
 		// If I have a deliver option but no pickup, then choose the delivery option
-		if (deliveryOption != undefined) {
+		if (deliveryOption != null) {
 			return deliveryOption;
 		} else {
 			// If I have no delivery option and no pickup option, I will select the explore later
-			return undefined;
+			return null;
 		}
 	}
 }
 
+/**
+ * emitMove wrapper to force a single emit action execution in parallel
+ * @param direction - direction to move
+ * @returns output of emitMove
+ */
 async function myEmitMove(direction) {
 	let moved = undefined;
 	if (belief.requireEmit()) {
@@ -663,6 +668,10 @@ async function myEmitMove(direction) {
 	return moved;
 }
 
+/**
+ * emitPickup wrapper to force a single emit action execution in parallel
+ * @returns output of emitPickup
+ */
 async function myEmitPickUp() {
 	let pick = undefined;
 	if (belief.requireEmit()) {
@@ -674,6 +683,10 @@ async function myEmitPickUp() {
 	return pick;
 }
 
+/**
+ * emitPutdown wrapper to force a single emit action execution in parallel
+ * @returns output of emitPutdown
+ */
 async function myEmitPutDown() {
 	let pick = undefined;
 	if (belief.requireEmit()) {
@@ -762,6 +775,10 @@ function optionsGeneration() {
 	}
 }
 
+/**
+ * Call the reviseMemory function every time milliseconds
+ * @param time - time in milliseconds
+ */
 async function memoryRevisionLoop(time) {
 	while (true) {
 		await new Promise((res) => setTimeout(res, time));
@@ -775,13 +792,14 @@ const client = new DeliverooApi(SERVER_ADDRS, AGENT_TOKEN);
 const belief = new BeliefSet();
 const myAgent = new IntentionRevisionReplace();
 
+// Add plans to the plan library
 myAgent.addPlan(Explore);
 myAgent.addPlan(GoPickUp);
 myAgent.addPlan(GoDeliver);
 myAgent.addPlan(FollowPath);
-myAgent.addPlan(BFSmove);
+//myAgent.addPlan(BFSmove);
 //myAgent.addPlan(PDDLmove);
-//myAgent.addPlan(Move);
+myAgent.addPlan(Move);
 
 myAgent.loop();
 
@@ -796,8 +814,6 @@ client.onAgentsSensing(async (aa) => {
 client.onYou(({ id, name, x, y, score }) => {
 	belief.onYouUpdate(id, name, x, y, score);
 });
-
-myAgent.loop();
 
 await new Promise((res) => {
 	// Get the map information
