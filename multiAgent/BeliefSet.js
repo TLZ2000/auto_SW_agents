@@ -293,7 +293,7 @@ export class BeliefSet {
 		this.#me_memory.score = score;
 
 		if (Number.isInteger(x) && Number.isInteger(y)) {
-			this.#updateTimeMap(Math.round(x), Math.round(y));
+			this.#updateTimeMap(x, y);
 		}
 	}
 
@@ -992,5 +992,10 @@ export class BeliefSet {
 		// Update pal position
 		this.#pal_memory.x = palX;
 		this.#pal_memory.y = palY;
+
+		// Update time map based on pal position
+		if (Number.isInteger(palX) && Number.isInteger(palY)) {
+			this.#updateTimeMap(palX, palY);
+		}
 	}
 }
