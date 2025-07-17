@@ -1,8 +1,3 @@
-import { DeliverooApi } from "@unitn-asa/deliveroo-js-client";
-
-const MEMORY_REVISION_TIMER = 10000;
-const MEMORY_SHARE_TIMER = 1500;
-const MEMORY_REVISION_PARCELS2IGNORE = 5000;
 const RESTORE_OPTION_GENERATION_SCALE_FACTOR = 8;
 
 /**
@@ -186,36 +181,6 @@ async function askPalBump(message) {
 	return response;
 }
 
-async function askPalOption(message) {
-	client
-		.emitAsk(me.multiAgent_palID, { type: "MSG_optionSelection", content: JSON.stringify(message) })
-		.then((response) => {
-			if (response == true) {
-				// If the pal is OK with my selection, then I push it to my intention
-				myAgent.push(message);
-				me.pendingOptionRequest = false;
-			} else {
-				// If the pal is NOT OK with my selection, I must invalidate it
-				switch (message[0]) {
-					case "go_pick_up":
-						// Add the parcel to the set of parcels to ignore
-						me.parcels2Ignore.set(message[3], Date.now());
-						me.pendingOptionRequest = false;
-						optionsGeneration();
-						break;
-					case "go_deliver":
-						// TODO: dopo un po di tempo agente 1 risponde timeout e finisce qui
-						console.log("Deliver refused somehow?!?");
-						me.pendingOptionRequest = false;
-						break;
-				}
-			}
-		})
-		.catch((error) => {
-			console.error("Error during askPalOption:", error);
-		});
-}
-
 /**
  * Check if the cells adjacents to me are free to walk to
  * @returns {Array} list containing directions of free cells (U, D, R, L), empty list if no free cells
@@ -275,14 +240,6 @@ function computeMovementDirection(x, y) {
 	return direction;
 }
 
-function matrixToJSON(mat) {
-	return JSON.stringify(mat);
-}
-
-function JSONToMatrix(json) {
-	return JSON.parse(json);
-}
-
 // ---------------------------------------------------------------------------------------------------------------
 // ===============================================================================================================
 // ---------------------------------------------------------------------------------------------------------------
@@ -299,35 +256,6 @@ client.onMsg(async (id, name, msg, reply) => {
 
 	// Manage the message content based on the message type
 	switch (msg.type) {
-		case "MSG_optionSelection":
-			let palOption = JSON.parse(msg.content);
-			if (reply) {
-				switch (palOption[0]) {
-					case "go_pick_up":
-						console.log(palOption);
-
-						// Check if I should refuse that pickup action
-						let currentIntention = myAgent.getCurrentIntention();
-
-						console.log(currentIntention);
-
-						// If I have some intention and I am picking up that parcel with higher reward
-						if (currentIntention != undefined && currentIntention[0] == "go_pick_up" && currentIntention[3] == palOption[3] && currentIntention[4] > palOption[4]) {
-							// This parcel is MINE
-							reply(false);
-						} else {
-							// The pal can have that parcel
-							reply(true);
-						}
-						break;
-					case "go_deliver":
-						// I have no reason to refuse a deliver
-						reply(true);
-						break;
-				}
-			}
-			break;
-
 		case "MSG_pathSelection":
 			let tmp = JSON.parse(msg.content);
 			let palPath = tmp.path;
@@ -687,10 +615,3 @@ client.onMsg(async (id, name, msg, reply) => {
 		}
 	} */
 });
-
-client.onParcelsSensing(optionsGeneration);
-client.onAgentsSensing(optionsGeneration);
-
-memoryRevisionLoop();
-
-memoryShareLoop();
