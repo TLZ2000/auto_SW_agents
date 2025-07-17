@@ -186,14 +186,6 @@ async function askPalBump(message) {
 	return response;
 }
 
-/**
- * Send to pal my updated position info
- */
-async function sendPosition2Pal() {
-	me.multiAgent_myMessageID = me.multiAgent_myMessageID + 1;
-	await client.emitSay(me.multiAgent_palID, { type: "MSG_positionUpdate", content: JSON.stringify({ x: me.x, y: me.y, msgID: me.multiAgent_myMessageID }) });
-}
-
 async function askPalOption(message) {
 	client
 		.emitAsk(me.multiAgent_palID, { type: "MSG_optionSelection", content: JSON.stringify(message) })
@@ -283,61 +275,12 @@ function computeMovementDirection(x, y) {
 	return direction;
 }
 
-function mapToJSON(map) {
-	return JSON.stringify(Object.fromEntries(map));
-}
-
-function JSONToMap(json) {
-	return new Map(Object.entries(JSON.parse(json)));
-}
-
 function matrixToJSON(mat) {
 	return JSON.stringify(mat);
 }
 
 function JSONToMatrix(json) {
 	return JSON.parse(json);
-}
-
-async function memoryRevisionLoop() {
-	while (true) {
-		await new Promise((res) => setTimeout(res, MEMORY_REVISION_TIMER));
-		reviseMemory(false);
-	}
-}
-
-async function memoryShareLoop() {
-	while (true) {
-		await new Promise((res) => setTimeout(res, MEMORY_SHARE_TIMER));
-
-		// Send the parcels in the current belief set to the other agent in JSON format
-		await client.emitSay(me.multiAgent_palID, {
-			type: "MSG_parcelSensing",
-			content: mapToJSON(parcels),
-		});
-
-		// Send the agents in the current belief set to the other agent in JSON format
-		await client.emitSay(me.multiAgent_palID, {
-			type: "MSG_agentSensing",
-			content: mapToJSON(agents),
-		});
-
-		// Send the current me information to the other agent in JSON format
-		if (me.x != null && me.y != null) {
-			let map = new Map();
-			map.set(me.id, { id: me.id, x: me.x, y: me.y });
-			await client.emitSay(me.multiAgent_palID, {
-				type: "MSG_agentInfo",
-				content: mapToJSON(map),
-			});
-		}
-
-		// Send the agents timestamp map to the other agent in JSON format
-		await client.emitSay(me.multiAgent_palID, {
-			type: "MSG_timeMap",
-			content: matrixToJSON(grafo.gameMap.timeMap),
-		});
-	}
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -356,75 +299,6 @@ client.onMsg(async (id, name, msg, reply) => {
 
 	// Manage the message content based on the message type
 	switch (msg.type) {
-		case "MSG_parcelSensing":
-			// Reconstruct parcel map
-			let parcels_map = JSONToMap(msg.content);
-
-			// Cycle all the reconstructed parcels
-			parcels_map.forEach((p) => {
-				// Check if the parcel is already in my memory
-				if (parcels.has(p.id)) {
-					// If so, check if the received parcel information is newer than the parcel information in my memory
-					if (parcels.get(p.id).time < p.time) {
-						// If so, update my memory
-						parcels.set(p.id, p);
-					}
-				} else {
-					// If not in memory, add it
-					parcels.set(p.id, p);
-				}
-			});
-			break;
-		case "MSG_agentSensing":
-			// Reconstruct agent map
-			let agents_map = JSONToMap(msg.content);
-
-			// Cycle all the reconstructed agents
-			agents_map.forEach((a) => {
-				// Check if the agent is already in my memory
-				if (agents.has(a.id)) {
-					// If so, check if the received agent information is newer than the agent information in my memory
-					if (agents.get(a.id).time < a.time) {
-						// If so, update my memory
-						agents.set(a.id, a);
-					}
-				} else {
-					// If not in memory, add it if that agent is no me
-					if (me.id != a.id) {
-						agents.set(a.id, a);
-					}
-				}
-			});
-			break;
-
-		case "MSG_agentInfo":
-			// Reconstruct other agent map
-			let agent_map = JSONToMap(msg.content).get(me.multiAgent_palID);
-			me.multiAgent_palX = Math.round(agent_map.x);
-			me.multiAgent_palY = Math.round(agent_map.y);
-
-			agent_map.time = Date.now();
-			// Add other agent to my memory
-			agents.set(agent_map.id, agent_map);
-			break;
-
-		case "MSG_timeMap":
-			// Reconstruct other agent time map
-			let time_map = JSONToMatrix(msg.content);
-			grafo.mergeTimeMaps(time_map);
-			break;
-
-		case "MSG_carryingPKG":
-			// Reconstruct the parcels carried by the pal
-			let carriedParcels = JSON.parse(msg.content);
-			carriedParcels.forEach((p) => {
-				parcels.set(p.id, p);
-			});
-
-			// Schedule a revise memory
-			checkMemory = true;
-			break;
-
 		case "MSG_optionSelection":
 			let palOption = JSON.parse(msg.content);
 			if (reply) {
@@ -548,20 +422,6 @@ client.onMsg(async (id, name, msg, reply) => {
 
 			// If we are here, we are not bumping, then the path is ok
 			reply({ outcome: true });
-			break;
-
-		case "MSG_positionUpdate":
-			// Recover message content
-			let palX = JSON.parse(msg.content).x;
-			let palY = JSON.parse(msg.content).y;
-			let palID = JSON.parse(msg.content).msgID;
-
-			// Verify message validity
-			if (me.multiAgent_palMessageID < palID) {
-				me.multiAgent_palMessageID = palID;
-				me.multiAgent_palX = Math.round(palX);
-				me.multiAgent_palY = Math.round(palY);
-			}
 			break;
 
 		case "MSG_bumpRequest":

@@ -36,6 +36,7 @@ export class BeliefSet {
 			score: undefined,
 			moves: 0,
 			token: undefined,
+			currentIntention: undefined,
 		};
 		this.#carried_parcels = new Map();
 		this.#pal_carried_parcels = new Map();
@@ -1015,6 +1016,10 @@ export class BeliefSet {
 		return this.#pal_memory.id;
 	}
 
+	getPalCurrentIntention() {
+		return this.#pal_memory.currentIntention;
+	}
+
 	#mapToJSON(map) {
 		return JSON.stringify(Object.fromEntries(map));
 	}
@@ -1101,5 +1106,10 @@ export class BeliefSet {
 				}
 			}
 		});
+	}
+
+	messageHandler_currentIntention(message) {
+		// Save pal current intention
+		this.#pal_memory.currentIntention = message;
 	}
 }

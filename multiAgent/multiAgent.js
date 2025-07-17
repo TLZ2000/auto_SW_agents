@@ -287,8 +287,8 @@ function getBestPickupOption() {
 		let tmpReward = belief.expectedRewardCarriedAndPickupMe(parcel);
 		let tmpPalReward = belief.expectedRewardCarriedAndPickupPal(parcel);
 
-		// Push the pickup option only if my reward is higher than the pal, or same reward and smaller distance
-		if (tmpReward[0] > tmpPalReward[0] || (tmpReward[0] == tmpPalReward[0] && tmpReward[1] < tmpPalReward[1])) {
+		// Push the pickup option only if my reward is higher than the pal, or same reward and smaller distance, or the pal intention is to deliver (it ignores the parcel)
+		if (tmpReward[0] > tmpPalReward[0] || (tmpReward[0] == tmpPalReward[0] && tmpReward[1] < tmpPalReward[1]) || belief.getPalCurrentIntention() == "go_deliver") {
 			options.push([
 				"go_pick_up",
 				parcel.x, // X coord
@@ -515,6 +515,7 @@ function optionsGeneration() {
 			// Check if I should push
 			if (push) {
 				myAgent.push(bestOption);
+				myEmitSay("MSG_currentIntention", bestOption[0]);
 			}
 		} else {
 			// If I do not have a valid best option, then explore
@@ -525,7 +526,9 @@ function optionsGeneration() {
 				// Explore distant tiles
 				myAgent.push(["explore", "distance"]);
 			}
+			myEmitSay("MSG_currentIntention", "explore");
 		}
+
 		belief.setOptionGenerationNotRunning();
 	}
 }
@@ -627,6 +630,9 @@ client.onMsg(async (id, name, msg, reply) => {
 			break;
 		case "MSG_memoryShare":
 			belief.messageHandler_memoryShare(msg.content);
+			break;
+		case "MSG_currentIntention":
+			belief.messageHandler_currentIntention(msg.content);
 			break;
 	}
 });
