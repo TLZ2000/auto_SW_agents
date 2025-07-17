@@ -7,65 +7,79 @@ export class BeliefSet {
 	#parcel_memory = null;
 	#me_memory = null;
 	#pal_memory = null;
-	#parcels_to_ignore = null;
 	#game_config = null;
 	#carried_parcels = null;
 	#time_map = null; // Timestamp of last visit to the tile
 	#agents_map = null;
+	#parcels_map = null;
+	#emit_action_pending = false;
+	#block_option_generation_flag = false;
 
 	constructor() {
 		this.#agent_memory = new Map();
 		this.#parcel_memory = new Map();
 		this.#me_memory = {
-			id: null,
-			name: null,
-			x: null,
-			y: null,
-			score: null,
+			id: undefined,
+			name: undefined,
+			x: undefined,
+			y: undefined,
+			score: undefined,
 			moves: 0,
 			msgId: 0,
-			token: null,
-
-			//TODO: riguardare questi se servono
-			initialPathXPosition: undefined,
-			initialPathYPosition: undefined,
-			currentPath: undefined,
-			initialPathTime: null,
-			pendingOptionRequest: false,
-			pendingBumpOptionRequest: false,
-			pendingBumpRequest: false,
-			bumping: false,
-			stoppedIntention: null,
-			stopMovementAction: false,
+			token: undefined,
 		};
 		this.#pal_memory = {
-			id: null,
-			name: null,
-			x: null,
-			y: null,
-			score: null,
+			id: undefined,
+			name: undefined,
+			x: undefined,
+			y: undefined,
+			score: undefined,
 			moves: 0,
 			msgId: 0,
-			token: null,
-
-			//TODO: riguardare questi se servono
-			initialPathXPosition: undefined,
-			initialPathYPosition: undefined,
-			currentPath: undefined,
-			initialPathTime: null,
-			pendingOptionRequest: false,
-			pendingBumpOptionRequest: false,
-			pendingBumpRequest: false,
-			bumping: false,
-			stoppedIntention: null,
-			stopMovementAction: false,
+			token: undefined,
 		};
-		this.#parcels_to_ignore = new Map();
 		this.#carried_parcels = new Map();
 		this.#time_map = [];
 		this.#agents_map = [];
+		this.#parcels_map = [];
 	}
 
+	/**
+	 * Set identification agent information
+	 * @param {String} myId - my id
+	 * @param {String} myToken - my token
+	 * @param {String} palId - pal id
+	 * @param {String} palToken - pal token
+	 */
+	setAgentsInfo(myId, myToken, palId, palToken) {
+		this.#me_memory.id = myId;
+		this.#me_memory.token = myToken;
+
+		this.#pal_memory.id = palId;
+		this.#pal_memory.token = palToken;
+	}
+
+	getMyToken() {
+		return this.#me_memory.token;
+	}
+
+	/**
+	 * Update the agent coordinates
+	 * @param {Number} x - agent current x coordinate
+	 * @param {Number} y - agent current y coordinate
+	 */
+	updateMePosition(x, y) {
+		// Update agent coordinates
+		this.#me_memory.x = x;
+		this.#me_memory.y = y;
+	}
+
+	/**
+	 * Initialize game_map, time_map, agents_map and parcels_map
+	 * @param {Number} width - width of the game map
+	 * @param {Number} height - height of the game map
+	 * @param {Array<Map>} tile - array containing the type of cells formatted as {x, y, type}
+	 */
 	instantiateGameMap(width, height, tile) {
 		this.#game_map = new GameMap(width, height, tile);
 
@@ -78,11 +92,13 @@ export class BeliefSet {
 			}
 		}
 
-		// Initialize matrix containing all the agents positions (0 -> no agent, 1 -> agent)
+		// Initialize matrix containing all the agents positions (0 -> no agent/parcel, 1 -> agent/parcel)
 		for (let x = 0; x < width; x++) {
 			this.#agents_map[x] = [];
+			this.#parcels_map[x] = [];
 			for (let y = 0; y < height; y++) {
 				this.#agents_map[x][y] = 0;
+				this.#parcels_map[x][y] = 0;
 			}
 		}
 	}
@@ -112,10 +128,18 @@ export class BeliefSet {
 		return this.#game_config.AGENTS_OBSERVATION_DISTANCE;
 	}
 
+	/**
+	 * Compute the list of parcels that are carried by nobody and return it
+	 * @returns {Array} freeParcels
+	 */
 	getFreeParcels() {
 		let freeParcels = [];
+
+		// Cycle the parcels in my memory
 		for (const parcel of this.#parcel_memory.values()) {
+			// Check if the parcel is carried by someone
 			if (!parcel.carriedBy) {
+				// If not, add it to the list
 				freeParcels.push(parcel);
 			}
 		}
@@ -151,6 +175,79 @@ export class BeliefSet {
 		return this.#agents_map[x][y] == 1;
 	}
 
+	setParcelAt(x, y) {
+		this.#parcels_map[x][y] = 1;
+	}
+
+	clearParcelAt(x, y) {
+		this.#parcels_map[x][y] = 0;
+	}
+
+	isParcelAt(x, y) {
+		return this.#parcels_map[x][y] == 1;
+	}
+
+	/**
+	 * Check if there are parcels it the tile where I am
+	 * @returns {Boolean}
+	 */
+	amIOnParcel() {
+		return this.isParcelAt(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y));
+	}
+
+	/**
+	 * Check if I am on a delivery tile
+	 * @returns {Boolean}
+	 */
+	amIOnDelivery() {
+		return this.#game_map.getItem(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y)) == 2;
+	}
+
+	amIHere(x, y) {
+		return x == Math.round(this.#me_memory.x) && y == Math.round(this.#me_memory.y);
+	}
+
+	/**
+	 * Ask permission to perform an emit action, the permission is given only if no other emit is pending
+	 * @returns {Boolean} true -> you can proceed with the emit, false -> you cannot proceed with the emit
+	 */
+	requireEmit() {
+		if (!this.#emit_action_pending) {
+			this.#emit_action_pending = true;
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Signal the ending of an emit action, allowing others to perform emits
+	 */
+	releaseEmit() {
+		this.#emit_action_pending = false;
+	}
+
+	/**
+	 * @returns {Boolean} true -> I have no option generation running so you can do option generation, false -> I have option generation running so you can't do option generation
+	 */
+	isOptionGenerationAllowed() {
+		return !this.#block_option_generation_flag;
+	}
+
+	/**
+	 * Signal that an option generation is currently running
+	 */
+	setOptionGenerationRunning() {
+		this.#block_option_generation_flag = true;
+	}
+
+	/**
+	 * Signal that the option generation is finished
+	 */
+	setOptionGenerationNotRunning() {
+		this.#block_option_generation_flag = false;
+	}
+
 	/**
 	 * Reset the internal map that represent the cells occupied by other agents (to 0, completely free)
 	 */
@@ -163,9 +260,16 @@ export class BeliefSet {
 		}
 	}
 
-	updateMePosition(x, y) {
-		this.#me_memory.x = x;
-		this.#me_memory.y = y;
+	/**
+	 * Reset the internal map that represent the cells where there are parcels (to 0, completely free)
+	 */
+	#resetParcelsMap() {
+		// Initialize matrix containing all the parcels positions (0 -> no parcels, 1 -> parcels)
+		for (let x = 0; x < this.#game_map.getWidth(); x++) {
+			for (let y = 0; y < this.#game_map.getHeight(); y++) {
+				this.clearParcelAt(x, y);
+			}
+		}
 	}
 
 	increaseMeMoves() {
@@ -187,17 +291,12 @@ export class BeliefSet {
 	onYouUpdate(id, name, x, y, score) {
 		this.#me_memory.id = id;
 		this.#me_memory.name = name;
-		this.#me_memory.x = x;
-		this.#me_memory.y = y;
+		this.updateMePosition(x, y);
 		this.#me_memory.score = score;
 
 		if (Number.isInteger(x) && Number.isInteger(y)) {
 			this.#updateTimeMap(Math.round(x), Math.round(y));
 		}
-
-		//TODO add and implement
-		//sendPosition2Pal();
-		//reviseMemory(true);
 	}
 
 	onAgentSensingUpdate(aa) {
@@ -208,29 +307,25 @@ export class BeliefSet {
 
 			// Check if agent already in set
 			if (this.#agent_memory.has(a.id)) {
-				// If so, remove old position in agent map
-				this.clearAgentAt(Math.round(this.#agent_memory.get(a.id).x), Math.round(this.#agent_memory.get(a.id).y));
+				// If so
+
+				// Remove old position in agent map
+				let oldAgent = this.#agent_memory.get(a.id);
+				this.clearAgentAt(Math.round(oldAgent.x), Math.round(oldAgent.y));
 			}
 			// Update agent memory
 			this.#agent_memory.set(a.id, a);
+
 			// Update agent map
 			this.setAgentAt(Math.round(a.x), Math.round(a.y));
-
-			//TODO controlla se serve
-			// If a is my pal
-			if (a.id == this.#pal_memory.id) {
-				// Update its coordinates in real time
-
-				// TODO vedere se togliere round
-				this.#pal_memory.x = Math.round(a.x);
-				this.#pal_memory.y = Math.round(a.y);
-			}
 		});
 	}
 
 	onParcelSensingUpdate(pp) {
 		// Reset carried parcels
 		this.#carried_parcels = new Map();
+
+		this.#resetParcelsMap();
 
 		// Add the sensed parcels to the parcel belief set
 		let now = Date.now();
@@ -243,6 +338,11 @@ export class BeliefSet {
 				// Push it in the carried parcels set
 				this.#carried_parcels.set(p.id, p);
 			}
+
+			// Update parcel map only with the free parcels
+			if (!p.carriedBy) {
+				this.setParcelAt(Math.round(p.x), Math.round(p.y));
+			}
 		}
 
 		// Remove carried parcels after delivery
@@ -253,22 +353,16 @@ export class BeliefSet {
 		}
 	}
 
-	amIHere(x, y) {
-		return x == Math.round(this.#me_memory.x) && y == Math.round(this.#me_memory.y);
-	}
-
 	/**
-	 * TODO vedere se considerare il pal
 	 * Compute path from initialPos to finalPos using BFS
 	 *
 	 * @param {[int, int]} initialPos
 	 * @param {[int, int]} finalPos
-	 * @returns path or undefined if path not available
+	 * @returns path, undefined (if initialNode is undefined) or null (if path not existing)
 	 */
 	computePathBFS(initialPos, finalPos) {
 		let queue = new Queue();
 		let explored = new Set();
-		let finalPath = undefined;
 
 		let initialNode = this.#game_map.getGraphNode(initialPos[0], initialPos[1]);
 
@@ -347,7 +441,6 @@ export class BeliefSet {
 	}
 
 	/**
-	 * TODO vedere se considerare il pal
 	 * Compute the list of reachable spawn zones from the current agent's position
 	 * @returns {Array} list of tile items containing at most MAX_EXPLORABLE_SPAWN_CELLS spawn cells
 	 */
@@ -359,7 +452,6 @@ export class BeliefSet {
 		let initialNode = this.#game_map.getGraphNode(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y));
 
 		// Check if the initial node is undefined
-		// TODO it should never be since I am in that node
 		if (initialNode == undefined) {
 			return undefined;
 		}
@@ -436,11 +528,14 @@ export class BeliefSet {
 
 	/**
 	 * Randomly select a cell to explore using the "distance" criterion (distant cells are more probable)
-	 * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "distance" criterion
+	 * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "distance" criterion, or undefined if error
 	 */
 	distanceExplore() {
-		// TODO controllare se undefined
 		let suitableCells = this.#searchSuitableCellsBFS();
+
+		if (suitableCells == undefined) {
+			return undefined;
+		}
 
 		// Compute distances
 		let totalDistance = 0;
@@ -478,12 +573,15 @@ export class BeliefSet {
 
 	/**
 	 * Randomly select a cell to explore using the "timed" criterion (cells explored long ago and near to the agent's current position are more probable)
-	 * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "timed" criterion
+	 * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "timed" criterion, or undefined if error
 	 */
 	timedExplore() {
-		// TODO controllare se undefined
 		// Explore only spawning zones
 		let suitableCells = this.#searchSuitableCellsBFS();
+
+		if (suitableCells == undefined) {
+			return undefined;
+		}
 
 		let tmp = [];
 		// Do not consider some specific cells
@@ -564,7 +662,7 @@ export class BeliefSet {
 	}
 
 	/**
-	 * PRIVATE FUNCTION, recursively explore the graph to update the time map
+	 * Recursively explore the graph to update the time map
 	 * @param {GraphNode} node - currently explored node
 	 * @param {BigInt} time - current timestamp to set
 	 * @param {BigInt} remainingRange - remaining vision range
@@ -575,7 +673,6 @@ export class BeliefSet {
 			// Explore it
 			this.#time_map[node.x][node.y] = time;
 
-			// Explore neighbors
 			// Explore its neighbors
 			// Up
 			if (node.neighU != null) {
@@ -598,20 +695,6 @@ export class BeliefSet {
 			}
 		}
 	}
-
-	/*
-	 * TODO sistemare
-	mergeTimeMaps(new_time) {
-		// Cycle all the timestamps in my time map and, if the new_time has a timestamp more recent, update my timestamp
-		for (let x = 0; x < new_time.length; x++) {
-			for (let y = 0; y < new_time[x].length; y++) {
-				if (this.#raw.timeMap[x][y] < new_time[x][y]) {
-					this.#raw.timeMap[x][y] = new_time[x][y];
-				}
-			}
-		}
-	}
-	*/
 
 	/**
 	 * Compute the path to the nearest delivery cell from a given position considering the other agents as blocking elements
@@ -703,19 +786,8 @@ export class BeliefSet {
 	 * Compute a revision of the agent's memory regarding parcels and agents positions
 	 */
 	reviseMemory() {
-		let tmpParcels2Ignore = new Map();
 		let tmpParcels = new Map();
 		let tmpAgents = new Map();
-
-		// Revise memory about parcels2Ignore
-		this.#parcels_to_ignore.forEach((timestamp, id) => {
-			// Check if I ignored the parcel recently
-			if (Date.now() - timestamp < MEMORY_REVISION_PARCELS2IGNORE) {
-				// If so, keep ignoring it
-				tmpParcels2Ignore.set(id, timestamp);
-			}
-		});
-		this.#parcels_to_ignore = tmpParcels2Ignore;
 
 		// Revise memory information about parcels
 		this.#parcel_memory.forEach((parcel) => {
@@ -762,6 +834,14 @@ export class BeliefSet {
 		// Add the agents to the agent map
 		this.#agent_memory.forEach((agent) => {
 			this.setAgentAt(Math.round(agent.x), Math.round(agent.y));
+		});
+
+		// Reset parcels map
+		this.#resetParcelsMap();
+
+		// Add the agents to the agent map
+		this.#parcel_memory.forEach((parcel) => {
+			this.setParcelAt(Math.round(parcel.x), Math.round(parcel.y));
 		});
 	}
 

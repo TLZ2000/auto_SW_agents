@@ -207,6 +207,10 @@ export class GameMap {
 		return this.#graph_map[x][y];
 	}
 
+	getItem(x, y) {
+		return this.#raw.getItem(x, y);
+	}
+
 	getWidth() {
 		return this.#raw.width;
 	}
