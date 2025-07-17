@@ -9,6 +9,7 @@ export class BeliefSet {
 	#pal_memory = null;
 	#game_config = null;
 	#carried_parcels = null;
+	#pal_carried_parcels = null;
 	#time_map = null; // Timestamp of last visit to the tile
 	#agents_map = null;
 	#parcels_map = null;
@@ -37,6 +38,7 @@ export class BeliefSet {
 			token: undefined,
 		};
 		this.#carried_parcels = new Map();
+		this.#pal_carried_parcels = new Map();
 		this.#time_map = [];
 		this.#agents_map = [];
 		this.#parcels_map = [];
@@ -147,6 +149,10 @@ export class BeliefSet {
 
 	getCarriedParcels() {
 		return this.#carried_parcels;
+	}
+
+	getPalCarriedParcels() {
+		return this.#pal_carried_parcels;
 	}
 
 	resetCarriedParcels() {
@@ -895,16 +901,17 @@ export class BeliefSet {
 	/**
 	 * Compute the expected reward of delivering the currently carried parcels following a specific path
 	 * @param {Array} path - path the agent will follow to deliver the parcels
+	 * @param {Map} carriedParcels - parcels carried by the agent
 	 * @returns expected reward of delivering the currently carried following the provided path
 	 */
-	expectedRewardOfCarriedParcels(path) {
+	expectedRewardOfCarriedParcels(path, carriedParcels) {
 		let totalScore = 0;
 
 		if (path == undefined || path == null) {
 			return 0;
 		}
 
-		this.getCarriedParcels().forEach((parcel) => {
+		carriedParcels.forEach((parcel) => {
 			totalScore += this.#parcelScoreAfterMsPath(path, parcel.reward, Date.now());
 		});
 		return totalScore;
@@ -913,16 +920,18 @@ export class BeliefSet {
 	/**
 	 * Compute the expected reward of a specific parcel (go pick up and deliver)
 	 * @param {{x:BigInt, y: BigInt, reward: BigInt, time:BigInt}} parcel
+	 * @param {Number} x - coordinate x of the agent
+	 * @param {Number} y - coordinate y of the agent
 	 * @returns Map containing the path from the current agent position to the parcel (pathToParcel == undefined if initialNode undefined, == null if path not existing), the path from the parcel to nearest delivery zone (pathToDeliver, undefined if not reachable) and expected reward (expectedReward)
 	 */
-	#parcelCostReward(parcel) {
+	#parcelCostReward(parcel, x, y) {
 		let parX = parcel.x;
 		let parY = parcel.y;
 		let parScore = parcel.reward;
 		let lastVisitTime = parcel.time;
 
 		// Compute distance agent -> parcel
-		let pathToParcel = this.computePathBFS([Math.round(this.#me_memory.x), Math.round(this.#me_memory.y)], [parX, parY]);
+		let pathToParcel = this.computePathBFS([Math.round(x), Math.round(y)], [parX, parY]);
 
 		if (pathToParcel == undefined || pathToParcel == null) {
 			return {
@@ -966,22 +975,40 @@ export class BeliefSet {
 	/**
 	 * Compute the expected reward of delivering the currently carried parcels plus a targeted parcel to pick up
 	 * @param {{x:BigInt, y: BigInt, reward: BigInt, time:BigInt}} parcel2Pickup - targeted parcel to pick up
+	 * @param {Number} x - coordinate x of the agent
+	 * @param {Number} y - coordinate y of the agent
+	 * @param {Map} carriedParcels - parcels carried by the agent
 	 * @returns list containing 0: expected reward of delivering the currently carried parcels and the targeted parcel to pick up, 1: length of path to pickup the parcel
 	 */
-	expectedRewardCarriedAndPickup(parcel2Pickup) {
-		let pickUpReward = this.#parcelCostReward(parcel2Pickup);
+	#expectedRewardCarriedAndPickup(parcel2Pickup, x, y, carriedParcels) {
+		let pickUpReward = this.#parcelCostReward(parcel2Pickup, x, y);
 
 		// If we can reach the parcel to pickup (pathToDeliver and pathToParcel != undefined and != null) with a reward > 0
 		if (pickUpReward.expectedReward != 0 && pickUpReward.pathToDeliver != undefined && pickUpReward.pathToDeliver != null && pickUpReward.pathToParcel != undefined && pickUpReward.pathToParcel != null) {
 			// Compute expected reward for the carried parcels
-			let totalScore = pickUpReward.expectedReward + this.expectedRewardOfCarriedParcels(pickUpReward.pathToParcel.concat(pickUpReward.pathToDeliver));
+			let totalScore = pickUpReward.expectedReward + this.expectedRewardOfCarriedParcels(pickUpReward.pathToParcel.concat(pickUpReward.pathToDeliver), carriedParcels);
 
 			// Return the final expected score
 			return [totalScore, pickUpReward.pathToParcel.length];
 		} else {
-			// Else no reward
+			// Otherwise, no reward
 			return [0, 0];
 		}
+	}
+
+	expectedRewardCarriedAndPickupMe(parcel2Pickup) {
+		return this.#expectedRewardCarriedAndPickup(parcel2Pickup, Math.round(this.#me_memory.x), Math.round(this.#me_memory.y), this.getCarriedParcels());
+	}
+
+	expectedRewardCarriedAndPickupPal(parcel2Pickup) {
+		// Check if pal exists
+		if (this.#pal_memory.x && this.#pal_memory.y) {
+			// If so, return the reward
+			return this.#expectedRewardCarriedAndPickup(parcel2Pickup, Math.round(this.#pal_memory.x), Math.round(this.#pal_memory.y), this.getPalCarriedParcels());
+		}
+
+		// Otherwise, no reward
+		return [0, 0];
 	}
 
 	getPalId() {
@@ -1004,10 +1031,10 @@ export class BeliefSet {
 	}
 
 	/**
-	 * // Return content of message to send to pal with the parcels and the agents in the current belief set
+	 * // Return content of message to send to pal with the parcels, the agents and the carried parcels in the current belief set
 	 */
 	messageContent_memoryShare() {
-		return JSON.stringify({ parcels: this.#mapToJSON(this.#parcel_memory), agents: this.#mapToJSON(this.#agent_memory) });
+		return JSON.stringify({ parcels: this.#mapToJSON(this.#parcel_memory), agents: this.#mapToJSON(this.#agent_memory), carriedParcels: this.#mapToJSON(this.#carried_parcels) });
 	}
 
 	messageHandler_positionUpdate(message) {
@@ -1030,6 +1057,8 @@ export class BeliefSet {
 		let msg = JSON.parse(message);
 		let parcels = this.#JSONToMap(msg.parcels);
 		let agents = this.#JSONToMap(msg.agents);
+
+		this.#pal_carried_parcels = this.#JSONToMap(msg.carriedParcels);
 
 		// Cycle all the reconstructed parcels
 		parcels.forEach((p) => {

@@ -284,16 +284,20 @@ function getBestPickupOption() {
 
 	// Cycle all free parcels in belief
 	belief.getFreeParcels().forEach((parcel) => {
-		let tmpReward = belief.expectedRewardCarriedAndPickup(parcel);
+		let tmpReward = belief.expectedRewardCarriedAndPickupMe(parcel);
+		let tmpPalReward = belief.expectedRewardCarriedAndPickupPal(parcel);
 
-		options.push([
-			"go_pick_up",
-			parcel.x, // X coord
-			parcel.y, // Y coord
-			parcel.id, // ID
-			tmpReward[0], // Expected reward
-			tmpReward[1], // length of the path to pickup the parcel
-		]);
+		// Push the pickup option only if my reward is higher than the pal, or same reward and smaller distance
+		if (tmpReward[0] > tmpPalReward[0] || (tmpReward[0] == tmpPalReward[0] && tmpReward[1] < tmpPalReward[1])) {
+			options.push([
+				"go_pick_up",
+				parcel.x, // X coord
+				parcel.y, // Y coord
+				parcel.id, // ID
+				tmpReward[0], // Expected reward
+				tmpReward[1], // length of the path to pickup the parcel
+			]);
+		}
 	});
 
 	// Options filtering
@@ -340,10 +344,10 @@ function getDeliveryOption() {
 
 		if (belief.getParcelDecayInterval() == Infinity) {
 			// If there is no parcel decay, then increase the expected reward of the carried parcels using a dedicated scale factor
-			deliveryOption = ["go_deliver", belief.expectedRewardOfCarriedParcels(pathNearestDelivery) * (belief.getMeMoves() / MOVES_SCALE_FACTOR_NO_DECAY + 1), pathNearestDelivery];
+			deliveryOption = ["go_deliver", belief.expectedRewardOfCarriedParcels(pathNearestDelivery, belief.getCarriedParcels()) * (belief.getMeMoves() / MOVES_SCALE_FACTOR_NO_DECAY + 1), pathNearestDelivery];
 		} else {
 			// If there is parcel decay, let the user weight the parcel reward increase
-			deliveryOption = ["go_deliver", belief.expectedRewardOfCarriedParcels(pathNearestDelivery) * (belief.getMeMoves() / MOVES_SCALE_FACTOR + 1), pathNearestDelivery];
+			deliveryOption = ["go_deliver", belief.expectedRewardOfCarriedParcels(pathNearestDelivery, belief.getCarriedParcels()) * (belief.getMeMoves() / MOVES_SCALE_FACTOR + 1), pathNearestDelivery];
 		}
 	}
 
