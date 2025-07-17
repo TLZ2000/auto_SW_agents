@@ -16,9 +16,9 @@ const MAX_EXPLORABLE_SPAWN_CELLS = 100;
 const INVIEW_MEMORY_DIFFERENCE_THRESHOLD = 2000; // Threshold for parcels and agent in our vision range
 const OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD = 10000; // Threshold for parcels and agent not in our vision range
 
-const PARCEL_DISTANCE_LOW = 1;
-const PARCEL_DISTANCE_MID = 2;
-const PARCEL_DISTANCE_HIGH = 3;
+const PARCEL_DISTANCE_LOW = 3;
+const PARCEL_DISTANCE_MID = 6;
+const PARCEL_DISTANCE_HIGH = 10;
 const PARCEL_WEIGHT_LOW = 10;
 const PARCEL_WEIGHT_MID = 5;
 const PARCEL_WEIGHT_HIGH = 2.5;
