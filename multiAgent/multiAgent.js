@@ -534,6 +534,7 @@ async function memoryRevisionLoop(time) {
 	while (true) {
 		await new Promise((res) => setTimeout(res, time));
 		belief.reviseMemory();
+		myEmitSay("MSG_memoryShare", belief.messageContent_memoryShare());
 	}
 }
 
@@ -617,12 +618,11 @@ await new Promise((res) => {
 client.onMsg(async (id, name, msg, reply) => {
 	switch (msg.type) {
 		case "MSG_positionUpdate":
-			// Recover message content
-			let palX = JSON.parse(msg.content).x;
-			let palY = JSON.parse(msg.content).y;
-
 			// Verify message validity
-			belief.messageHandler_positionUpdate(palX, palY);
+			belief.messageHandler_positionUpdate(msg.content);
+			break;
+		case "MSG_memoryShare":
+			belief.messageHandler_memoryShare(msg.content);
 			break;
 	}
 });

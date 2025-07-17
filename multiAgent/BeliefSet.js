@@ -988,6 +988,14 @@ export class BeliefSet {
 		return this.#pal_memory.id;
 	}
 
+	#mapToJSON(map) {
+		return JSON.stringify(Object.fromEntries(map));
+	}
+
+	#JSONToMap(json) {
+		return new Map(Object.entries(JSON.parse(json)));
+	}
+
 	/**
 	 * Return content of message to send to pal with my current position
 	 */
@@ -995,7 +1003,18 @@ export class BeliefSet {
 		return JSON.stringify({ x: this.#me_memory.x, y: this.#me_memory.y });
 	}
 
-	messageHandler_positionUpdate(palX, palY) {
+	/**
+	 * // Return content of message to send to pal with the parcels and the agents in the current belief set
+	 */
+	messageContent_memoryShare() {
+		return JSON.stringify({ parcels: this.#mapToJSON(this.#parcel_memory), agents: this.#mapToJSON(this.#agent_memory) });
+	}
+
+	messageHandler_positionUpdate(message) {
+		// Recover message content
+		let palX = JSON.parse(message).x;
+		let palY = JSON.parse(message).y;
+
 		// Update pal position
 		this.#pal_memory.x = palX;
 		this.#pal_memory.y = palY;
@@ -1004,5 +1023,54 @@ export class BeliefSet {
 		if (Number.isInteger(palX) && Number.isInteger(palY)) {
 			this.#updateTimeMap(palX, palY);
 		}
+	}
+
+	messageHandler_memoryShare(message) {
+		// Recover message content
+		let msg = JSON.parse(message);
+		let parcels = this.#JSONToMap(msg.parcels);
+		let agents = this.#JSONToMap(msg.agents);
+
+		// Cycle all the reconstructed parcels
+		parcels.forEach((p) => {
+			// Check if the parcel is already in my memory
+			if (this.#parcel_memory.has(p.id)) {
+				// If so, check if the received parcel information is newer than the parcel information in my memory
+				if (this.#parcel_memory.get(p.id).time < p.time) {
+					// If so, update my memory
+					this.#parcel_memory.set(p.id, p);
+				}
+			} else {
+				// If not in memory, add it
+				this.#parcel_memory.set(p.id, p);
+			}
+		});
+
+		// Cycle all the reconstructed agents
+		agents.forEach((a) => {
+			// Check if the agent is already in my memory
+			if (this.#agent_memory.has(a.id)) {
+				// If so, check if the received agent information is newer than the agent information in my memory
+				if (this.#agent_memory.get(a.id).time < a.time) {
+					// Remove old position in agent map
+					let oldAgent = this.#agent_memory.get(a.id);
+					this.clearAgentAt(Math.round(oldAgent.x), Math.round(oldAgent.y));
+
+					// If so, update my memory
+					this.#agent_memory.set(a.id, a);
+
+					// Update agent map
+					this.setAgentAt(Math.round(a.x), Math.round(a.y));
+				}
+			} else {
+				// If not in memory, add it if that agent is no me
+				if (this.#me_memory.id != a.id) {
+					this.#agent_memory.set(a.id, a);
+
+					// Update agent map
+					this.setAgentAt(Math.round(a.x), Math.round(a.y));
+				}
+			}
+		});
 	}
 }
