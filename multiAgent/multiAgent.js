@@ -25,6 +25,9 @@ const PARCEL_WEIGHT_HIGH = 2.5;
 const MOVES_SCALE_FACTOR = 100; // Lower values mean I want to deliver more often
 const MOVES_SCALE_FACTOR_NO_DECAY = 40; // Lower values mean I want to deliver more often
 
+const TIMED_EXPLORE_ALPHA = 5;
+const TIMED_EXPLORE_BETA = 1;
+
 const TIMED_EXPLORE = 0.99;
 const OPTION_GENERATION_INTERVAL = 50;
 const MEMORY_REVISION_INTERVAL = 250;
@@ -600,6 +603,9 @@ await new Promise((res) => {
 		config.PARCEL_WEIGHT_LOW = PARCEL_WEIGHT_LOW;
 		config.PARCEL_WEIGHT_MID = PARCEL_WEIGHT_MID;
 		config.PARCEL_WEIGHT_HIGH = PARCEL_WEIGHT_HIGH;
+
+		config.TIMED_EXPLORE_ALPHA = TIMED_EXPLORE_ALPHA;
+		config.TIMED_EXPLORE_BETA = TIMED_EXPLORE_BETA;
 
 		belief.instantiateGameConfig(config);
 

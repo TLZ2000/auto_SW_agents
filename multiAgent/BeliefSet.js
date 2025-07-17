@@ -600,27 +600,34 @@ export class BeliefSet {
 		let randX = undefined;
 		let randY = undefined;
 
+		let maxAge = 0;
 		// Compute the last time a tile was visited
 		suitableCells.forEach((element) => {
-			element.timestamp = now - this.#time_map[element.x][element.y];
-			element.distance = this.#distance(this.#me_memory.x, this.#me_memory.y, element.x, element.y);
-			totalTime += element.timestamp;
+			// Compute cell age (time we do not see the cell)
+			element.age = now - this.#time_map[element.x][element.y];
+			if (element.age > maxAge) {
+				maxAge = element.age;
+			}
+
+			// Compute normalized distance
+			element.distance = Math.log(this.#distance(this.#me_memory.x, this.#me_memory.y, element.x, element.y) + 1);
 		});
 
-		// Normalize timestamp
+		let normalizationTerm = 0;
+		// Compute cells probabilities
 		suitableCells.forEach((element) => {
-			element.timestamp /= totalTime; // First normalization
-			element.timestamp /= element.distance * element.distance * element.distance + 1; // Penalize distant cells
+			// Normalize cell age
+			element.age = element.age / maxAge;
+
+			// Compute cell priority
+			element.priority = this.#game_config.TIMED_EXPLORE_ALPHA * element.age - this.#game_config.TIMED_EXPLORE_BETA * element.distance;
+
+			normalizationTerm = normalizationTerm + Math.exp(element.priority);
 		});
 
-		// Second normalization using modified timestamps
-		totalTime = 0;
 		suitableCells.forEach((element) => {
-			totalTime += element.timestamp;
-		});
-
-		suitableCells.forEach((element) => {
-			element.timestamp /= totalTime;
+			// Normalize priority
+			element.priority = Math.exp(element.priority) / normalizationTerm;
 		});
 
 		let randomValue = Math.random();
@@ -630,7 +637,7 @@ export class BeliefSet {
 			// If we haven't selected a suitable cell
 			if (!randX) {
 				// Try to find one with a probability proportional to its its timestamp (the bigger the time the more probable)
-				randomValue -= element.timestamp;
+				randomValue -= element.priority;
 				if (randomValue <= 0) {
 					// Recover the element
 					randX = element.x;
@@ -643,7 +650,7 @@ export class BeliefSet {
 		// If timed explore failed
 		if (randX == undefined || randY == undefined) {
 			// If this happens, select a random cell to explore based on distance
-			return distanceExplore();
+			return this.distanceExplore();
 		}
 		return [randX, randY];
 	}
@@ -653,43 +660,43 @@ export class BeliefSet {
 	 */
 	#updateTimeMap(x, y) {
 		let range = this.#game_config.PARCELS_OBSERVATION_DISTANCE;
-		let currentNode = this.#game_map.getGraphNode(x, y);
 		let time = Date.now();
 
-		this.#recursiveTimeMap(currentNode, time, range);
+		this.#recursiveTimeMap(x, y, time, range);
 	}
 
 	/**
 	 * Recursively explore the graph to update the time map
-	 * @param {GraphNode} node - currently explored node
+	 * @param {Number} x - current x position
+	 * @param {Number} y - current y position
 	 * @param {BigInt} time - current timestamp to set
 	 * @param {BigInt} remainingRange - remaining vision range
 	 */
-	#recursiveTimeMap(node, time, remainingRange) {
+	#recursiveTimeMap(x, y, time, remainingRange) {
 		// If node not already explored (same timestamp) and remaining range
-		if (this.#time_map[node.x][node.y] != time && remainingRange > 0) {
+		if (this.#time_map[x][y] != time && remainingRange > 0) {
 			// Explore it
-			this.#time_map[node.x][node.y] = time;
+			this.#time_map[x][y] = time;
 
 			// Explore its neighbors
 			// Up
-			if (node.neighU != null) {
-				this.#recursiveTimeMap(node.neighU, time, remainingRange - 1);
+			if (y + 1 < this.#game_map.getHeight()) {
+				this.#recursiveTimeMap(x, y + 1, time, remainingRange - 1);
 			}
 
 			// Right
-			if (node.neighR != null) {
-				this.#recursiveTimeMap(node.neighR, time, remainingRange - 1);
+			if (x + 1 < this.#game_map.getWidth()) {
+				this.#recursiveTimeMap(x + 1, y, time, remainingRange - 1);
 			}
 
 			// Down
-			if (node.neighD != null) {
-				this.#recursiveTimeMap(node.neighD, time, remainingRange - 1);
+			if (y - 1 >= 0) {
+				this.#recursiveTimeMap(x, y - 1, time, remainingRange - 1);
 			}
 
 			// Left
-			if (node.neighL != null) {
-				this.#recursiveTimeMap(node.neighL, time, remainingRange - 1);
+			if (x - 1 >= 0) {
+				this.#recursiveTimeMap(x - 1, y, time, remainingRange - 1);
 			}
 		}
 	}
