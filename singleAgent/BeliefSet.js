@@ -27,7 +27,6 @@ export class BeliefSet {
 			y: null,
 			score: null,
 			moves: 0,
-			msgId: 0,
 			token: null,
 		};
 		this.#carried_parcels = new Map();

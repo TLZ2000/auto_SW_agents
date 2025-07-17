@@ -25,7 +25,6 @@ export class BeliefSet {
 			y: undefined,
 			score: undefined,
 			moves: 0,
-			msgId: 0,
 			token: undefined,
 		};
 		this.#pal_memory = {
@@ -35,7 +34,6 @@ export class BeliefSet {
 			y: undefined,
 			score: undefined,
 			moves: 0,
-			msgId: 0,
 			token: undefined,
 		};
 		this.#carried_parcels = new Map();
@@ -977,5 +975,22 @@ export class BeliefSet {
 			// Else no reward
 			return [0, 0];
 		}
+	}
+
+	getPalId() {
+		return this.#pal_memory.id;
+	}
+
+	/**
+	 * Return content of message to send to pal with my current position
+	 */
+	messageContent_positionUpdate() {
+		return JSON.stringify({ x: this.#me_memory.x, y: this.#me_memory.y });
+	}
+
+	messageHandler_positionUpdate(palX, palY) {
+		// Update pal position
+		this.#pal_memory.x = palX;
+		this.#pal_memory.y = palY;
 	}
 }

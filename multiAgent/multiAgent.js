@@ -1,7 +1,6 @@
 import { DeliverooApi } from "@unitn-asa/deliveroo-js-client";
 import { BeliefSet } from "./BeliefSet.js";
 import { IntentionRevisionReplace, Plan } from "./Intentions.js";
-import fs from "fs";
 
 const AGENT1_ID = "a6cdae";
 const AGENT2_ID = "ff8ff0";
@@ -445,6 +444,10 @@ async function myEmitPutDown() {
 	return pick;
 }
 
+async function myEmitSay(msg_type, msg_content) {
+	await client.emitSay(belief.getPalId(), { type: msg_type, content: msg_content });
+}
+
 /**
  * Generate all possible options, based on the current game state and configuration, perform option filtering and select the best possible option as current intention
  */
@@ -570,6 +573,11 @@ client.onAgentsSensing(async (aa) => {
 
 client.onYou(({ id, name, x, y, score }) => {
 	belief.onYouUpdate(id, name, x, y, score);
+	/**
+	 * Send to pal my updated position info
+	 */
+
+	myEmitSay("MSG_positionUpdate", belief.messageContent_positionUpdate());
 });
 
 await new Promise((res) => {
@@ -600,6 +608,18 @@ await new Promise((res) => {
 	});
 });
 
+client.onMsg(async (id, name, msg, reply) => {
+	switch (msg.type) {
+		case "MSG_positionUpdate":
+			// Recover message content
+			let palX = JSON.parse(msg.content).x;
+			let palY = JSON.parse(msg.content).y;
+
+			// Verify message validity
+			belief.messageHandler_positionUpdate(palX, palY);
+			break;
+	}
+});
 while (true) {
 	await new Promise((res) => setTimeout(res, OPTION_GENERATION_INTERVAL));
 	optionsGeneration();
