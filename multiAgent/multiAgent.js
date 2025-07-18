@@ -52,9 +52,17 @@ class Explore extends Plan {
 			coords = belief.distanceExplore();
 		}
 
-		if (coords[0] == undefined) {
-			this.stop();
-			throw ["stopped"];
+		// If I have no valid coordinates to explore
+		if (coords[0] == undefined || coords[0] == null) {
+			// Then the best thing to do is to move to the nearest delivery (probably I am in a corridor with the pal in the middle, so I give him space to do its things)
+			// Compute the nearest delivery position
+			coords = belief.nearestDeliveryFromHere()[0];
+
+			// If I have no valid delivery coordinates
+			if (coords[0] == undefined || coords[0] == null) {
+				// Then the action is concluded
+				return true;
+			}
 		}
 
 		// When a valid cell has been found, move to it (and hope to find something interesting)
@@ -87,6 +95,15 @@ class BFSmove extends Plan {
 		while (i < path.length) {
 			// If stopped then quit
 			if (this.stopped) throw ["stopped"];
+
+			// Check if the next position is free to move
+			console.log("FREE CELL: " + belief.isNextCellFree(path[i]));
+			if (!belief.isNextCellFree(path[i])) {
+				console.log("STOP");
+				// If not, fail the action and stop here
+				this.stop();
+				throw ["stopped"];
+			}
 
 			let moved_horizontally = undefined;
 			let moved_vertically = undefined;
@@ -172,6 +189,15 @@ class FollowPath extends Plan {
 		while (i < path.length) {
 			// If stopped then quit
 			if (this.stopped) throw ["stopped"];
+
+			// Check if the next position is free to move
+			console.log("FREE CELL: " + belief.isNextCellFree(path[i]));
+			if (!belief.isNextCellFree(path[i])) {
+				console.log("STOP");
+				// If not, fail the action and stop here
+				this.stop();
+				throw ["stopped"];
+			}
 
 			let moved_horizontally = undefined;
 			let moved_vertically = undefined;
@@ -287,8 +313,12 @@ function getBestPickupOption() {
 		let tmpReward = belief.expectedRewardCarriedAndPickupMe(parcel);
 		let tmpPalReward = belief.expectedRewardCarriedAndPickupPal(parcel);
 
-		// Push the pickup option only if my reward is higher than the pal, or same reward and smaller distance, or the pal intention is to deliver (it ignores the parcel)
+		// If, for some reason, I can't reach this parcel, then don't even create the option
+		if (tmpReward == null || tmpReward == undefined || tmpReward == [0, 0]) {
+			return;
+		}
 		if (tmpReward[0] > tmpPalReward[0] || (tmpReward[0] == tmpPalReward[0] && tmpReward[1] < tmpPalReward[1]) || belief.getPalCurrentIntention() == "go_deliver") {
+			// Push the pickup option only if my reward is higher than the pal, or same reward and smaller distance, or the pal intention is to deliver (it ignores the parcel)
 			options.push([
 				"go_pick_up",
 				parcel.x, // X coord
@@ -341,6 +371,12 @@ function getDeliveryOption() {
 	if (belief.getCarriedParcels().size > 0) {
 		// Get the path to the nearest delivery
 		let pathNearestDelivery = belief.nearestDeliveryFromHere()[1];
+
+		// I there is no viable path to a delivery
+		if (pathNearestDelivery == null || pathNearestDelivery == undefined) {
+			// Then I have no delivery option
+			return null;
+		}
 
 		if (belief.getParcelDecayInterval() == Infinity) {
 			// If there is no parcel decay, then increase the expected reward of the carried parcels using a dedicated scale factor
@@ -467,7 +503,7 @@ function optionsGeneration() {
 		let push = false;
 
 		// Check if I should push the best option without waiting to finish the current intention
-		if (bestOption != undefined) {
+		if (bestOption != undefined && bestOption != null) {
 			// Get current intention
 			let currentIntention = myAgent.getCurrentIntention();
 

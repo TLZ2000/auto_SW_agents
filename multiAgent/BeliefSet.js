@@ -212,6 +212,41 @@ export class BeliefSet {
 		return x == Math.round(this.#me_memory.x) && y == Math.round(this.#me_memory.y);
 	}
 
+	isPalHere(x, y) {
+		console.log("PAL HERE: ", x == Math.round(this.#pal_memory.x) && y == Math.round(this.#pal_memory.y));
+		return x == Math.round(this.#pal_memory.x) && y == Math.round(this.#pal_memory.y);
+	}
+
+	/**
+	 * Check if the next cell in which I want to move is free from other agents (both enemy and pal)
+	 * @param direction - direction to move
+	 * @returns true if next cell is free, false otherwise
+	 */
+	isNextCellFree(direction) {
+		let myX = Math.round(this.#me_memory.x);
+		let myY = Math.round(this.#me_memory.y);
+		let agentMapResult = false;
+		let palCheckResult = false;
+		console.log("I AM HERE " + myX + " " + myY + ", MOVING " + direction + ", PAL IS HERE " + Math.round(this.#pal_memory.x) + " " + Math.round(this.#pal_memory.y));
+
+		if (direction == "R") {
+			agentMapResult = this.isAgentAt(myX + 1, myY);
+			palCheckResult = this.isPalHere(myX + 1, myY);
+		} else if (direction == "L") {
+			agentMapResult = this.isAgentAt(myX - 1, myY);
+			palCheckResult = this.isPalHere(myX - 1, myY);
+		} else if (direction == "U") {
+			agentMapResult = this.isAgentAt(myX, myY + 1);
+			palCheckResult = this.isPalHere(myX, myY + 1);
+		} else if (direction == "D") {
+			agentMapResult = this.isAgentAt(myX, myY - 1);
+			palCheckResult = this.isPalHere(myX, myY - 1);
+		}
+		console.log("AGENT", agentMapResult);
+		console.log("PAL", palCheckResult);
+		return true;
+	}
+
 	/**
 	 * Ask permission to perform an emit action, the permission is given only if no other emit is pending
 	 * @returns {Boolean} true -> you can proceed with the emit, false -> you cannot proceed with the emit
@@ -851,7 +886,7 @@ export class BeliefSet {
 		// Reset parcels map
 		this.#resetParcelsMap();
 
-		// Add the agents to the agent map
+		// Add the parcels to the parcel map
 		this.#parcel_memory.forEach((parcel) => {
 			this.setParcelAt(Math.round(parcel.x), Math.round(parcel.y));
 		});
@@ -1047,9 +1082,17 @@ export class BeliefSet {
 		let palX = JSON.parse(message).x;
 		let palY = JSON.parse(message).y;
 
+		// Invalidate old pal position
+		if (this.#pal_memory.x) {
+			this.clearAgentAt(Math.round(this.#pal_memory.x), Math.round(this.#pal_memory.y));
+		}
+
 		// Update pal position
 		this.#pal_memory.x = palX;
 		this.#pal_memory.y = palY;
+
+		// Update new pal position
+		this.setAgentAt(Math.round(this.#pal_memory.x), Math.round(this.#pal_memory.y));
 
 		// Update time map based on pal position
 		if (Number.isInteger(palX) && Number.isInteger(palY)) {
