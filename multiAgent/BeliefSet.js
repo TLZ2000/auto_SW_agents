@@ -1081,10 +1081,13 @@ export class BeliefSet {
 		// Recover message content
 		let palX = JSON.parse(message).x;
 		let palY = JSON.parse(message).y;
+		let oldPalX = undefined;
+		let oldPalY = undefined;
 
-		// Invalidate old pal position
+		// Save old pal position
 		if (this.#pal_memory.x) {
-			this.clearAgentAt(Math.round(this.#pal_memory.x), Math.round(this.#pal_memory.y));
+			oldPalX = this.#pal_memory.x;
+			oldPalY = this.#pal_memory.y;
 		}
 
 		// Update pal position
@@ -1093,6 +1096,12 @@ export class BeliefSet {
 
 		// Update new pal position
 		this.setAgentAt(Math.round(this.#pal_memory.x), Math.round(this.#pal_memory.y));
+
+		// TODO: invertire agent map invalidation anche negli altri clearAgentAt
+		// Invalidate old pal position
+		if (oldPalX != undefined) {
+			this.clearAgentAt(Math.round(oldPalX), Math.round(oldPalY));
+		}
 
 		// Update time map based on pal position
 		if (Number.isInteger(palX) && Number.isInteger(palY)) {
