@@ -533,13 +533,13 @@ export class BeliefSet {
 
 	/**
 	 * Randomly select a cell to explore using the "distance" criterion (distant cells are more probable)
-	 * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "distance" criterion, or undefined if error
+	 * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "distance" criterion, or [undefined, undefined] if error or no suitable cells exists
 	 */
 	distanceExplore() {
 		let suitableCells = this.#searchSuitableCellsBFS();
 
-		if (suitableCells == undefined) {
-			return undefined;
+		if (suitableCells == [] || suitableCells == undefined) {
+			return [undefined, undefined];
 		}
 
 		// Compute distances
@@ -578,14 +578,14 @@ export class BeliefSet {
 
 	/**
 	 * Randomly select a cell to explore using the "timed" criterion (cells explored long ago and near to the agent's current position are more probable)
-	 * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "timed" criterion, or undefined if error
+	 * @returns {[BigInt, BigInt]} coordinates of random selected cell using the "timed" criterion, or [undefined, undefined] if error or no suitable cells exists
 	 */
 	timedExplore() {
 		// Explore only spawning zones
 		let suitableCells = this.#searchSuitableCellsBFS();
 
-		if (suitableCells == undefined) {
-			return undefined;
+		if (suitableCells == [] || suitableCells == undefined) {
+			return [undefined, undefined];
 		}
 
 		let tmp = [];

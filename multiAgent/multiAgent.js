@@ -52,7 +52,7 @@ class Explore extends Plan {
 			coords = belief.distanceExplore();
 		}
 
-		if (coords == undefined) {
+		if (coords[0] == undefined) {
 			this.stop();
 			throw ["stopped"];
 		}
