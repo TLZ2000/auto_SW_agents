@@ -51,7 +51,7 @@ class Explore extends Plan {
 			coords = belief.distanceExplore();
 		}
 
-		if (coords[0] == undefined) {
+		if (coords[0] == undefined || coords[0] == null) {
 			this.stop();
 			throw ["stopped"];
 		}
@@ -542,6 +542,11 @@ function getBestPickupOption() {
 	belief.getFreeParcels().forEach((parcel) => {
 		let tmpReward = belief.expectedRewardCarriedAndPickup(parcel);
 
+		// If, for some reason, I can't reach this parcel, then don't even create the option
+		if (tmpReward == null || tmpReward == undefined || tmpReward == [0, 0]) {
+			return;
+		}
+
 		options.push([
 			"go_pick_up",
 			parcel.x, // X coord
@@ -593,6 +598,12 @@ function getDeliveryOption() {
 	if (belief.getCarriedParcels().size > 0) {
 		// Get the path to the nearest delivery
 		let pathNearestDelivery = belief.nearestDeliveryFromHere()[1];
+
+		// I there is no viable path to a delivery
+		if (pathNearestDelivery == null || pathNearestDelivery == undefined) {
+			// Then I have no delivery option
+			return null;
+		}
 
 		if (belief.getParcelDecayInterval() == Infinity) {
 			// If there is no parcel decay, then increase the expected reward of the carried parcels using a dedicated scale factor
@@ -711,11 +722,10 @@ function optionsGeneration() {
 		belief.setOptionGenerationRunning();
 		// Get the best option between go_pick_up and go_deliver
 		let bestOption = getBestOption();
-
 		let push = false;
 
 		// Check if I should push the best option without waiting to finish the current intention
-		if (bestOption != undefined) {
+		if (bestOption != undefined && bestOption != null) {
 			// Get current intention
 			let currentIntention = myAgent.getCurrentIntention();
 

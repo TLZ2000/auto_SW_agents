@@ -317,6 +317,7 @@ function getBestPickupOption() {
 		if (tmpReward == null || tmpReward == undefined || tmpReward == [0, 0]) {
 			return;
 		}
+
 		if (tmpReward[0] > tmpPalReward[0] || (tmpReward[0] == tmpPalReward[0] && tmpReward[1] < tmpPalReward[1]) || belief.getPalCurrentIntention() == "go_deliver") {
 			// Push the pickup option only if my reward is higher than the pal, or same reward and smaller distance, or the pal intention is to deliver (it ignores the parcel)
 			options.push([
@@ -499,7 +500,6 @@ function optionsGeneration() {
 		belief.setOptionGenerationRunning();
 		// Get the best option between go_pick_up and go_deliver
 		let bestOption = getBestOption();
-
 		let push = false;
 
 		// Check if I should push the best option without waiting to finish the current intention
