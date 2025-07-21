@@ -470,7 +470,6 @@ export class BeliefSet {
 			if (currentNode.x == finalPos[0] && currentNode.y == finalPos[1]) {
 				// Check if in the final node there is another agent
 				if (this.isAgentHereLong(currentNode.x, currentNode.y)) {
-					console.log("CHECK PAL: ", palOk && this.isPalHere(currentNode.x, currentNode.y));
 					// If it is the pal and it is fine
 					if (palOk && this.isPalHere(currentNode.x, currentNode.y)) {
 						// Then return the path
@@ -502,28 +501,36 @@ export class BeliefSet {
 				if (currentNode.neighU !== undefined && currentNode.neighU !== null) {
 					let tmp = path.slice();
 					tmp.push("U");
-					queue.enqueue({ currentNode: currentNode.neighU, path: tmp });
+					if (!explored.has(currentNode.neighU.x + " " + currentNode.neighU.y)) {
+						queue.enqueue({ currentNode: currentNode.neighU, path: tmp });
+					}
 				}
 
 				// Right
 				if (currentNode.neighR !== undefined && currentNode.neighR !== null) {
 					let tmp = path.slice();
 					tmp.push("R");
-					queue.enqueue({ currentNode: currentNode.neighR, path: tmp });
+					if (!explored.has(currentNode.neighR.x + " " + currentNode.neighR.y)) {
+						queue.enqueue({ currentNode: currentNode.neighR, path: tmp });
+					}
 				}
 
 				// Down
 				if (currentNode.neighD !== undefined && currentNode.neighD !== null) {
 					let tmp = path.slice();
 					tmp.push("D");
-					queue.enqueue({ currentNode: currentNode.neighD, path: tmp });
+					if (!explored.has(currentNode.neighD.x + " " + currentNode.neighD.y)) {
+						queue.enqueue({ currentNode: currentNode.neighD, path: tmp });
+					}
 				}
 
 				// Left
 				if (currentNode.neighL !== undefined && currentNode.neighL !== null) {
 					let tmp = path.slice();
 					tmp.push("L");
-					queue.enqueue({ currentNode: currentNode.neighL, path: tmp });
+					if (!explored.has(currentNode.neighL.x + " " + currentNode.neighL.y)) {
+						queue.enqueue({ currentNode: currentNode.neighL, path: tmp });
+					}
 				}
 			}
 		}
@@ -1144,6 +1151,7 @@ export class BeliefSet {
 		let palX = JSON.parse(message).x;
 		let palY = JSON.parse(message).y;
 
+		// TODO rimuovere agentMap dappertutto
 		// If the pal has an old position
 		if (this.#pal_memory.x) {
 			// Clear it
@@ -1156,6 +1164,9 @@ export class BeliefSet {
 
 		// Update new pal position
 		this.setAgentAt(Math.round(this.#pal_memory.x), Math.round(this.#pal_memory.y));
+
+		let agent = { id: this.#pal_memory.id, x: this.#pal_memory.x, y: this.#pal_memory.y, time: Date.now() };
+		this.#agent_memory.set(agent.id, agent);
 
 		// Update time map based on pal position
 		if (Number.isInteger(palX) && Number.isInteger(palY)) {
