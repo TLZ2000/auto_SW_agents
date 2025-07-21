@@ -192,6 +192,24 @@ export class BeliefSet {
 		return this.#parcels_map[x][y] == 1;
 	}
 
+	isParcelHereLong(x, y) {
+		let result = false;
+		this.#parcel_memory.forEach((parcel) => {
+			if (parcel.x == x && parcel.y == y) {
+				result = true;
+			}
+		});
+		return result;
+	}
+
+	/**
+	 * Check if there are parcels it the tile where I am
+	 * @returns {Boolean}
+	 */
+	amIOnParcelLong() {
+		return this.isParcelHereLong(this.#me_memory.x, this.#me_memory.y);
+	}
+
 	/**
 	 * Check if there are parcels it the tile where I am
 	 * @returns {Boolean}
@@ -205,7 +223,11 @@ export class BeliefSet {
 	 * @returns {Boolean}
 	 */
 	amIOnDelivery() {
-		return this.#game_map.getItem(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y)) == 2;
+		// TODO: controllare perche questo funziona a volte (+ parcel pickup)
+		if (Number.isInteger(this.#me_memory.x) && Number.isInteger(this.#me_memory.y)) {
+			return this.#game_map.getItem(this.#me_memory.x, this.#me_memory.y) == 2;
+		}
+		return false;
 	}
 
 	amIHere(x, y) {
@@ -213,7 +235,6 @@ export class BeliefSet {
 	}
 
 	isPalHere(x, y) {
-		console.log("PAL HERE: ", x == Math.round(this.#pal_memory.x) && y == Math.round(this.#pal_memory.y));
 		return x == Math.round(this.#pal_memory.x) && y == Math.round(this.#pal_memory.y);
 	}
 
@@ -227,7 +248,6 @@ export class BeliefSet {
 		let myY = Math.round(this.#me_memory.y);
 		let agentMapResult = false;
 		let palCheckResult = false;
-		console.log("I AM HERE " + myX + " " + myY + ", MOVING " + direction + ", PAL IS HERE " + Math.round(this.#pal_memory.x) + " " + Math.round(this.#pal_memory.y));
 
 		if (direction == "R") {
 			agentMapResult = this.isAgentAt(myX + 1, myY);
@@ -242,8 +262,6 @@ export class BeliefSet {
 			agentMapResult = this.isAgentAt(myX, myY - 1);
 			palCheckResult = this.isPalHere(myX, myY - 1);
 		}
-		console.log("AGENT", agentMapResult);
-		console.log("PAL", palCheckResult);
 		return true;
 	}
 

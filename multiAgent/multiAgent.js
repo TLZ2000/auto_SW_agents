@@ -97,7 +97,6 @@ class BFSmove extends Plan {
 			if (this.stopped) throw ["stopped"];
 
 			// Check if the next position is free to move
-			console.log("FREE CELL: " + belief.isNextCellFree(path[i]));
 			if (!belief.isNextCellFree(path[i])) {
 				console.log("STOP");
 				// If not, fail the action and stop here
@@ -153,7 +152,7 @@ class BFSmove extends Plan {
 			// If I am not at the final position already
 			if (i < path.length) {
 				// If I am on a parcel
-				if (belief.amIOnParcel()) {
+				if (belief.amIOnParcelLong()) {
 					// Then force a pickup because it is free
 					await myEmitPickUp();
 				}
@@ -191,7 +190,6 @@ class FollowPath extends Plan {
 			if (this.stopped) throw ["stopped"];
 
 			// Check if the next position is free to move
-			console.log("FREE CELL: " + belief.isNextCellFree(path[i]));
 			if (!belief.isNextCellFree(path[i])) {
 				console.log("STOP");
 				// If not, fail the action and stop here
@@ -247,7 +245,7 @@ class FollowPath extends Plan {
 			// If I am not at the final position already
 			if (i < path.length) {
 				// If I am on a parcel
-				if (belief.amIOnParcel()) {
+				if (belief.amIOnParcelLong()) {
 					// Then force a pickup because it is free
 					await myEmitPickUp();
 				}
