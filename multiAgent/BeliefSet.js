@@ -435,9 +435,10 @@ export class BeliefSet {
 	 *
 	 * @param {[int, int]} initialPos
 	 * @param {[int, int]} finalPos
+	 * @param {Boolean} palOk (default = false) - is it fine if the pal is in the final position?
 	 * @returns path, undefined (if initialNode is undefined) or null (if path not existing)
 	 */
-	computePathBFS(initialPos, finalPos) {
+	computePathBFS(initialPos, finalPos, palOk = false) {
 		let queue = new Queue();
 		let explored = new Set();
 
@@ -458,8 +459,15 @@ export class BeliefSet {
 			// If the current position is the final position return the path
 			if (currentNode.x == finalPos[0] && currentNode.y == finalPos[1]) {
 				// Check if in the final node there is another agent
+				console.log("CHECK PAL: ", palOk && this.isPalHere(currentNode.x, currentNode.y));
+				if (palOk && this.isPalHere(currentNode.x, currentNode.y)) {
+					// Then return the path
+					return path;
+				}
 				if (this.isAgentAt(currentNode.x, currentNode.y)) {
-					// If so, there is no valid path
+					// If it is the pal and it is fine
+
+					// Otherwise there is no valid path
 					return null;
 				} else {
 					// Otherwise (no agent), set the path
@@ -515,6 +523,10 @@ export class BeliefSet {
 
 	pathFromMeTo(x, y) {
 		return this.computePathBFS([Math.round(this.#me_memory.x), Math.round(this.#me_memory.y)], [x, y]);
+	}
+
+	pathFromMeToPal() {
+		return this.computePathBFS([Math.round(this.#me_memory.x), Math.round(this.#me_memory.y)], [Math.round(this.#pal_memory.x), Math.round(this.#pal_memory.y)], true);
 	}
 
 	/**
@@ -923,10 +935,10 @@ export class BeliefSet {
 		// Reset parcels map
 		this.#resetParcelsMap();
 
-		// Add the parcels to the parcel map
-		this.#parcel_memory.forEach((parcel) => {
+		// Add the parcels to the parcel map TODO TOGLIERE
+		/*this.#parcel_memory.forEach((parcel) => {
 			this.setParcelAt(Math.round(parcel.x), Math.round(parcel.y));
-		});
+		});*/
 	}
 
 	/**

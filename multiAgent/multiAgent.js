@@ -79,7 +79,21 @@ class ShareParcels extends Plan {
 
 	async execute(share_parcels) {
 		belief.requireCoop();
+		// Compute middle point between me and pal
+		let path = belief.pathFromMeToPal();
+		if (path == null) {
+			// No path from me to pal, so error
+			belief.releaseCoop();
+			this.stop();
+			throw ["stopped"];
+		} else {
+			// There is a path from me to pal
+			console.log(path);
+		}
+		// Share request
 		let response = await myEmitAsk("MSG_shareRequest", "sdlfjkklpsdf");
+
+		// Manage response
 		console.log(response);
 		belief.releaseCoop();
 		return true;
@@ -343,8 +357,6 @@ function getBestPickupOption() {
 		}
 	});
 
-	console.log(options);
-
 	// Options filtering
 	let bestOption = null;
 	let maxExpectedScore = 0;
@@ -571,7 +583,6 @@ function optionsGeneration() {
 				pushIntention(bestOption);
 			}
 		} else {
-			/**
 			// If I have no valid option, then check if I am carrying parcels
 			if (belief.getCarriedParcels().size > 0) {
 				// Then co-op with pal to deliver
@@ -585,15 +596,6 @@ function optionsGeneration() {
 					// Explore distant tiles
 					pushIntention(["explore", "distance"]);
 				}
-			}
-*/
-			// If I do not have a valid best option, then explore
-			if (Math.random() < TIMED_EXPLORE) {
-				// Explore oldest tiles
-				pushIntention(["explore", "timed"]);
-			} else {
-				// Explore distant tiles
-				pushIntention(["explore", "distance"]);
 			}
 		}
 
