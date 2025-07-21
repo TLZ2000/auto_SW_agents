@@ -203,6 +203,16 @@ export class BeliefSet {
 		return result;
 	}
 
+	isAgentHereLong(x, y) {
+		let result = false;
+		this.#agent_memory.forEach((agent) => {
+			if (Math.round(agent.x) == x && Math.round(agent.y) == y) {
+				result = true;
+			}
+		});
+		return result;
+	}
+
 	/**
 	 * Check if there are parcels it the tile where I am
 	 * @returns {Boolean}
@@ -251,16 +261,16 @@ export class BeliefSet {
 		let palCheckResult = false;
 
 		if (direction == "R") {
-			agentMapResult = this.isAgentAt(myX + 1, myY);
+			agentMapResult = this.isAgentHereLong(myX + 1, myY);
 			palCheckResult = this.isPalHere(myX + 1, myY);
 		} else if (direction == "L") {
-			agentMapResult = this.isAgentAt(myX - 1, myY);
+			agentMapResult = this.isAgentHereLong(myX - 1, myY);
 			palCheckResult = this.isPalHere(myX - 1, myY);
 		} else if (direction == "U") {
-			agentMapResult = this.isAgentAt(myX, myY + 1);
+			agentMapResult = this.isAgentHereLong(myX, myY + 1);
 			palCheckResult = this.isPalHere(myX, myY + 1);
 		} else if (direction == "D") {
-			agentMapResult = this.isAgentAt(myX, myY - 1);
+			agentMapResult = this.isAgentHereLong(myX, myY - 1);
 			palCheckResult = this.isPalHere(myX, myY - 1);
 		}
 		return true;
@@ -459,14 +469,13 @@ export class BeliefSet {
 			// If the current position is the final position return the path
 			if (currentNode.x == finalPos[0] && currentNode.y == finalPos[1]) {
 				// Check if in the final node there is another agent
-				console.log("CHECK PAL: ", palOk && this.isPalHere(currentNode.x, currentNode.y));
-				if (palOk && this.isPalHere(currentNode.x, currentNode.y)) {
-					// Then return the path
-					return path;
-				}
-				if (this.isAgentAt(currentNode.x, currentNode.y)) {
+				if (this.isAgentHereLong(currentNode.x, currentNode.y)) {
+					console.log("CHECK PAL: ", palOk && this.isPalHere(currentNode.x, currentNode.y));
 					// If it is the pal and it is fine
-
+					if (palOk && this.isPalHere(currentNode.x, currentNode.y)) {
+						// Then return the path
+						return path;
+					}
 					// Otherwise there is no valid path
 					return null;
 				} else {
@@ -484,7 +493,7 @@ export class BeliefSet {
 				explored.add(currentNodeId);
 
 				// If node is occupied, ignore its neighbors
-				if (this.isAgentAt(currentNode.x, currentNode.y)) {
+				if (this.isAgentHereLong(currentNode.x, currentNode.y)) {
 					continue;
 				}
 
@@ -565,7 +574,7 @@ export class BeliefSet {
 				explored.add(currentNodeId);
 
 				// If node is occupied, ignore it and its neighbors
-				if (this.isAgentAt(currentNode.x, currentNode.y)) {
+				if (this.isAgentHereLong(currentNode.x, currentNode.y)) {
 					continue;
 				}
 
@@ -817,7 +826,7 @@ export class BeliefSet {
 			// If the current position is a delivery zone
 			if (currentNode.type == 2) {
 				// Check if in the final node there is no other agent
-				if (this.isAgentAt(currentNode.x, currentNode.y)) {
+				if (this.isAgentHereLong(currentNode.x, currentNode.y)) {
 					continue;
 				} else {
 					return [[currentNode.x, currentNode.y], path];
@@ -832,7 +841,7 @@ export class BeliefSet {
 				explored.add(currentNodeId);
 
 				// If node is occupied, ignore its neighbors
-				if (this.isAgentAt(currentNode.x, currentNode.y)) {
+				if (this.isAgentHereLong(currentNode.x, currentNode.y)) {
 					continue;
 				}
 
@@ -915,7 +924,7 @@ export class BeliefSet {
 				}
 			} else {
 				// Check if I saw the agent (not in our vision range) recently
-				if (Date.now() - agent.time < this.#game_config.OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
+				if (Date.now() - agent.time < this.#game_config.OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD || agent.id == this.#pal_memory.id) {
 					// If so, preserve it
 					tmpAgents.set(agent.id, agent);
 				}
@@ -1208,5 +1217,50 @@ export class BeliefSet {
 	messageHandler_currentIntention(message) {
 		// Save pal current intention
 		this.#pal_memory.currentIntention = message;
+	}
+
+	messageHandler_shareRequest(message) {
+		// Recover message content
+		let palX = JSON.parse(message).x;
+		let palY = JSON.parse(message).y;
+
+		// Update pal position
+		this.#pal_memory.x = palX;
+		this.#pal_memory.y = palY;
+
+		// Compute middle point between me and pal
+		let path = this.pathFromMeToPal();
+		if (path == null) {
+			return { outcome: false };
+		} else {
+			let tmpMeX = Math.round(this.#me_memory.x);
+			let tmpMeY = Math.round(this.#me_memory.y);
+			let length = Math.round(path.length / 2);
+
+			for (let i = 0; i < length; i++) {
+				if (path[i] == "U") {
+					tmpMeY++;
+				} else if (path[i] == "D") {
+					tmpMeY--;
+				} else if (path[i] == "R") {
+					tmpMeX++;
+				} else if (path[i] == "L") {
+					tmpMeX--;
+				}
+			}
+
+			let tmpPalX = tmpMeX;
+			let tmpPalY = tmpMeY;
+			if (path[length + 1] == "U") {
+				tmpPalY++;
+			} else if (path[length + 1] == "D") {
+				tmpPalY--;
+			} else if (path[length + 1] == "R") {
+				tmpPalX++;
+			} else if (path[length + 1] == "L") {
+				tmpPalX--;
+			}
+			return { outcome: true, mePosX: tmpMeX, mePosY: tmpMeY, yourPosX: tmpPalX, yourPosY: tmpPalY };
+		}
 	}
 }

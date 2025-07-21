@@ -79,22 +79,33 @@ class ShareParcels extends Plan {
 
 	async execute(share_parcels) {
 		belief.requireCoop();
-		// Compute middle point between me and pal
-		let path = belief.pathFromMeToPal();
-		if (path == null) {
-			// No path from me to pal, so error
+
+		if (this.stopped) throw ["stopped"]; // if stopped then quit
+
+		// Share request
+		let response = await myEmitAsk("MSG_shareRequest", JSON.stringify({ x: Math.round(belief.getMePosition()[0]), y: Math.round(belief.getMePosition()[1]) }));
+
+		if (this.stopped) throw ["stopped"]; // if stopped then quit
+
+		// If pal returns false, stop the intention
+		if (!response.outcome) {
 			belief.releaseCoop();
 			this.stop();
-			throw ["stopped"];
-		} else {
-			// There is a path from me to pal
-			console.log(path);
+			throw ["refused"];
 		}
-		// Share request
-		let response = await myEmitAsk("MSG_shareRequest", "sdlfjkklpsdf");
 
+		// Otherwise
+		let tmpX = response.yourPosX;
+		let tmpY = response.yourPosY;
+
+		if (this.stopped) throw ["stopped"]; // if stopped then quit
+		await this.subIntention(["go_to", tmpX, tmpY], myAgent.getPlanLibrary());
+		if (this.stopped) throw ["stopped"]; // if stopped then quit
+
+		let time = Date.now();
+		while (Date.now() > time + 10000) {}
 		// Manage response
-		console.log(response);
+		console.log("RESPONSE: ", response);
 		belief.releaseCoop();
 		return true;
 	}
@@ -713,7 +724,8 @@ client.onMsg(async (id, name, msg, reply) => {
 			belief.messageHandler_currentIntention(msg.content);
 			break;
 		case "MSG_shareRequest":
-			reply("FUCK YOU");
+			let response = belief.messageHandler_shareRequest(msg.content);
+			reply(response);
 			break;
 	}
 });
