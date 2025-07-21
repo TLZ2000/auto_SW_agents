@@ -103,7 +103,7 @@ class ShareParcels extends Plan {
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 
 		let time = Date.now();
-		while (Date.now() > time + 10000) {}
+		while (Date.now() < time + 10000) {}
 		// Manage response
 		console.log("RESPONSE: ", response);
 		belief.releaseCoop();

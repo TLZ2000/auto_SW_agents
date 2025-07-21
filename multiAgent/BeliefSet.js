@@ -1034,20 +1034,12 @@ export class BeliefSet {
 		// Compute distance agent -> parcel
 		let pathToParcel = this.computePathBFS([Math.round(x), Math.round(y)], [parX, parY]);
 
-		if (pathToParcel == undefined || pathToParcel == null) {
-			return {
-				pathToParcel: pathToParcel,
-				pathToDeliver: pathToParcel,
-				expectedReward: 0,
-			};
-		}
-
 		// Find path to the nearest delivery
 		let pathToDeliver = this.nearestDeliveryFromPos(parX, parY)[1];
 
-		if (pathToDeliver == undefined || pathToDeliver == null) {
+		if (pathToParcel == undefined || pathToParcel == null || pathToDeliver == undefined || pathToDeliver == null) {
 			return {
-				pathToParcel: pathToDeliver,
+				pathToParcel: pathToParcel,
 				pathToDeliver: pathToDeliver,
 				expectedReward: 0,
 			};
@@ -1096,7 +1088,7 @@ export class BeliefSet {
 			if (pickUpReward.pathToParcel) {
 				return [0, pickUpReward.pathToParcel.length];
 			} else {
-				return [0, -1];
+				return [0, Infinity];
 			}
 		}
 	}
@@ -1113,7 +1105,7 @@ export class BeliefSet {
 		}
 
 		// Otherwise, no reward
-		return [0, 0];
+		return [0, Infinity];
 	}
 
 	getPalId() {
