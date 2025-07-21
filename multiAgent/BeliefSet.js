@@ -15,6 +15,7 @@ export class BeliefSet {
 	#parcels_map = null;
 	#emit_action_pending = false;
 	#block_option_generation_flag = false;
+	#coop_flag = false;
 
 	constructor() {
 		this.#agent_memory = new Map();
@@ -283,6 +284,24 @@ export class BeliefSet {
 	 */
 	releaseEmit() {
 		this.#emit_action_pending = false;
+	}
+
+	/**
+	 * Signal the beginning of a coop action
+	 */
+	requireCoop() {
+		this.#coop_flag = true;
+	}
+
+	/**
+	 * Signal the ending of a coop action
+	 */
+	releaseCoop() {
+		this.#coop_flag = false;
+	}
+
+	isCooperating() {
+		return this.#coop_flag;
 	}
 
 	/**
@@ -1046,7 +1065,11 @@ export class BeliefSet {
 			return [totalScore, pickUpReward.pathToParcel.length];
 		} else {
 			// Otherwise, no reward
-			return [0, 0];
+			if (pickUpReward.pathToParcel) {
+				return [0, pickUpReward.pathToParcel.length];
+			} else {
+				return [0, -1];
+			}
 		}
 	}
 
@@ -1099,13 +1122,11 @@ export class BeliefSet {
 		// Recover message content
 		let palX = JSON.parse(message).x;
 		let palY = JSON.parse(message).y;
-		let oldPalX = undefined;
-		let oldPalY = undefined;
 
-		// Save old pal position
+		// If the pal has an old position
 		if (this.#pal_memory.x) {
-			oldPalX = this.#pal_memory.x;
-			oldPalY = this.#pal_memory.y;
+			// Clear it
+			this.clearAgentAt(Math.round(this.#pal_memory.x), Math.round(this.#pal_memory.y));
 		}
 
 		// Update pal position
@@ -1114,12 +1135,6 @@ export class BeliefSet {
 
 		// Update new pal position
 		this.setAgentAt(Math.round(this.#pal_memory.x), Math.round(this.#pal_memory.y));
-
-		// TODO: invertire agent map invalidation anche negli altri clearAgentAt
-		// Invalidate old pal position
-		if (oldPalX != undefined) {
-			this.clearAgentAt(Math.round(oldPalX), Math.round(oldPalY));
-		}
 
 		// Update time map based on pal position
 		if (Number.isInteger(palX) && Number.isInteger(palY)) {

@@ -72,6 +72,20 @@ class Explore extends Plan {
 	}
 }
 
+class ShareParcels extends Plan {
+	static isApplicableTo(share_parcels) {
+		return share_parcels == "share_parcels";
+	}
+
+	async execute(share_parcels) {
+		belief.requireCoop();
+		let response = await myEmitAsk("MSG_shareRequest", "sdlfjkklpsdf");
+		console.log(response);
+		belief.releaseCoop();
+		return true;
+	}
+}
+
 /**
  * Plan class handling the "go_to" intention
  */
@@ -312,11 +326,11 @@ function getBestPickupOption() {
 		let tmpPalReward = belief.expectedRewardCarriedAndPickupPal(parcel);
 
 		// If, for some reason, I can't reach this parcel, then don't even create the option
-		if (tmpReward == null || tmpReward == undefined || tmpReward == [0, 0]) {
+		if (tmpReward == null || tmpReward == undefined) {
 			return;
 		}
 
-		if (tmpReward[0] > tmpPalReward[0] || (tmpReward[0] == tmpPalReward[0] && tmpReward[1] < tmpPalReward[1]) || belief.getPalCurrentIntention() == "go_deliver") {
+		if (tmpReward[0] >= tmpPalReward[0] || (tmpReward[0] == tmpPalReward[0] && tmpReward[1] < tmpPalReward[1]) || belief.getPalCurrentIntention() == "go_deliver") {
 			// Push the pickup option only if my reward is higher than the pal, or same reward and smaller distance, or the pal intention is to deliver (it ignores the parcel)
 			options.push([
 				"go_pick_up",
@@ -328,6 +342,8 @@ function getBestPickupOption() {
 			]);
 		}
 	});
+
+	console.log(options);
 
 	// Options filtering
 	let bestOption = null;
@@ -490,6 +506,10 @@ async function myEmitSay(msg_type, msg_content) {
 	await client.emitSay(belief.getPalId(), { type: msg_type, content: msg_content });
 }
 
+async function myEmitAsk(msg_type, msg_content) {
+	return await client.emitAsk(belief.getPalId(), { type: msg_type, content: msg_content });
+}
+
 /**
  * Generate all possible options, based on the current game state and configuration, perform option filtering and select the best possible option as current intention
  */
@@ -548,22 +568,43 @@ function optionsGeneration() {
 
 			// Check if I should push
 			if (push) {
-				myAgent.push(bestOption);
-				myEmitSay("MSG_currentIntention", bestOption[0]);
+				pushIntention(bestOption);
 			}
 		} else {
+			/**
+			// If I have no valid option, then check if I am carrying parcels
+			if (belief.getCarriedParcels().size > 0) {
+				// Then co-op with pal to deliver
+				pushIntention(["share_parcels"]);
+			} else {
+				// If I do not have a valid best option, then explore
+				if (Math.random() < TIMED_EXPLORE) {
+					// Explore oldest tiles
+					pushIntention(["explore", "timed"]);
+				} else {
+					// Explore distant tiles
+					pushIntention(["explore", "distance"]);
+				}
+			}
+*/
 			// If I do not have a valid best option, then explore
 			if (Math.random() < TIMED_EXPLORE) {
 				// Explore oldest tiles
-				myAgent.push(["explore", "timed"]);
+				pushIntention(["explore", "timed"]);
 			} else {
 				// Explore distant tiles
-				myAgent.push(["explore", "distance"]);
+				pushIntention(["explore", "distance"]);
 			}
-			myEmitSay("MSG_currentIntention", "explore");
 		}
 
 		belief.setOptionGenerationNotRunning();
+	}
+}
+
+function pushIntention(intention) {
+	if (!belief.isCooperating()) {
+		myAgent.push(intention);
+		myEmitSay("MSG_currentIntention", intention[0]);
 	}
 }
 
@@ -605,6 +646,7 @@ myAgent.addPlan(GoPickUp);
 myAgent.addPlan(GoDeliver);
 myAgent.addPlan(FollowPath);
 myAgent.addPlan(BFSmove);
+myAgent.addPlan(ShareParcels);
 
 myAgent.loop();
 
@@ -667,6 +709,9 @@ client.onMsg(async (id, name, msg, reply) => {
 			break;
 		case "MSG_currentIntention":
 			belief.messageHandler_currentIntention(msg.content);
+			break;
+		case "MSG_shareRequest":
+			reply("FUCK YOU");
 			break;
 	}
 });
