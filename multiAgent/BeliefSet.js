@@ -8,7 +8,6 @@ export class BeliefSet {
 	#me_memory = null;
 	#pal_memory = null;
 	#game_config = null;
-	#carried_parcels = null;
 	#pal_carried_parcels = null;
 	#time_map = null; // Timestamp of last visit to the tile
 	#agents_map = null;
@@ -39,7 +38,6 @@ export class BeliefSet {
 			token: undefined,
 			currentIntention: undefined,
 		};
-		this.#carried_parcels = new Map();
 		this.#pal_carried_parcels = new Map();
 		this.#time_map = [];
 		this.#agents_map = [];
@@ -150,7 +148,18 @@ export class BeliefSet {
 	}
 
 	getCarriedParcels() {
-		return this.#carried_parcels;
+		let tmpCarried = new Map();
+
+		// Cycle the parcel memory
+		this.#parcel_memory.forEach((parcel) => {
+			// Save only the parcels carried by me
+			if (parcel.carriedBy == this.#me_memory.id) {
+				tmpCarried.set(parcel.id, parcel);
+			}
+		});
+
+		// Return the map of parcels carried by me
+		return tmpCarried;
 	}
 
 	getPalCarriedParcels() {
@@ -158,7 +167,18 @@ export class BeliefSet {
 	}
 
 	resetCarriedParcels() {
-		this.#carried_parcels = new Map();
+		let tmpParcels = new Map();
+
+		// Cycle the parcel memory
+		this.#parcel_memory.forEach((parcel) => {
+			// Save only the parcels not carried by me
+			if (parcel.carriedBy != this.#me_memory.id) {
+				tmpParcels.set(parcel.id, parcel);
+			}
+		});
+
+		// Overwrite the parcel memory only with the parcels not carried by me
+		this.#parcel_memory = tmpParcels;
 	}
 
 	getMePosition() {
@@ -409,9 +429,7 @@ export class BeliefSet {
 	}
 
 	onParcelSensingUpdate(pp) {
-		// Reset carried parcels
-		this.#carried_parcels = new Map();
-
+		// TODO togliere parcel map
 		this.#resetParcelsMap();
 
 		// Add the sensed parcels to the parcel belief set
@@ -419,12 +437,6 @@ export class BeliefSet {
 		for (const p of pp) {
 			p.time = now;
 			this.#parcel_memory.set(p.id, p);
-
-			// If the parcel is carried by me
-			if (p.carriedBy == this.#me_memory.id) {
-				// Push it in the carried parcels set
-				this.#carried_parcels.set(p.id, p);
-			}
 
 			// Update parcel map only with the free parcels
 			if (!p.carriedBy) {
@@ -906,7 +918,7 @@ export class BeliefSet {
 			// Check if I see old parcels position
 			if (this.#distance(parcel.x, parcel.y, this.#me_memory.x, this.#me_memory.y) < this.#game_config.PARCELS_OBSERVATION_DISTANCE) {
 				// Check if I saw the parcel recently (aka. the onParcelsSensing was called by it)
-				if (Date.now() - parcel.time < this.#game_config.INVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
+				if (Date.now() - parcel.time < this.getParcelDecayInterval() + 100) {
 					// If so, preserve it
 					tmpParcels.set(parcel.id, parcel);
 				}
@@ -1135,7 +1147,7 @@ export class BeliefSet {
 	 * // Return content of message to send to pal with the parcels, the agents and the carried parcels in the current belief set
 	 */
 	messageContent_memoryShare() {
-		return JSON.stringify({ parcels: this.#mapToJSON(this.#parcel_memory), agents: this.#mapToJSON(this.#agent_memory), carriedParcels: this.#mapToJSON(this.#carried_parcels) });
+		return JSON.stringify({ parcels: this.#mapToJSON(this.#parcel_memory), agents: this.#mapToJSON(this.#agent_memory), carriedParcels: this.#mapToJSON(this.getCarriedParcels()) });
 	}
 
 	messageHandler_positionUpdate(message) {

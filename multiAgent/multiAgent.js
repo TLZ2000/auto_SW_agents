@@ -355,7 +355,13 @@ function getBestPickupOption() {
 			return;
 		}
 
-		if (tmpReward[0] >= tmpPalReward[0] || (tmpReward[0] == tmpPalReward[0] && tmpReward[1] < tmpPalReward[1]) || belief.getPalCurrentIntention() == "go_deliver") {
+		/*
+		console.log("ME ", tmpReward);
+		console.log("PAL ", tmpPalReward);
+		console.log("CONDITION ", tmpReward[0] > tmpPalReward[0], "||", tmpReward[0] == tmpPalReward[0] && tmpReward[1] <= tmpPalReward[1], "||", belief.getPalCurrentIntention() == "go_deliver");
+		*/
+
+		if (tmpReward[0] > tmpPalReward[0] || (tmpReward[0] == tmpPalReward[0] && tmpReward[1] <= tmpPalReward[1]) || belief.getPalCurrentIntention() == "go_deliver") {
 			// Push the pickup option only if my reward is higher than the pal, or same reward and smaller distance, or the pal intention is to deliver (it ignores the parcel)
 			options.push([
 				"go_pick_up",
@@ -387,12 +393,14 @@ function getBestPickupOption() {
 			bestOption = option;
 		} else if (currentExpectedScore == maxExpectedScore) {
 			// If same expected score, then select the nearest parcel
-			if (currentDistance < minDistance) {
+			if (currentDistance <= minDistance) {
 				minDistance = currentDistance;
 				bestOption = option;
 			}
 		}
 	});
+
+	console.log(bestOption);
 
 	return bestOption;
 }
