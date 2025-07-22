@@ -841,6 +841,8 @@ export class BeliefSet {
 
 	/**
 	 * Compute the path to the nearest delivery cell from a given position considering the other agents as blocking elements
+	 * @param {Number} x - x coordinate of the starting position
+	 * @param {Number} y - y coordinate of the starting position
 	 * @returns {Array} [0]: coordinates [x, y] of the nearest delivery (if non existing -> [null, null], if initial node undefined -> [undefined, undefined]); [1]: array containing path to nearest delivery from [x, y] cell (if non existing -> null, if initial node undefined -> undefined)
 	 */
 	nearestDeliveryFromPos(x, y) {
@@ -918,11 +920,101 @@ export class BeliefSet {
 	}
 
 	/**
+	 * Compute a path of at least len positions from a given position considering the other agents as blocking elements
+	 * @param {Number} x - x coordinate of the starting position
+	 * @param {Number} y - y coordinate of the starting position
+	 * @param {Number} len - minimum require length of the path
+	 * @returns {Array} [0]: coordinates [x, y] of the destination (if non existing -> [null, null], if initial node undefined -> [undefined, undefined]); [1]: array containing path to destination from [x, y] cell (if non existing -> null, if initial node undefined -> undefined)
+	 */
+	pathFromPosOfLength(x, y, len) {
+		let queue = new Queue();
+		let explored = new Set();
+
+		let initialNode = this.#game_map.getGraphNode(x, y);
+
+		if (initialNode == undefined) {
+			return [[undefined, undefined], undefined];
+		}
+
+		// Add initial node to the queue
+		queue.enqueue({ currentNode: initialNode, path: [] });
+
+		// Cycle until the queue is empty or a valid path has been found
+		while (!queue.isEmpty()) {
+			// Take the item from the queue
+			let { currentNode, path } = queue.dequeue();
+
+			// If the path has at least len positions
+			if (path.length >= len) {
+				// Check if in the final node there is no other agent
+				if (this.isAgentHereLong(currentNode.x, currentNode.y)) {
+					continue;
+				} else {
+					return [[currentNode.x, currentNode.y], path];
+				}
+			}
+
+			let currentNodeId = currentNode.x + " " + currentNode.y;
+
+			// If the node not has not been visited
+			if (!explored.has(currentNodeId)) {
+				// Visit it
+				explored.add(currentNodeId);
+
+				// If node is occupied, ignore its neighbors
+				if (this.isAgentHereLong(currentNode.x, currentNode.y)) {
+					continue;
+				}
+
+				// Explore its neighbors
+				// Up
+				if (currentNode.neighU !== undefined && currentNode.neighU !== null) {
+					let tmp = path.slice();
+					tmp.push("U");
+					queue.enqueue({ currentNode: currentNode.neighU, path: tmp });
+				}
+
+				// Right
+				if (currentNode.neighR !== undefined && currentNode.neighR !== null) {
+					let tmp = path.slice();
+					tmp.push("R");
+					queue.enqueue({ currentNode: currentNode.neighR, path: tmp });
+				}
+
+				// Down
+				if (currentNode.neighD !== undefined && currentNode.neighD !== null) {
+					let tmp = path.slice();
+					tmp.push("D");
+					queue.enqueue({ currentNode: currentNode.neighD, path: tmp });
+				}
+
+				// Left
+				if (currentNode.neighL !== undefined && currentNode.neighL !== null) {
+					let tmp = path.slice();
+					tmp.push("L");
+					queue.enqueue({ currentNode: currentNode.neighL, path: tmp });
+				}
+			}
+		}
+
+		return [[null, null], null];
+	}
+
+	/**
 	 * Compute the path to the nearest delivery cell from the agent (me) position considering the other agents as blocking elements
 	 * @returns {Array} [0]: coordinates [x, y] of the nearest delivery (if non existing -> [null, null], if initial node undefined -> [undefined, undefined]); [1]: array containing path to nearest delivery from [x, y] cell (if non existing -> null, if initial node undefined -> undefined)
 	 */
 	nearestDeliveryFromHere() {
 		return this.nearestDeliveryFromPos(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y));
+	}
+
+	/**
+	 * Compute a path of at least len positions from the current agent's position considering the other agents as blocking elements
+	 * @param {Number} len - minimum require length of the path
+	 * @returns {Array} [0]: coordinates [x, y] of the destination (if non existing -> [null, null], if initial node undefined -> [undefined, undefined]); [1]: array containing path to destination from [x, y] cell (if non existing -> null, if initial node undefined -> undefined)
+	 */
+	pathFromHereOfLength(len) {
+		return this.pathFromPosOfLength(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y), len);
 	}
 
 	/**
@@ -1323,9 +1415,14 @@ export class BeliefSet {
 
 			// Define a path to the nearest delivery
 			let tmpPath = this.nearestDeliveryFromHere()[1];
+
+			// If the path to the delivery has enough free spaces
 			if (tmpPath != null && tmpPath.length >= missingCells) {
-				// Use that path to move away and gain at least 4 free spaces
+				// Then use that path to move away and gain at least 4 free spaces
 				return { outcome: "me_move", path: tmpPath, missingCells: missingCells };
+			} else {
+				// Otherwise I must tell the pal to move instead
+				return { outcome: "you_move", missingCells: missingCells };
 			}
 		}
 	}

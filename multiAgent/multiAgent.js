@@ -89,18 +89,40 @@ class ShareParcels extends Plan {
 		}
 
 		// Share request
-		let response = await myEmitAsk("MSG_shareRequest", JSON.stringify({ x: Math.round(belief.getMePosition()[0]), y: Math.round(belief.getMePosition()[1]) }));
+		let askOutcome = false;
+		let response = undefined;
+		while (!askOutcome) {
+			response = await myEmitAsk("MSG_shareRequest", JSON.stringify({ x: Math.round(belief.getMePosition()[0]), y: Math.round(belief.getMePosition()[1]) }));
 
-		if (this.stopped) {
-			belief.releaseCoop();
-			throw ["stopped"]; // if stopped then quit
-		}
+			if (this.stopped) {
+				belief.releaseCoop();
+				throw ["stopped"]; // if stopped then quit
+			}
 
-		// If pal returns false, stop the intention
-		if (response.outcome == "false") {
-			belief.releaseCoop();
-			this.stop();
-			throw ["refused"];
+			// If pal returns false, stop the intention
+			if (response.outcome == "false") {
+				belief.releaseCoop();
+				this.stop();
+				throw ["refused"];
+			} else if (response.outcome == "you_move") {
+				// This mean that I have to move to give the pal space to act, so I will compute a path of 4 positions
+				let path = belief.pathFromHereOfLength(4)[1];
+
+				// If there is a viable path
+				if (path != null) {
+					// Then move to have at least 4 free positions between me and the pal
+					for (let i = 0; i < response.missingCells; i++) {
+						await myEmitMove(path[i]);
+					}
+				} else {
+					// Otherwise return error
+					belief.releaseCoop();
+					this.stop();
+					throw ["no free path"];
+				}
+			} else if (response.outcome == "true") {
+				askOutcome = true;
+			}
 		}
 
 		if (this.stopped) {
@@ -894,7 +916,9 @@ client.onMsg(async (id, name, msg, reply) => {
 					for (let i = 0; i < response.missingCells; i++) {
 						await myEmitMove(response.path[i]);
 					}
-				} else if (response.outcome == "pal_move") {
+				} else if (response.outcome == "you_move") {
+					reply(response);
+					break;
 				}
 			}
 
