@@ -347,8 +347,9 @@ function getBestPickupOption() {
 
 	// Cycle all free parcels in belief
 	belief.getFreeParcels().forEach((parcel) => {
-		let tmpReward = belief.expectedRewardCarriedAndPickupMe(parcel);
-		let tmpPalReward = belief.expectedRewardCarriedAndPickupPal(parcel);
+		// Compute the reward of the single parcel
+		let tmpReward = belief.expectedRewardCarriedAndPickupMe(parcel, true);
+		let tmpPalReward = belief.expectedRewardCarriedAndPickupPal(parcel, true);
 
 		// If, for some reason, I can't reach this parcel, then don't even create the option
 		if (tmpReward == null || tmpReward == undefined) {
@@ -361,8 +362,10 @@ function getBestPickupOption() {
 		console.log("CONDITION ", tmpReward[0] > tmpPalReward[0], "||", tmpReward[0] == tmpPalReward[0] && tmpReward[1] <= tmpPalReward[1], "||", belief.getPalCurrentIntention() == "go_deliver");
 		*/
 
+		// Push the pickup option only if my reward is higher than the pal, or same reward and smaller distance, or the pal intention is to deliver (it ignores the parcel)
 		if (tmpReward[0] > tmpPalReward[0] || (tmpReward[0] == tmpPalReward[0] && tmpReward[1] <= tmpPalReward[1]) || belief.getPalCurrentIntention() == "go_deliver") {
-			// Push the pickup option only if my reward is higher than the pal, or same reward and smaller distance, or the pal intention is to deliver (it ignores the parcel)
+			// Re-compute the reward considering also the carried parcels
+			tmpReward = belief.expectedRewardCarriedAndPickupMe(parcel);
 			options.push([
 				"go_pick_up",
 				parcel.x, // X coord
@@ -399,8 +402,6 @@ function getBestPickupOption() {
 			}
 		}
 	});
-
-	console.log(bestOption);
 
 	return bestOption;
 }

@@ -1083,15 +1083,21 @@ export class BeliefSet {
 	 * @param {Number} x - coordinate x of the agent
 	 * @param {Number} y - coordinate y of the agent
 	 * @param {Map} carriedParcels - parcels carried by the agent
+	 * @param {Boolean} ignoreCarriedParcels - if true ignores the reward from carried parcels
 	 * @returns list containing 0: expected reward of delivering the currently carried parcels and the targeted parcel to pick up, 1: length of path to pickup the parcel
 	 */
-	#expectedRewardCarriedAndPickup(parcel2Pickup, x, y, carriedParcels) {
+	#expectedRewardCarriedAndPickup(parcel2Pickup, x, y, carriedParcels, ignoreCarriedParcels) {
 		let pickUpReward = this.#parcelCostReward(parcel2Pickup, x, y);
 
 		// If we can reach the parcel to pickup (pathToDeliver and pathToParcel != undefined and != null) with a reward > 0
 		if (pickUpReward.expectedReward != 0 && pickUpReward.pathToDeliver != undefined && pickUpReward.pathToDeliver != null && pickUpReward.pathToParcel != undefined && pickUpReward.pathToParcel != null) {
-			// Compute expected reward for the carried parcels
-			let totalScore = pickUpReward.expectedReward + this.expectedRewardOfCarriedParcels(pickUpReward.pathToParcel.concat(pickUpReward.pathToDeliver), carriedParcels);
+			// Compute expected reward for the carried parcels (if not ignored)
+			let totalScore;
+			if (ignoreCarriedParcels) {
+				totalScore = pickUpReward.expectedReward;
+			} else {
+				totalScore = pickUpReward.expectedReward + this.expectedRewardOfCarriedParcels(pickUpReward.pathToParcel.concat(pickUpReward.pathToDeliver), carriedParcels);
+			}
 
 			// Return the final expected score
 			return [totalScore, pickUpReward.pathToParcel.length];
@@ -1105,15 +1111,15 @@ export class BeliefSet {
 		}
 	}
 
-	expectedRewardCarriedAndPickupMe(parcel2Pickup) {
-		return this.#expectedRewardCarriedAndPickup(parcel2Pickup, Math.round(this.#me_memory.x), Math.round(this.#me_memory.y), this.getCarriedParcels());
+	expectedRewardCarriedAndPickupMe(parcel2Pickup, ignoreCarriedParcels = false) {
+		return this.#expectedRewardCarriedAndPickup(parcel2Pickup, Math.round(this.#me_memory.x), Math.round(this.#me_memory.y), this.getCarriedParcels(), ignoreCarriedParcels);
 	}
 
-	expectedRewardCarriedAndPickupPal(parcel2Pickup) {
+	expectedRewardCarriedAndPickupPal(parcel2Pickup, ignoreCarriedParcels = false) {
 		// Check if pal exists
 		if (this.#pal_memory.x && this.#pal_memory.y) {
 			// If so, return the reward
-			return this.#expectedRewardCarriedAndPickup(parcel2Pickup, Math.round(this.#pal_memory.x), Math.round(this.#pal_memory.y), this.getPalCarriedParcels());
+			return this.#expectedRewardCarriedAndPickup(parcel2Pickup, Math.round(this.#pal_memory.x), Math.round(this.#pal_memory.y), this.getPalCarriedParcels(), ignoreCarriedParcels);
 		}
 
 		// Otherwise, no reward
