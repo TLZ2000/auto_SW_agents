@@ -32,6 +32,8 @@ const TIMED_EXPLORE = 0.99;
 const OPTION_GENERATION_INTERVAL = 50;
 const MEMORY_REVISION_INTERVAL = 250;
 const SHARE_PARCEL_TIMEOUT = 3000;
+const SHARE_PARCEL_WAIT_MUX = 4;
+const RECOVER_PARCEL_WAIT_MUX = 2;
 
 //--------------------------------------------------------------------------------------------------------------
 
@@ -122,6 +124,9 @@ class ShareParcels extends Plan {
 				throw ["stopped"]; // if stopped then quit
 			}
 
+			// Allow the execution to serve messages
+			await new Promise((res) => setTimeout(res, 1));
+
 			// Check if the pal is in his accorded position
 			if (belief.isPalHere(response.mePosX, response.mePosY)) {
 				palOK = true;
@@ -140,6 +145,20 @@ class ShareParcels extends Plan {
 
 			// Drop them
 			await myEmitPutDown();
+
+			// Move to support position
+			try {
+				await this.subIntention(["go_to", response.yourSupportPosX, response.yourSupportPosY], myAgent.getPlanLibrary());
+			} catch (err) {
+				belief.releaseCoop();
+				throw [err];
+			}
+			// Give time to the pal to move and pick the parcels up
+			await new Promise((res) => setTimeout(res, belief.getAgentMovementDuration() * SHARE_PARCEL_WAIT_MUX));
+		} else {
+			belief.releaseCoop();
+			this.stop();
+			throw ["pal timed out"]; // if stopped then quit
 		}
 
 		// Then the action is finished, a new option generation will be triggered and I will move out of the way
@@ -172,11 +191,15 @@ class RecoverSharedParcels extends Plan {
 		// Wait at the accorded position
 		let time = Date.now();
 		let palOK = false;
+		console.log("WAITING");
 		while (Date.now() < time + SHARE_PARCEL_TIMEOUT && !palOK) {
 			if (this.stopped) {
 				belief.releaseCoop();
 				throw ["stopped"]; // if stopped then quit
 			}
+
+			// Allow the execution to serve messages
+			await new Promise((res) => setTimeout(res, 1));
 
 			// Check if the pal is in his accorded position
 			if (belief.isPalHere(yourPosX, yourPosY)) {
@@ -191,8 +214,11 @@ class RecoverSharedParcels extends Plan {
 
 		// If the pal is in the correct position, I can commit to the share
 		if (palOK) {
+			console.log("Serving parcels");
 			// Wait until the pal is out of the way
 			while (belief.isPalHere(yourPosX, yourPosY)) {
+				// Allow the execution to serve messages
+				await new Promise((res) => setTimeout(res, 1));
 				if (this.stopped) {
 					belief.releaseCoop();
 					throw ["stopped"]; // if stopped then quit
@@ -200,7 +226,7 @@ class RecoverSharedParcels extends Plan {
 			}
 
 			// Give time to the pal to move out of the way
-			await new Promise((res) => setTimeout(res, belief.getAgentMovementDuration()));
+			await new Promise((res) => setTimeout(res, belief.getAgentMovementDuration() * RECOVER_PARCEL_WAIT_MUX));
 
 			if (this.stopped) {
 				belief.releaseCoop();
@@ -209,11 +235,15 @@ class RecoverSharedParcels extends Plan {
 
 			// Go and pick up the shared parcel
 			try {
-				await this.subIntention(["go_pick_up", x, y], myAgent.getPlanLibrary());
+				await this.subIntention(["go_pick_up", yourPosX, yourPosY], myAgent.getPlanLibrary());
 			} catch (err) {
 				belief.releaseCoop();
 				throw [err];
 			}
+		} else {
+			belief.releaseCoop();
+			this.stop();
+			throw ["pal timed out"]; // if stopped then quit
 		}
 
 		// Then the action is finished, a new option generation will be triggered and I will move out of the way
@@ -738,6 +768,8 @@ function pushIntention(intention) {
 	if (!belief.isCooperating()) {
 		myAgent.push(intention);
 		myEmitSay("MSG_currentIntention", intention[0]);
+	} else {
+		console.log("Push of ", intention, " failed due to coop");
 	}
 }
 
@@ -847,7 +879,9 @@ client.onMsg(async (id, name, msg, reply) => {
 		case "MSG_shareRequest":
 			let response = belief.messageHandler_shareRequest(msg.content);
 
-			myAgent.push(["recover_shared_parcels", response.mePosX, response.mePosY, response.yourPosX, response.yourPosY]);
+			pushIntention(["recover_shared_parcels", response.mePosX, response.mePosY, response.yourPosX, response.yourPosY, response.yourSupportPosX, response.yourSupportPosY]);
+			belief.requireCoop();
+
 			reply(response);
 			break;
 	}

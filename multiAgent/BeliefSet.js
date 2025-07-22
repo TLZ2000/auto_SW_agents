@@ -1299,7 +1299,19 @@ export class BeliefSet {
 			} else if (path[length + 1] == "L") {
 				tmpPalX--;
 			}
-			return { outcome: true, mePosX: tmpMeX, mePosY: tmpMeY, yourPosX: tmpPalX, yourPosY: tmpPalY };
+
+			let tmpPalSupX = tmpPalX;
+			let tmpPalSupY = tmpPalY;
+			if (path[length + 2] == "U") {
+				tmpPalSupY++;
+			} else if (path[length + 2] == "D") {
+				tmpPalSupY--;
+			} else if (path[length + 2] == "R") {
+				tmpPalSupX++;
+			} else if (path[length + 2] == "L") {
+				tmpPalSupX--;
+			}
+			return { outcome: true, mePosX: tmpMeX, mePosY: tmpMeY, yourPosX: tmpPalX, yourPosY: tmpPalY, yourSupportPosX: tmpPalSupX, yourSupportPosY: tmpPalSupY };
 		}
 	}
 }
