@@ -15,6 +15,7 @@ export class BeliefSet {
 	#emit_action_pending = false;
 	#block_option_generation_flag = false;
 	#coop_flag = false;
+	#parcels_to_ignore = undefined;
 
 	constructor() {
 		this.#agent_memory = new Map();
@@ -42,6 +43,7 @@ export class BeliefSet {
 		this.#time_map = [];
 		this.#agents_map = [];
 		this.#parcels_map = [];
+		this.#parcels_to_ignore = new Set();
 	}
 
 	/**
@@ -164,6 +166,16 @@ export class BeliefSet {
 
 	getPalCarriedParcels() {
 		return this.#pal_carried_parcels;
+	}
+
+	ignoreCarriedParcels() {
+		// Cycle the parcel memory
+		this.#parcel_memory.forEach((parcel) => {
+			// Save only the parcels carried by me
+			if (parcel.carriedBy == this.#me_memory.id) {
+				this.#parcels_to_ignore.add(parcel.id);
+			}
+		});
 	}
 
 	resetCarriedParcels() {
@@ -435,12 +447,15 @@ export class BeliefSet {
 		// Add the sensed parcels to the parcel belief set
 		let now = Date.now();
 		for (const p of pp) {
-			p.time = now;
-			this.#parcel_memory.set(p.id, p);
+			// Memorize only the parcels not ignored
+			if (!this.#parcels_to_ignore.has(p.id)) {
+				p.time = now;
+				this.#parcel_memory.set(p.id, p);
 
-			// Update parcel map only with the free parcels
-			if (!p.carriedBy) {
-				this.setParcelAt(Math.round(p.x), Math.round(p.y));
+				// Update parcel map only with the free parcels
+				if (!p.carriedBy) {
+					this.setParcelAt(Math.round(p.x), Math.round(p.y));
+				}
 			}
 		}
 
@@ -1194,16 +1209,19 @@ export class BeliefSet {
 
 		// Cycle all the reconstructed parcels
 		parcels.forEach((p) => {
-			// Check if the parcel is already in my memory
-			if (this.#parcel_memory.has(p.id)) {
-				// If so, check if the received parcel information is newer than the parcel information in my memory
-				if (this.#parcel_memory.get(p.id).time < p.time) {
-					// If so, update my memory
+			// Consider only parcels not ignored
+			if (!this.#parcels_to_ignore.has(p.id)) {
+				// Check if the parcel is already in my memory
+				if (this.#parcel_memory.has(p.id)) {
+					// If so, check if the received parcel information is newer than the parcel information in my memory
+					if (this.#parcel_memory.get(p.id).time < p.time) {
+						// If so, update my memory
+						this.#parcel_memory.set(p.id, p);
+					}
+				} else {
+					// If not in memory, add it
 					this.#parcel_memory.set(p.id, p);
 				}
-			} else {
-				// If not in memory, add it
-				this.#parcel_memory.set(p.id, p);
 			}
 		});
 

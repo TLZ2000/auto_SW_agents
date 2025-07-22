@@ -31,6 +31,7 @@ const TIMED_EXPLORE_BETA = 1;
 const TIMED_EXPLORE = 0.99;
 const OPTION_GENERATION_INTERVAL = 50;
 const MEMORY_REVISION_INTERVAL = 250;
+const SHARE_PARCEL_TIMEOUT = 3000;
 
 //--------------------------------------------------------------------------------------------------------------
 
@@ -80,12 +81,18 @@ class ShareParcels extends Plan {
 	async execute(share_parcels) {
 		belief.requireCoop();
 
-		if (this.stopped) throw ["stopped"]; // if stopped then quit
+		if (this.stopped) {
+			belief.releaseCoop();
+			throw ["stopped"]; // if stopped then quit
+		}
 
 		// Share request
 		let response = await myEmitAsk("MSG_shareRequest", JSON.stringify({ x: Math.round(belief.getMePosition()[0]), y: Math.round(belief.getMePosition()[1]) }));
 
-		if (this.stopped) throw ["stopped"]; // if stopped then quit
+		if (this.stopped) {
+			belief.releaseCoop();
+			throw ["stopped"]; // if stopped then quit
+		}
 
 		// If pal returns false, stop the intention
 		if (!response.outcome) {
@@ -94,18 +101,122 @@ class ShareParcels extends Plan {
 			throw ["refused"];
 		}
 
-		// Otherwise
-		let tmpX = response.yourPosX;
-		let tmpY = response.yourPosY;
+		if (this.stopped) {
+			belief.releaseCoop();
+			throw ["stopped"]; // if stopped then quit
+		}
 
-		if (this.stopped) throw ["stopped"]; // if stopped then quit
-		await this.subIntention(["go_to", tmpX, tmpY], myAgent.getPlanLibrary());
-		if (this.stopped) throw ["stopped"]; // if stopped then quit
+		// TODO ricontrollare altri possibili try/catch
+		try {
+			await this.subIntention(["go_to", response.yourPosX, response.yourPosY], myAgent.getPlanLibrary());
+		} catch (err) {
+			belief.releaseCoop();
+			throw [err];
+		}
 
 		let time = Date.now();
-		while (Date.now() < time + 10000) {}
-		// Manage response
-		console.log("RESPONSE: ", response);
+		let palOK = false;
+		while (Date.now() < time + SHARE_PARCEL_TIMEOUT && !palOK) {
+			if (this.stopped) {
+				belief.releaseCoop();
+				throw ["stopped"]; // if stopped then quit
+			}
+
+			// Check if the pal is in his accorded position
+			if (belief.isPalHere(response.mePosX, response.mePosY)) {
+				palOK = true;
+			}
+		}
+
+		if (this.stopped) {
+			belief.releaseCoop();
+			throw ["stopped"]; // if stopped then quit
+		}
+
+		// If the pal is in the correct position, I can commit to the share
+		if (palOK) {
+			// Ignore the parcels we are carrying now (so we don't ever pick them up again)
+			belief.ignoreCarriedParcels();
+
+			// Drop them
+			await myEmitPutDown();
+		}
+
+		// Then the action is finished, a new option generation will be triggered and I will move out of the way
+		belief.releaseCoop();
+		return true;
+	}
+}
+
+class RecoverSharedParcels extends Plan {
+	static isApplicableTo(recover_shared_parcels) {
+		return recover_shared_parcels == "recover_shared_parcels";
+	}
+
+	async execute(recover_shared_parcels, mePosX, mePosY, yourPosX, yourPosY) {
+		belief.requireCoop();
+
+		if (this.stopped) {
+			belief.releaseCoop();
+			throw ["stopped"]; // if stopped then quit
+		}
+
+		// Move to my accorded position
+		try {
+			await this.subIntention(["go_to", mePosX, mePosY], myAgent.getPlanLibrary());
+		} catch (err) {
+			belief.releaseCoop();
+			throw [err];
+		}
+
+		// Wait at the accorded position
+		let time = Date.now();
+		let palOK = false;
+		while (Date.now() < time + SHARE_PARCEL_TIMEOUT && !palOK) {
+			if (this.stopped) {
+				belief.releaseCoop();
+				throw ["stopped"]; // if stopped then quit
+			}
+
+			// Check if the pal is in his accorded position
+			if (belief.isPalHere(yourPosX, yourPosY)) {
+				palOK = true;
+			}
+		}
+
+		if (this.stopped) {
+			belief.releaseCoop();
+			throw ["stopped"]; // if stopped then quit
+		}
+
+		// If the pal is in the correct position, I can commit to the share
+		if (palOK) {
+			// Wait until the pal is out of the way
+			while (belief.isPalHere(yourPosX, yourPosY)) {
+				if (this.stopped) {
+					belief.releaseCoop();
+					throw ["stopped"]; // if stopped then quit
+				}
+			}
+
+			// Give time to the pal to move out of the way
+			await new Promise((res) => setTimeout(res, belief.getAgentMovementDuration()));
+
+			if (this.stopped) {
+				belief.releaseCoop();
+				throw ["stopped"]; // if stopped then quit
+			}
+
+			// Go and pick up the shared parcel
+			try {
+				await this.subIntention(["go_pick_up", x, y], myAgent.getPlanLibrary());
+			} catch (err) {
+				belief.releaseCoop();
+				throw [err];
+			}
+		}
+
+		// Then the action is finished, a new option generation will be triggered and I will move out of the way
 		belief.releaseCoop();
 		return true;
 	}
@@ -669,6 +780,7 @@ myAgent.addPlan(GoDeliver);
 myAgent.addPlan(FollowPath);
 myAgent.addPlan(BFSmove);
 myAgent.addPlan(ShareParcels);
+myAgent.addPlan(RecoverSharedParcels);
 
 myAgent.loop();
 
@@ -734,6 +846,8 @@ client.onMsg(async (id, name, msg, reply) => {
 			break;
 		case "MSG_shareRequest":
 			let response = belief.messageHandler_shareRequest(msg.content);
+
+			myAgent.push(["recover_shared_parcels", response.mePosX, response.mePosY, response.yourPosX, response.yourPosY]);
 			reply(response);
 			break;
 	}
