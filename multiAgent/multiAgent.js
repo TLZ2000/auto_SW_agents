@@ -97,7 +97,7 @@ class ShareParcels extends Plan {
 		}
 
 		// If pal returns false, stop the intention
-		if (!response.outcome) {
+		if (response.outcome == "false") {
 			belief.releaseCoop();
 			this.stop();
 			throw ["refused"];
@@ -191,6 +191,7 @@ class RecoverSharedParcels extends Plan {
 		// Wait at the accorded position
 		let time = Date.now();
 		let palOK = false;
+
 		console.log("WAITING");
 		while (Date.now() < time + SHARE_PARCEL_TIMEOUT && !palOK) {
 			if (this.stopped) {
@@ -201,8 +202,8 @@ class RecoverSharedParcels extends Plan {
 			// Allow the execution to serve messages
 			await new Promise((res) => setTimeout(res, 1));
 
-			// Check if the pal is in his accorded position
-			if (belief.isPalHere(yourPosX, yourPosY)) {
+			// Check if the pal is in his accorded position (required the floor to cover the case in which the pal agent already dropped his parcel and is currently moving away, so floated coordinates)
+			if (belief.isPalHereFloor(yourPosX, yourPosY)) {
 				palOK = true;
 			}
 		}
@@ -216,7 +217,7 @@ class RecoverSharedParcels extends Plan {
 		if (palOK) {
 			console.log("Serving parcels");
 			// Wait until the pal is out of the way
-			while (belief.isPalHere(yourPosX, yourPosY)) {
+			while (belief.isPalHereFloor(yourPosX, yourPosY)) {
 				// Allow the execution to serve messages
 				await new Promise((res) => setTimeout(res, 1));
 				if (this.stopped) {
@@ -877,12 +878,26 @@ client.onMsg(async (id, name, msg, reply) => {
 			belief.messageHandler_currentIntention(msg.content);
 			break;
 		case "MSG_shareRequest":
-			let response = belief.messageHandler_shareRequest(msg.content);
+			while (true) {
+				await new Promise((res) => setTimeout(res, 1));
+				let response = belief.messageHandler_shareRequest(msg.content);
 
-			pushIntention(["recover_shared_parcels", response.mePosX, response.mePosY, response.yourPosX, response.yourPosY, response.yourSupportPosX, response.yourSupportPosY]);
-			belief.requireCoop();
+				if (response.outcome == "true") {
+					pushIntention(["recover_shared_parcels", response.mePosX, response.mePosY, response.yourPosX, response.yourPosY, response.yourSupportPosX, response.yourSupportPosY]);
+					belief.requireCoop();
+					reply(response);
+					break;
+				} else if (response.outcome == "false") {
+					reply(response);
+					break;
+				} else if (response.outcome == "me_move") {
+					for (let i = 0; i < response.missingCells; i++) {
+						await myEmitMove(response.path[i]);
+					}
+				} else if (response.outcome == "pal_move") {
+				}
+			}
 
-			reply(response);
 			break;
 	}
 });

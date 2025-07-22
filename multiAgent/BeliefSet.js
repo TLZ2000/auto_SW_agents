@@ -281,6 +281,10 @@ export class BeliefSet {
 		return x == Math.round(this.#pal_memory.x) && y == Math.round(this.#pal_memory.y);
 	}
 
+	isPalHereFloor(x, y) {
+		return x == Math.floor(this.#pal_memory.x) && y == Math.floor(this.#pal_memory.y);
+	}
+
 	/**
 	 * Check if the next cell in which I want to move is free from other agents (both enemy and pal)
 	 * @param direction - direction to move
@@ -1270,8 +1274,9 @@ export class BeliefSet {
 		// Compute middle point between me and pal
 		let path = this.pathFromMeToPal();
 		if (path == null) {
-			return { outcome: false };
-		} else {
+			return { outcome: "false" };
+		} else if (path.length >= 4) {
+			// We have at least 4 positions, so I can easily define my position, pal position and support position
 			let tmpMeX = Math.round(this.#me_memory.x);
 			let tmpMeY = Math.round(this.#me_memory.y);
 			let length = Math.round(path.length / 2);
@@ -1311,7 +1316,17 @@ export class BeliefSet {
 			} else if (path[length + 2] == "L") {
 				tmpPalSupX--;
 			}
-			return { outcome: true, mePosX: tmpMeX, mePosY: tmpMeY, yourPosX: tmpPalX, yourPosY: tmpPalY, yourSupportPosX: tmpPalSupX, yourSupportPosY: tmpPalSupY };
+			return { outcome: "true", mePosX: tmpMeX, mePosY: tmpMeY, yourPosX: tmpPalX, yourPosY: tmpPalY, yourSupportPosX: tmpPalSupX, yourSupportPosY: tmpPalSupY };
+		} else {
+			// I don't have enough space between me and the pal to define the 3 positions I need
+			let missingCells = 4 - path.length; // How many free spaces I need
+
+			// Define a path to the nearest delivery
+			let tmpPath = this.nearestDeliveryFromHere()[1];
+			if (tmpPath != null && tmpPath.length >= missingCells) {
+				// Use that path to move away and gain at least 4 free spaces
+				return { outcome: "me_move", path: tmpPath, missingCells: missingCells };
+			}
 		}
 	}
 }
