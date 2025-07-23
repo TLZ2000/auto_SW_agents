@@ -791,6 +791,7 @@ async function myEmitMove(direction) {
 async function myEmitPickUp() {
 	let pick = undefined;
 	if (belief.requireEmit()) {
+		belief.pickUpMyCell();
 		pick = await client.emitPickup();
 		belief.releaseEmit();
 	} else {
@@ -806,9 +807,9 @@ async function myEmitPickUp() {
 async function myEmitPutDown() {
 	let pick = undefined;
 	if (belief.requireEmit()) {
-		pick = await client.emitPutdown();
-		belief.resetMeMoves();
 		belief.resetCarriedParcels();
+		belief.resetMeMoves();
+		pick = await client.emitPutdown();
 		belief.releaseEmit();
 	} else {
 		console.log("TOO FAST");
