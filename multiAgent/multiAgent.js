@@ -299,6 +299,23 @@ class BFSmove extends Plan {
 			// If stopped then quit
 			if (this.stopped) throw ["stopped"];
 
+			// If I am not at the final position already
+			// TODO ricorda di scrivere che a volte funziona e a volte no
+			if (i < path.length - 1) {
+				// If I am on a parcel
+				console.log(belief.getMePosition());
+				if (belief.amIOnParcelLong()) {
+					// Then force a pickup because it is free
+					await myEmitPickUp();
+				}
+
+				// If I am on a deliver and I am carrying parcels
+				if (belief.amIOnDelivery() && belief.getCarriedParcels().size > 0) {
+					// Then deliver the parcels because it is free
+					await myEmitPutDown();
+				}
+			}
+
 			// Check if the next position is free to move
 			if (!belief.isNextCellFree(path[i])) {
 				console.log("STOP");
@@ -352,20 +369,6 @@ class BFSmove extends Plan {
 			}
 
 			i++;
-			// If I am not at the final position already
-			if (i < path.length) {
-				// If I am on a parcel
-				if (belief.amIOnParcelLong()) {
-					// Then force a pickup because it is free
-					await myEmitPickUp();
-				}
-
-				// If I am on a deliver and I am carrying parcels
-				if (belief.amIOnDelivery() && belief.getCarriedParcels().size > 0) {
-					// Then deliver the parcels because it is free
-					await myEmitPutDown();
-				}
-			}
 		}
 		return true;
 	}
@@ -392,6 +395,22 @@ class FollowPath extends Plan {
 			// If stopped then quit
 			if (this.stopped) throw ["stopped"];
 
+			// If I am not at the final position already
+			if (i < path.length - 1) {
+				// If I am on a parcel
+				console.log(belief.getMePosition());
+				if (belief.amIOnParcelLong()) {
+					// Then force a pickup because it is free
+					await myEmitPickUp();
+				}
+
+				// If I am on a deliver and I am carrying parcels
+				if (belief.amIOnDelivery() && belief.getCarriedParcels().size > 0) {
+					// Then deliver the parcels because it is free
+					await myEmitPutDown();
+				}
+			}
+
 			// Check if the next position is free to move
 			if (!belief.isNextCellFree(path[i])) {
 				console.log("STOP");
@@ -445,20 +464,6 @@ class FollowPath extends Plan {
 			}
 
 			i++;
-			// If I am not at the final position already
-			if (i < path.length) {
-				// If I am on a parcel
-				if (belief.amIOnParcelLong()) {
-					// Then force a pickup because it is free
-					await myEmitPickUp();
-				}
-
-				// If I am on a deliver and I am carrying parcels
-				if (belief.amIOnDelivery() && belief.getCarriedParcels().size > 0) {
-					// Then deliver the parcels because it is free
-					await myEmitPutDown();
-				}
-			}
 		}
 		return true;
 	}
@@ -849,10 +854,7 @@ client.onAgentsSensing(async (aa) => {
 
 client.onYou(({ id, name, x, y, score }) => {
 	belief.onYouUpdate(id, name, x, y, score);
-	/**
-	 * Send to pal my updated position info
-	 */
-
+	//Send to pal my updated position info
 	myEmitSay("MSG_positionUpdate", belief.messageContent_positionUpdate());
 });
 

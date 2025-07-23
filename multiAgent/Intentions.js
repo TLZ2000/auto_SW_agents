@@ -30,7 +30,8 @@ class IntentionRevision {
 					});
 
 				// Remove from the queue
-				this.intention_queue.shift();
+				//this.intention_queue.shift();
+				this.#intention_queue = new Array();
 			}
 			// Postpone next iteration at setImmediate
 			await new Promise((res) => setImmediate(res));
@@ -148,7 +149,7 @@ class Intention {
 export class IntentionRevisionReplace extends IntentionRevision {
 	async push(predicate) {
 		// Check if already queued
-		//const last = this.intention_queue[0];
+		// const last = this.intention_queue[0];
 		const last = this.intention_queue.at(this.intention_queue.length - 1);
 
 		if (last && last.predicate.join(" ") == predicate.join(" ")) {
