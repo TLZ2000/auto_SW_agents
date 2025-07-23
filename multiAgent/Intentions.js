@@ -153,7 +153,7 @@ export class IntentionRevisionReplace extends IntentionRevision {
 		}
 
 		// Check if I want to push the same intention
-		if (last && last.predicate.join(" ") == predicate.join(" ")) {
+		if (last && areIntentionsEqual(last.predicate, predicate)) {
 			// If so, avoid the push
 			return;
 		}
@@ -176,6 +176,41 @@ export class IntentionRevisionReplace extends IntentionRevision {
 		}
 		return undefined;
 	}
+}
+
+/**
+ * Base Plan class
+ * @param {Array} intention1
+ * @param {Array} intention2
+ * @returns true if the intentions are considered equal, false otherwise
+ */
+function areIntentionsEqual(intention1, intention2) {
+	if (intention1[0] == intention2[0]) {
+		switch (intention1[0]) {
+			case "explore":
+				// If the name of the intentions are equal, it is sufficient
+				return true;
+			case "share_parcels":
+				// If the name of the intentions are equal, it is sufficient
+				return true;
+			case "recover_shared_parcels":
+				// If the name of the intentions are equal, it is sufficient
+				return true;
+			case "go_to":
+				// If the go_to is to the same position, the intentions are equal
+				return intention1[1] == intention2[1] && intention1[2] == intention2[2];
+			case "go_pick_up":
+				// If the parcel to pickup is to the same position, the intentions are equal
+				return intention1[1] == intention2[1] && intention1[2] == intention2[2];
+			case "follow_path":
+				// If the path to follow is the same, the intentions are equal
+				return intention1[1].join(" ") == intention2[1].join(" ");
+			case "go_deliver":
+				// If the path to follow is the same, the intentions are equal
+				return intention1[2].join(" ") == intention2[2].join(" ");
+		}
+	}
+	return false;
 }
 
 /**
