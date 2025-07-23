@@ -149,6 +149,10 @@ export class BeliefSet {
 		return freeParcels;
 	}
 
+	/**
+	 * Compute the list of parcels that are carried by me
+	 * @returns {Array} carriedParcels
+	 */
 	getCarriedParcels() {
 		let tmpCarried = new Map();
 
@@ -164,10 +168,17 @@ export class BeliefSet {
 		return tmpCarried;
 	}
 
+	/**
+	 * Return the list of parcels that are carried by the pal
+	 * @returns {Array} carriedParcels
+	 */
 	getPalCarriedParcels() {
 		return this.#pal_carried_parcels;
 	}
 
+	/**
+	 * Compute the list of parcels to ignore
+	 */
 	ignoreCarriedParcels() {
 		// Cycle the parcel memory
 		this.#parcel_memory.forEach((parcel) => {
@@ -178,6 +189,9 @@ export class BeliefSet {
 		});
 	}
 
+	/**
+	 * Remove parcels carried by me from the parcel_memory
+	 */
 	resetCarriedParcels() {
 		let tmpParcels = new Map();
 
@@ -225,6 +239,12 @@ export class BeliefSet {
 		return this.#parcels_map[x][y] == 1;
 	}
 
+	/**
+	 * Check if there is a parcel in a certain position
+	 * @param {Integer} x
+	 * @param {Integer} y
+	 * @returns {Boolean} result, true if there is a parcel in [x,y], false if not
+	 */
 	isParcelHereLong(x, y) {
 		let result = false;
 		this.#parcel_memory.forEach((parcel) => {
@@ -235,6 +255,12 @@ export class BeliefSet {
 		return result;
 	}
 
+	/**
+	 * Check if there is an agent in a certain position
+	 * @param {Integer} x
+	 * @param {Integer} y
+	 * @returns {Boolean} result, true if there is an agent in [x,y], false if not
+	 */
 	isAgentHereLong(x, y) {
 		let result = false;
 		this.#agent_memory.forEach((agent) => {
@@ -273,14 +299,32 @@ export class BeliefSet {
 		return false;
 	}
 
+	/**
+	 * Check if I am on a certain position
+	 * @param {Integer} x
+	 * @param {Integer} y
+	 * @returns {Boolean} result, true if I am in [x,y], false if not
+	 */
 	amIHere(x, y) {
 		return x == Math.round(this.#me_memory.x) && y == Math.round(this.#me_memory.y);
 	}
 
+	/**
+	 * Check if the pal is on a certain position with rounded coordinates
+	 * @param {Integer} x
+	 * @param {Integer} y
+	 * @returns {Boolean} result, true if the pal is in [x,y], false if not
+	 */
 	isPalHere(x, y) {
 		return x == Math.round(this.#pal_memory.x) && y == Math.round(this.#pal_memory.y);
 	}
 
+	/**
+	 * Check if the pal is on a certain position with floored coordinates
+	 * @param {Integer} x
+	 * @param {Integer} y
+	 * @returns {Boolean} result, true if the pal is in [x,y], false if not
+	 */
 	isPalHereFloor(x, y) {
 		return x == Math.floor(this.#pal_memory.x) && y == Math.floor(this.#pal_memory.y);
 	}
@@ -346,6 +390,10 @@ export class BeliefSet {
 		this.#coop_flag = false;
 	}
 
+	/**
+	 * Check if I am cooperating with pal
+	 * @returns {Boolean} true if I am cooperating, false otherwise
+	 */
 	isCooperating() {
 		return this.#coop_flag;
 	}
@@ -568,10 +616,20 @@ export class BeliefSet {
 		return null;
 	}
 
+	/**
+	 * Wrapper computePathBFS from my position to finalPos using BFS
+	 * @param {[int, int]} finalPos
+	 * @returns path, undefined (if initialNode is undefined) or null (if path not existing)
+	 */
 	pathFromMeTo(x, y) {
 		return this.computePathBFS([Math.round(this.#me_memory.x), Math.round(this.#me_memory.y)], [x, y]);
 	}
 
+	/**
+	 * Wrapper computePathBFS from my position to pal position using BFS considering pal not blocking
+	 * @param {[int, int]} finalPos
+	 * @returns path, undefined (if initialNode is undefined) or null (if path not existing)
+	 */
 	pathFromMeToPal() {
 		return this.computePathBFS([Math.round(this.#me_memory.x), Math.round(this.#me_memory.y)], [Math.round(this.#pal_memory.x), Math.round(this.#pal_memory.y)], true);
 	}
@@ -733,7 +791,6 @@ export class BeliefSet {
 		suitableCells = tmp;
 
 		// Recover all suitable tiles for explore
-		let totalTime = 0;
 		let now = Date.now();
 		let randX = undefined;
 		let randY = undefined;
@@ -1001,7 +1058,7 @@ export class BeliefSet {
 	}
 
 	/**
-	 * Compute the path to the nearest delivery cell from the agent (me) position considering the other agents as blocking elements
+	 * Wrapper nearestDeliveryFromPos from my position considering the other agents as blocking elements
 	 * @returns {Array} [0]: coordinates [x, y] of the nearest delivery (if non existing -> [null, null], if initial node undefined -> [undefined, undefined]); [1]: array containing path to nearest delivery from [x, y] cell (if non existing -> null, if initial node undefined -> undefined)
 	 */
 	nearestDeliveryFromHere() {
@@ -1009,7 +1066,7 @@ export class BeliefSet {
 	}
 
 	/**
-	 * Compute a path of at least len positions from the current agent's position considering the other agents as blocking elements
+	 * Wrapper pathFromPosOfLength from my position considering the other agents as blocking elements
 	 * @param {Number} len - minimum require length of the path
 	 * @returns {Array} [0]: coordinates [x, y] of the destination (if non existing -> [null, null], if initial node undefined -> [undefined, undefined]); [1]: array containing path to destination from [x, y] cell (if non existing -> null, if initial node undefined -> undefined)
 	 */
@@ -1222,10 +1279,22 @@ export class BeliefSet {
 		}
 	}
 
+	/**
+	 * Wrapper expectedRewardCarriedAndPickup from my position
+	 * @param {{x:BigInt, y: BigInt, reward: BigInt, time:BigInt}} parcel2Pickup - targeted parcel to pick up
+	 * @param {Boolean} ignoreCarriedParcels - if true ignores the reward from carried parcels
+	 * @returns list containing 0: expected reward of delivering the currently carried parcels and the targeted parcel to pick up, 1: length of path to pickup the parcel
+	 */
 	expectedRewardCarriedAndPickupMe(parcel2Pickup, ignoreCarriedParcels = false) {
 		return this.#expectedRewardCarriedAndPickup(parcel2Pickup, Math.round(this.#me_memory.x), Math.round(this.#me_memory.y), this.getCarriedParcels(), ignoreCarriedParcels);
 	}
 
+	/**
+	 * Wrapper expectedRewardCarriedAndPickup from pal position
+	 * @param {{x:BigInt, y: BigInt, reward: BigInt, time:BigInt}} parcel2Pickup - targeted parcel to pick up
+	 * @param {Boolean} ignoreCarriedParcels - if true ignores the reward from carried parcels
+	 * @returns list containing 0: expected reward of delivering the currently carried parcels and the targeted parcel to pick up, 1: length of path to pickup the parcel
+	 */
 	expectedRewardCarriedAndPickupPal(parcel2Pickup, ignoreCarriedParcels = false) {
 		// Check if pal exists
 		if (this.#pal_memory.x && this.#pal_memory.y) {
@@ -1261,12 +1330,16 @@ export class BeliefSet {
 	}
 
 	/**
-	 * // Return content of message to send to pal with the parcels, the agents and the carried parcels in the current belief set
+	 * Return content of message to send to pal with the parcels, the agents and the carried parcels in the current belief set
 	 */
 	messageContent_memoryShare() {
 		return JSON.stringify({ parcels: this.#mapToJSON(this.#parcel_memory), agents: this.#mapToJSON(this.#agent_memory), carriedParcels: this.#mapToJSON(this.getCarriedParcels()) });
 	}
 
+	/**
+	 * Handle the pal response to the MSG_positionUpdate
+	 * @param {String} message - message received from the pal
+	 */
 	messageHandler_positionUpdate(message) {
 		// Recover message content
 		let palX = JSON.parse(message).x;
@@ -1295,6 +1368,10 @@ export class BeliefSet {
 		}
 	}
 
+	/**
+	 * Handle the pal response to the MSG_memoryShare
+	 * @param {String} message - message received from the pal
+	 */
 	messageHandler_memoryShare(message) {
 		// Recover message content
 		let msg = JSON.parse(message);
@@ -1349,11 +1426,20 @@ export class BeliefSet {
 		});
 	}
 
+	/**
+	 * Handle the pal response to the MSG_currentIntention
+	 * @param {String} message - message received from the pal
+	 */
 	messageHandler_currentIntention(message) {
 		// Save pal current intention
 		this.#pal_memory.currentIntention = message;
 	}
 
+	/**
+	 * Handle the pal response to the MSG_shareRequest
+	 * @param {String} message - message received from the pal
+	 * @returns {Map} map containing the outcome
+	 */
 	messageHandler_shareRequest(message) {
 		// Recover message content
 		let palX = JSON.parse(message).x;

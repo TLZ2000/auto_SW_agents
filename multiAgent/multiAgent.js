@@ -663,7 +663,7 @@ function optionsGeneration() {
 		// Check if I should push the best option without waiting to finish the current intention
 		if (bestOption != undefined && bestOption != null) {
 			// Get current intention
-			let currentIntention = myAgent.getCurrentIntention();
+			let currentIntention = myAgent.getCurrentIntentionPredicate();
 
 			// Check if I have a current intention
 			if (currentIntention == undefined) {

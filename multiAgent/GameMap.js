@@ -203,10 +203,22 @@ export class GameMap {
 		}
 	}
 
+	/**
+	 * Get a specific graph node
+	 * @param {BigInt} x
+	 * @param {BigInt} y
+	 * @returns graphNode in position [x,y]
+	 */
 	getGraphNode(x, y) {
 		return this.#graph_map[x][y];
 	}
 
+	/**
+	 * Get a specific item of the raw map
+	 * @param {BigInt} x
+	 * @param {BigInt} y
+	 * @returns item in position [x,y]
+	 */
 	getItem(x, y) {
 		return this.#raw.getItem(x, y);
 	}

@@ -2,23 +2,17 @@
  * Base IntentionRevision class
  */
 class IntentionRevision {
-	#intention_queue = new Array();
+	#current_intention = null;
+	#next_intention = null;
 	#plan_library = [];
-	get intention_queue() {
-		return this.#intention_queue;
-	}
 
 	async loop() {
 		while (true) {
-			// Consumes intention_queue if not empty
-			if (this.intention_queue.length > 0) {
-				console.log(
-					"intentionRevision.loop",
-					this.intention_queue.map((i) => i.predicate)
-				);
+			// Consumes current_intention if not empty
+			if (this.#current_intention != null) {
+				console.log("intentionRevision.loop", this.#current_intention.predicate);
 
-				// Serve only the first intention in the queue (the filtering is already done in the option generation phase)
-				const intention = this.intention_queue[0];
+				const intention = this.#current_intention;
 
 				// Start achieving intention
 				await intention
@@ -27,11 +21,11 @@ class IntentionRevision {
 					.catch((error) => {
 						// console.log( 'Failed intention', ...intention.predicate, 'with error:', ...error )
 					});
-
-				// When serving an intention, then clear all the queue
-				this.#intention_queue.shift();
-				//this.#intention_queue = new Array();
 			}
+			// Replace the current_intention with the next_intention and clear the next_intention
+			this.#current_intention = this.#next_intention;
+			this.#next_intention = null;
+
 			// Postpone next iteration at setImmediate
 			await new Promise((res) => setImmediate(res));
 		}
@@ -47,6 +41,18 @@ class IntentionRevision {
 
 	getPlanLibrary() {
 		return this.#plan_library;
+	}
+
+	setNextIntention(intention) {
+		this.#next_intention = intention;
+	}
+
+	getNextIntention() {
+		return this.#next_intention;
+	}
+
+	getCurrentIntention() {
+		return this.#current_intention;
 	}
 }
 
@@ -138,27 +144,35 @@ class Intention {
  */
 export class IntentionRevisionReplace extends IntentionRevision {
 	async push(predicate) {
-		// Check if already queued
-		const last = this.intention_queue[0];
-		// const last = this.intention_queue.at(this.intention_queue.length - 1);
+		// Get the next intention
+		let last = this.getNextIntention();
 
-		if (last && last.predicate.join(" ") == predicate.join(" ")) {
-			return; // intention is already being achieved
+		if (last == null) {
+			// If the next intention is null, get the current intention
+			last = this.getCurrentIntention();
 		}
 
+		// Check if I want to push the same intention
+		if (last && last.predicate.join(" ") == predicate.join(" ")) {
+			// If so, avoid the push
+			return;
+		}
+
+		// Otherwise, create the intention and push it
 		console.log("IntentionRevisionReplace.push", predicate);
 		const intention = new Intention(this, predicate);
-		this.intention_queue.push(intention);
-		// Force current intention stop
+		this.setNextIntention(intention);
+
+		// Force intention stop
 		if (last) {
 			last.stop();
 		}
 	}
 
-	// Function to get the current intention
-	getCurrentIntention() {
-		if (this.intention_queue[0]) {
-			return this.intention_queue[0].predicate;
+	// Function to get the current intention predicate
+	getCurrentIntentionPredicate() {
+		if (this.getCurrentIntention()) {
+			return this.getCurrentIntention().predicate;
 		}
 		return undefined;
 	}
