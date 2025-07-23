@@ -1,7 +1,6 @@
 /**
  * Base IntentionRevision class
  */
-
 class IntentionRevision {
 	#intention_queue = new Array();
 	#plan_library = [];
@@ -18,7 +17,7 @@ class IntentionRevision {
 					this.intention_queue.map((i) => i.predicate)
 				);
 
-				// Current intention
+				// Serve only the first intention in the queue (the filtering is already done in the option generation phase)
 				const intention = this.intention_queue[0];
 
 				// Start achieving intention
@@ -29,25 +28,17 @@ class IntentionRevision {
 						// console.log( 'Failed intention', ...intention.predicate, 'with error:', ...error )
 					});
 
-				// Remove from the queue
-				//this.intention_queue.shift();
-				this.#intention_queue = new Array();
+				// When serving an intention, then clear all the queue
+				this.#intention_queue.shift();
+				//this.#intention_queue = new Array();
 			}
 			// Postpone next iteration at setImmediate
 			await new Promise((res) => setImmediate(res));
 		}
 	}
 
-	// async push ( predicate ) { }
-
 	log(...args) {
 		console.log(...args);
-	}
-
-	stopCurrentTask() {
-		let last = this.intention_queue.at(this.intention_queue.length - 1);
-		console.log("MANUALLY STOPPED TASK");
-		last.stop();
 	}
 
 	addPlan(plan) {
@@ -138,7 +129,6 @@ class Intention {
 		if (this.stopped) throw ["stopped intention", ...this.predicate];
 
 		// no plans have been found to satisfy the intention
-		// this.log( 'no plan satisfied the intention ', ...this.predicate );
 		throw ["no plan satisfied the intention ", ...this.predicate];
 	}
 }
@@ -149,8 +139,8 @@ class Intention {
 export class IntentionRevisionReplace extends IntentionRevision {
 	async push(predicate) {
 		// Check if already queued
-		// const last = this.intention_queue[0];
-		const last = this.intention_queue.at(this.intention_queue.length - 1);
+		const last = this.intention_queue[0];
+		// const last = this.intention_queue.at(this.intention_queue.length - 1);
 
 		if (last && last.predicate.join(" ") == predicate.join(" ")) {
 			return; // intention is already being achieved
@@ -167,8 +157,8 @@ export class IntentionRevisionReplace extends IntentionRevision {
 
 	// Function to get the current intention
 	getCurrentIntention() {
-		if (this.intention_queue.at(this.intention_queue.length - 1)) {
-			return this.intention_queue.at(this.intention_queue.length - 1).predicate;
+		if (this.intention_queue[0]) {
+			return this.intention_queue[0].predicate;
 		}
 		return undefined;
 	}

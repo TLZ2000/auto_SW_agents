@@ -9,7 +9,7 @@ const AGENT1_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImE2Y2RhZSIsI
 const AGENT2_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImZmOGZmMCIsIm5hbWUiOiJUaGUgUm9ib1NhcGllbnNfMiIsInRlYW1JZCI6ImMzZTljYSIsInRlYW1OYW1lIjoiVGhlIFJvYm9TYXBpZW5zIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDgzNTk4NTV9.OOBVcCXkUxyLwY8OyDo6v8hfHiijKcAI2MRvOsrFJmA";
 const SERVER_ADDRS = "http://localhost:8080";
 // const SERVER_ADDRS = "https://deliveroojs.rtibdi.disi.unitn.it";
-//const SERVER_ADDRS = "https://deliveroojs25.azurewebsites.net";
+// const SERVER_ADDRS = "https://deliveroojs25.azurewebsites.net";
 
 const MAX_EXPLORABLE_SPAWN_CELLS = 100;
 const INVIEW_MEMORY_DIFFERENCE_THRESHOLD = 2000; // Threshold for parcels and agent in our vision range
@@ -75,6 +75,9 @@ class Explore extends Plan {
 	}
 }
 
+/**
+ * Plan class handling the "share_parcels" intention
+ */
 class ShareParcels extends Plan {
 	static isApplicableTo(share_parcels) {
 		return share_parcels == "share_parcels";
@@ -121,6 +124,7 @@ class ShareParcels extends Plan {
 					throw ["no free path"];
 				}
 			} else if (response.outcome == "true") {
+				// Otherwise, if all is fine I can proceed with the share
 				askOutcome = true;
 			}
 		}
@@ -138,6 +142,7 @@ class ShareParcels extends Plan {
 			throw [err];
 		}
 
+		// When I arrive to the designated position I must wait and see if also the pal is in his designated position
 		let time = Date.now();
 		let palOK = false;
 		while (Date.now() < time + SHARE_PARCEL_TIMEOUT && !palOK) {
@@ -178,6 +183,7 @@ class ShareParcels extends Plan {
 			// Give time to the pal to move and pick the parcels up
 			await new Promise((res) => setTimeout(res, belief.getAgentMovementDuration() * SHARE_PARCEL_WAIT_MUX));
 		} else {
+			// Otherwise something wrong has happened so I can invalidate this action
 			belief.releaseCoop();
 			this.stop();
 			throw ["pal timed out"]; // if stopped then quit
@@ -189,6 +195,9 @@ class ShareParcels extends Plan {
 	}
 }
 
+/**
+ * Plan class handling the "recover_shared_parcels" intention
+ */
 class RecoverSharedParcels extends Plan {
 	static isApplicableTo(recover_shared_parcels) {
 		return recover_shared_parcels == "recover_shared_parcels";
@@ -210,11 +219,9 @@ class RecoverSharedParcels extends Plan {
 			throw [err];
 		}
 
-		// Wait at the accorded position
+		// When I arrive to the designated position I must wait and see if also the pal is in his designated position
 		let time = Date.now();
 		let palOK = false;
-
-		console.log("WAITING");
 		while (Date.now() < time + SHARE_PARCEL_TIMEOUT && !palOK) {
 			if (this.stopped) {
 				belief.releaseCoop();
@@ -237,7 +244,6 @@ class RecoverSharedParcels extends Plan {
 
 		// If the pal is in the correct position, I can commit to the share
 		if (palOK) {
-			console.log("Serving parcels");
 			// Wait until the pal is out of the way
 			while (belief.isPalHereFloor(yourPosX, yourPosY)) {
 				// Allow the execution to serve messages
@@ -264,6 +270,7 @@ class RecoverSharedParcels extends Plan {
 				throw [err];
 			}
 		} else {
+			// Otherwise something wrong has happened so I can invalidate this action
 			belief.releaseCoop();
 			this.stop();
 			throw ["pal timed out"]; // if stopped then quit
@@ -303,7 +310,6 @@ class BFSmove extends Plan {
 			// TODO ricorda di scrivere che a volte funziona e a volte no
 			if (i < path.length - 1) {
 				// If I am on a parcel
-				console.log(belief.getMePosition());
 				if (belief.amIOnParcelLong()) {
 					// Then force a pickup because it is free
 					await myEmitPickUp();
@@ -318,12 +324,12 @@ class BFSmove extends Plan {
 
 			// Check if the next position is free to move
 			if (!belief.isNextCellFree(path[i])) {
-				console.log("STOP");
 				// If not, fail the action and stop here
 				this.stop();
 				throw ["stopped"];
 			}
 
+			// Otherwise commit to the move
 			let moved_horizontally = undefined;
 			let moved_vertically = undefined;
 
@@ -368,6 +374,7 @@ class BFSmove extends Plan {
 				throw ["stopped"];
 			}
 
+			// Consider next position
 			i++;
 		}
 		return true;
@@ -375,7 +382,7 @@ class BFSmove extends Plan {
 }
 
 /**
- * Plan class handling the "go_to" intention
+ * Plan class handling the "follow_path" intention
  */
 class FollowPath extends Plan {
 	static isApplicableTo(follow_path, x, y) {
@@ -398,7 +405,6 @@ class FollowPath extends Plan {
 			// If I am not at the final position already
 			if (i < path.length - 1) {
 				// If I am on a parcel
-				console.log(belief.getMePosition());
 				if (belief.amIOnParcelLong()) {
 					// Then force a pickup because it is free
 					await myEmitPickUp();
@@ -413,12 +419,12 @@ class FollowPath extends Plan {
 
 			// Check if the next position is free to move
 			if (!belief.isNextCellFree(path[i])) {
-				console.log("STOP");
 				// If not, fail the action and stop here
 				this.stop();
 				throw ["stopped"];
 			}
 
+			// Otherwise commit to the move
 			let moved_horizontally = undefined;
 			let moved_vertically = undefined;
 
@@ -463,6 +469,7 @@ class FollowPath extends Plan {
 				throw ["stopped"];
 			}
 
+			// Consider next position
 			i++;
 		}
 		return true;
@@ -474,7 +481,7 @@ class FollowPath extends Plan {
  */
 class GoPickUp extends Plan {
 	static isApplicableTo(go_pick_up, x, y, id) {
-		return go_pick_up == "go_pick_up" /*|| go_pick_up == "emergency_go_pick_up"*/;
+		return go_pick_up == "go_pick_up";
 	}
 
 	async execute(go_pick_up, x, y) {
@@ -498,7 +505,6 @@ class GoDeliver extends Plan {
 
 	async execute(go_deliver, reward, path) {
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
-
 		await this.subIntention(["follow_path", path], myAgent.getPlanLibrary());
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		await myEmitPutDown();
@@ -508,8 +514,8 @@ class GoDeliver extends Plan {
 }
 
 /**
- * Consider all the pickup options and return the one with highest reward
- * * @returns {Array} bestOption containing specifications of best pickup option, null if no pickup option exists
+ * Consider all the go_pick_up options and return the one with highest reward
+ * * @returns {Array} bestOption containing specifications of best go_pick_up option, null if no go_pick_up option exists
  */
 function getBestPickupOption() {
 	const options = [];
@@ -520,16 +526,10 @@ function getBestPickupOption() {
 		let tmpReward = belief.expectedRewardCarriedAndPickupMe(parcel, true);
 		let tmpPalReward = belief.expectedRewardCarriedAndPickupPal(parcel, true);
 
-		// If, for some reason, I can't reach this parcel, then don't even create the option
+		// If I can't reach this parcel, then don't create the option
 		if (tmpReward == null || tmpReward == undefined) {
 			return;
 		}
-
-		/*
-		console.log("ME ", tmpReward);
-		console.log("PAL ", tmpPalReward);
-		console.log("CONDITION ", tmpReward[0] > tmpPalReward[0], "||", tmpReward[0] == tmpPalReward[0] && tmpReward[1] <= tmpPalReward[1], "||", belief.getPalCurrentIntention() == "go_deliver");
-		*/
 
 		// Push the pickup option only if my reward is higher than the pal, or same reward and smaller distance, or the pal intention is to deliver (it ignores the parcel)
 		if (tmpReward[0] > tmpPalReward[0] || (tmpReward[0] == tmpPalReward[0] && tmpReward[1] <= tmpPalReward[1]) || belief.getPalCurrentIntention() == "go_deliver") {
@@ -576,8 +576,8 @@ function getBestPickupOption() {
 }
 
 /**
- * Find and return the nearest delivery option
- * @returns {Array} deliveryOption containing specifications of nearest delivery option, null if no delivery option exists
+ * Find and return the go_delivery option considering the nearest delivery
+ * @returns {Array} deliveryOption containing specifications of nearest go_delivery option, null if no go_delivery option exists
  */
 function getDeliveryOption() {
 	// Define a delivery option
@@ -588,7 +588,7 @@ function getDeliveryOption() {
 		// Get the path to the nearest delivery
 		let pathNearestDelivery = belief.nearestDeliveryFromHere()[1];
 
-		// I there is no viable path to a delivery
+		// If there is no viable path to a delivery
 		if (pathNearestDelivery == null || pathNearestDelivery == undefined) {
 			// Then I have no delivery option
 			return null;
@@ -603,7 +603,7 @@ function getDeliveryOption() {
 		}
 	}
 
-	// Re-check if I still am carrying parcels, just to be sure
+	// Re-check if I am still carrying parcels, just to be sure
 	if (belief.getCarriedParcels().size > 0) {
 		// If so, return the delivery option
 		return deliveryOption;
@@ -617,8 +617,8 @@ function getDeliveryOption() {
  * @returns {Array} option containing specifications of best option, null if no option exists
  */
 function getBestOption() {
+	// Compute options
 	let bestPickupOption = getBestPickupOption();
-
 	let deliveryOption = getDeliveryOption();
 
 	// Select the deliver option or pickup option (aka. best_option) based on the highest expected reward
@@ -648,75 +648,14 @@ function getBestOption() {
 }
 
 /**
- * emitMove wrapper to force a single emit action execution in parallel
- * @param direction - direction to move
- * @returns output of emitMove
- */
-async function myEmitMove(direction) {
-	let moved = undefined;
-	if (belief.requireEmit()) {
-		if (direction == "R") {
-			moved = await client.emitMove("right");
-		} else if (direction == "L") {
-			moved = await client.emitMove("left");
-		} else if (direction == "U") {
-			moved = await client.emitMove("up");
-		} else if (direction == "D") {
-			moved = await client.emitMove("down");
-		}
-		belief.releaseEmit();
-	} else {
-		console.log("TOO FAST");
-	}
-	return moved;
-}
-
-/**
- * emitPickup wrapper to force a single emit action execution in parallel
- * @returns output of emitPickup
- */
-async function myEmitPickUp() {
-	let pick = undefined;
-	if (belief.requireEmit()) {
-		pick = await client.emitPickup();
-		belief.releaseEmit();
-	} else {
-		console.log("TOO FAST");
-	}
-	return pick;
-}
-
-/**
- * emitPutdown wrapper to force a single emit action execution in parallel
- * @returns output of emitPutdown
- */
-async function myEmitPutDown() {
-	let pick = undefined;
-	if (belief.requireEmit()) {
-		pick = await client.emitPutdown();
-		belief.resetMeMoves();
-		belief.resetCarriedParcels();
-		belief.releaseEmit();
-	} else {
-		console.log("TOO FAST");
-	}
-	return pick;
-}
-
-async function myEmitSay(msg_type, msg_content) {
-	await client.emitSay(belief.getPalId(), { type: msg_type, content: msg_content });
-}
-
-async function myEmitAsk(msg_type, msg_content) {
-	return await client.emitAsk(belief.getPalId(), { type: msg_type, content: msg_content });
-}
-
-/**
  * Generate all possible options, based on the current game state and configuration, perform option filtering and select the best possible option as current intention
  */
 function optionsGeneration() {
+	// Check if the option generation is allowed (no other option generation is running)
 	if (belief.isOptionGenerationAllowed()) {
+		// Signal that an option generation is currently running
 		belief.setOptionGenerationRunning();
+
 		// Get the best option between go_pick_up and go_deliver
 		let bestOption = getBestOption();
 		let push = false;
@@ -772,12 +711,15 @@ function optionsGeneration() {
 				pushIntention(bestOption);
 			}
 		} else {
-			// If I have no valid option, then check if I am carrying parcels
-			if (belief.getCarriedParcels().size > 0) {
+			// If I have no valid option, then...
+			// If I am carrying parcels and I can reach the pal
+			let pathToPal = belief.pathFromMeToPal();
+			// TODO aggiungi undefined a tutti i null
+			if (belief.getCarriedParcels().size > 0 && pathToPal != null && pathToPal != undefined) {
 				// Then co-op with pal to deliver
 				pushIntention(["share_parcels"]);
 			} else {
-				// If I do not have a valid best option, then explore
+				// Otherwise explore
 				if (Math.random() < TIMED_EXPLORE) {
 					// Explore oldest tiles
 					pushIntention(["explore", "timed"]);
@@ -788,10 +730,15 @@ function optionsGeneration() {
 			}
 		}
 
+		// Signal that the option generation is finished
 		belief.setOptionGenerationNotRunning();
 	}
 }
 
+/**
+ * myAgent.push wrapper to avoid pushing intentions while cooperating with the pal and also to signal the pal my current intention
+ * @param {Array} intention - intention to push
+ */
 function pushIntention(intention) {
 	if (!belief.isCooperating()) {
 		myAgent.push(intention);
@@ -811,6 +758,81 @@ async function memoryRevisionLoop(time) {
 		belief.reviseMemory();
 		myEmitSay("MSG_memoryShare", belief.messageContent_memoryShare());
 	}
+}
+
+/**
+ * emitMove wrapper to force a single emit action execution in parallel
+ * @param {String} direction - direction to move
+ * @returns output of emitMove
+ */
+async function myEmitMove(direction) {
+	let moved = undefined;
+	if (belief.requireEmit()) {
+		if (direction == "R") {
+			moved = await client.emitMove("right");
+		} else if (direction == "L") {
+			moved = await client.emitMove("left");
+		} else if (direction == "U") {
+			moved = await client.emitMove("up");
+		} else if (direction == "D") {
+			moved = await client.emitMove("down");
+		}
+		belief.releaseEmit();
+	} else {
+		console.log("TOO FAST");
+	}
+	return moved;
+}
+
+/**
+ * emitPickup wrapper to force a single emit action execution in parallel
+ * @returns output of emitPickup
+ */
+async function myEmitPickUp() {
+	let pick = undefined;
+	if (belief.requireEmit()) {
+		pick = await client.emitPickup();
+		belief.releaseEmit();
+	} else {
+		console.log("TOO FAST");
+	}
+	return pick;
+}
+
+/**
+ * emitPutdown wrapper to force a single emit action execution in parallel
+ * @returns output of emitPutdown
+ */
+async function myEmitPutDown() {
+	let pick = undefined;
+	if (belief.requireEmit()) {
+		pick = await client.emitPutdown();
+		belief.resetMeMoves();
+		belief.resetCarriedParcels();
+		belief.releaseEmit();
+	} else {
+		console.log("TOO FAST");
+	}
+	return pick;
+}
+
+/**
+ * emitSay wrapper
+ * @param {String} msg_type - message type
+ * @param {String} msg_content - message content in JSON format
+ */
+async function myEmitSay(msg_type, msg_content) {
+	await client.emitSay(belief.getPalId(), { type: msg_type, content: msg_content });
+}
+
+/**
+ * emitAsk wrapper
+ * @param {String} msg_type - message type
+ * @param {String} msg_content - message content in JSON format
+ * @returns output of emitAsk
+ */
+async function myEmitAsk(msg_type, msg_content) {
+	return await client.emitAsk(belief.getPalId(), { type: msg_type, content: msg_content });
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -844,6 +866,7 @@ myAgent.addPlan(RecoverSharedParcels);
 
 myAgent.loop();
 
+// Callbacks
 client.onParcelsSensing(async (pp) => {
 	belief.onParcelSensingUpdate(pp);
 });
@@ -892,7 +915,6 @@ await new Promise((res) => {
 client.onMsg(async (id, name, msg, reply) => {
 	switch (msg.type) {
 		case "MSG_positionUpdate":
-			// Verify message validity
 			belief.messageHandler_positionUpdate(msg.content);
 			break;
 		case "MSG_memoryShare":
@@ -903,30 +925,37 @@ client.onMsg(async (id, name, msg, reply) => {
 			break;
 		case "MSG_shareRequest":
 			while (true) {
+				// Allow message handling while in loop
 				await new Promise((res) => setTimeout(res, 1));
-				let response = belief.messageHandler_shareRequest(msg.content);
 
+				// Compte response to the share request
+				let response = belief.messageHandler_shareRequest(msg.content);
 				if (response.outcome == "true") {
+					// If the response is positive, then we can proceed with the share
 					pushIntention(["recover_shared_parcels", response.mePosX, response.mePosY, response.yourPosX, response.yourPosY, response.yourSupportPosX, response.yourSupportPosY]);
 					belief.requireCoop();
 					reply(response);
 					break;
 				} else if (response.outcome == "false") {
+					// If the response is negative, signal it to the pal
 					reply(response);
 					break;
 				} else if (response.outcome == "me_move") {
+					// If I have to move to gain free spaces before committing to the share, do so and repeat the process
 					for (let i = 0; i < response.missingCells; i++) {
 						await myEmitMove(response.path[i]);
 					}
 				} else if (response.outcome == "you_move") {
+					// If the pal has to move to gain free spaces before committing to the share, signal him so
 					reply(response);
 					break;
 				}
 			}
-
 			break;
 	}
 });
+
+// Initialize the option generation loop every OPTION_GENERATION_INTERVAL milliseconds
 while (true) {
 	await new Promise((res) => setTimeout(res, OPTION_GENERATION_INTERVAL));
 	optionsGeneration();
