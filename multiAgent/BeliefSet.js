@@ -169,6 +169,22 @@ export class BeliefSet {
 	}
 
 	/**
+	 * Set all the parcels in the parcel memory in my current position as carried by me
+	 */
+	pickUpMyCell() {
+		let tmpParcels = new Map();
+		// Cycle the parcel memory
+		this.#parcel_memory.forEach((parcel) => {
+			// Save only the parcels carried by me
+			if (parcel.x == Math.round(this.#me_memory.x) && parcel.y == Math.round(this.#me_memory.y)) {
+				parcel.carriedBy = this.#me_memory.id;
+			}
+			tmpParcels.set(parcel.id, parcel);
+		});
+		this.#parcel_memory = tmpParcels;
+	}
+
+	/**
 	 * Return the list of parcels that are carried by the pal
 	 * @returns {Array} carriedParcels
 	 */
