@@ -524,10 +524,11 @@ export class BeliefSet {
 	 *
 	 * @param {[int, int]} initialPos
 	 * @param {[int, int]} finalPos
-	 * @param {Boolean} palOk (default = false) - is it fine if the pal is in the final position?
+	 * @param {Boolean} palOkFinal - false if the pal should block the final position
+	 * @param {Boolean} palOkPath - false if the pal should block the path
 	 * @returns path, undefined (if initialNode is undefined) or null (if path not existing)
 	 */
-	computePathBFS(initialPos, finalPos, palOk = false) {
+	computePathBFS(initialPos, finalPos, palOkFinal, palOkPath) {
 		let queue = new Queue();
 		let explored = new Set();
 
@@ -550,7 +551,7 @@ export class BeliefSet {
 				// Check if in the final node there is another agent
 				if (this.isAgentHereLong(currentNode.x, currentNode.y)) {
 					// If it is the pal and it is fine
-					if (palOk && this.isPalHere(currentNode.x, currentNode.y)) {
+					if (palOkFinal && this.isPalHere(currentNode.x, currentNode.y)) {
 						// Then return the path
 						return path;
 					}
@@ -572,7 +573,9 @@ export class BeliefSet {
 
 				// If node is occupied, ignore its neighbors
 				if (this.isAgentHereLong(currentNode.x, currentNode.y)) {
-					continue;
+					if (!(palOkPath && this.isPalHere(currentNode.x, currentNode.y))) {
+						continue;
+					}
 				}
 
 				// Otherwise, explore its neighbors
@@ -622,7 +625,7 @@ export class BeliefSet {
 	 * @returns path, undefined (if initialNode is undefined) or null (if path not existing)
 	 */
 	pathFromMeTo(x, y) {
-		return this.computePathBFS([Math.round(this.#me_memory.x), Math.round(this.#me_memory.y)], [x, y]);
+		return this.computePathBFS([Math.round(this.#me_memory.x), Math.round(this.#me_memory.y)], [x, y], false, false);
 	}
 
 	/**
@@ -631,7 +634,7 @@ export class BeliefSet {
 	 * @returns path, undefined (if initialNode is undefined) or null (if path not existing)
 	 */
 	pathFromMeToPal() {
-		return this.computePathBFS([Math.round(this.#me_memory.x), Math.round(this.#me_memory.y)], [Math.round(this.#pal_memory.x), Math.round(this.#pal_memory.y)], true);
+		return this.computePathBFS([Math.round(this.#me_memory.x), Math.round(this.#me_memory.y)], [Math.round(this.#pal_memory.x), Math.round(this.#pal_memory.y)], true, false);
 	}
 
 	/**
@@ -1212,7 +1215,7 @@ export class BeliefSet {
 		let lastVisitTime = parcel.time;
 
 		// Compute distance agent -> parcel
-		let pathToParcel = this.computePathBFS([Math.round(x), Math.round(y)], [parX, parY]);
+		let pathToParcel = this.computePathBFS([Math.round(x), Math.round(y)], [parX, parY], true, true);
 
 		// Find path to the nearest delivery
 		let pathToDeliver = this.nearestDeliveryFromPos(parX, parY)[1];
@@ -1297,7 +1300,7 @@ export class BeliefSet {
 	 */
 	expectedRewardCarriedAndPickupPal(parcel2Pickup, ignoreCarriedParcels = false) {
 		// Check if pal exists
-		if (this.#pal_memory.x && this.#pal_memory.y) {
+		if (this.#pal_memory.x != null && this.#pal_memory.y != null) {
 			// If so, return the reward
 			return this.#expectedRewardCarriedAndPickup(parcel2Pickup, Math.round(this.#pal_memory.x), Math.round(this.#pal_memory.y), this.getPalCarriedParcels(), ignoreCarriedParcels);
 		}
