@@ -55,6 +55,8 @@ export class BeliefSet {
 	 * @param {String} myToken - my token
 	 * @param {String} palId - pal id
 	 * @param {String} palToken - pal token
+	 * @param {Number} agentMode - 1 if single agent, 2 if multi agent
+	 * @param {Number} planningProb - probability of triggering a planning based solution
 	 */
 	setAgentsInfo(myId, myToken, palId, palToken, agentMode, planningProb) {
 		this.#me_memory.id = myId;
@@ -338,6 +340,12 @@ export class BeliefSet {
 	 * @returns {Boolean} result, true if the pal is in [x,y], false if not
 	 */
 	isPalHere(x, y) {
+		// If the pal doesn't exist
+		if (this.#pal_memory.x == null || this.#pal_memory.y == null) {
+			// Then return always false
+			return false;
+		}
+		// TODO: ricontrolla possibili round(null)-> ritorna 0 di default e non va bene
 		return x == Math.round(this.#pal_memory.x) && y == Math.round(this.#pal_memory.y);
 	}
 
@@ -348,6 +356,12 @@ export class BeliefSet {
 	 * @returns {Boolean} result, true if the pal is in [x,y], false if not
 	 */
 	isPalHereFloor(x, y) {
+		// If the pal doesn't exist
+		if (this.#pal_memory.x == null || this.#pal_memory.y == null) {
+			// Then return always false
+			return false;
+		}
+
 		return x == Math.floor(this.#pal_memory.x) && y == Math.floor(this.#pal_memory.y);
 	}
 
@@ -374,6 +388,10 @@ export class BeliefSet {
 		} else if (direction == "D") {
 			agentMapResult = this.isAgentHereLong(myX, myY - 1);
 			palCheckResult = this.isPalHere(myX, myY - 1);
+		}
+
+		if (agentMapResult || palCheckResult) {
+			return false;
 		}
 		return true;
 	}
@@ -456,6 +474,7 @@ export class BeliefSet {
 	/**
 	 * Reset the internal map that represent the cells where there are parcels (to 0, completely free)
 	 */
+	// TODO: toglie parcel e agent map
 	#resetParcelsMap() {
 		// Initialize matrix containing all the parcels positions (0 -> no parcels, 1 -> parcels)
 		for (let x = 0; x < this.#game_map.getWidth(); x++) {
@@ -656,6 +675,12 @@ export class BeliefSet {
 	 * @returns path, undefined (if initialNode is undefined) or null (if path not existing)
 	 */
 	pathFromMeToPal() {
+		// If I don't have a pal
+		if (this.isSingleAgent()) {
+			// Then I don't have a path to it
+			return null;
+		}
+
 		return this.computePathBFS([Math.round(this.#me_memory.x), Math.round(this.#me_memory.y)], [Math.round(this.#pal_memory.x), Math.round(this.#pal_memory.y)], true, false);
 	}
 
@@ -1155,11 +1180,6 @@ export class BeliefSet {
 
 		// Reset parcels map
 		this.#resetParcelsMap();
-
-		// Add the parcels to the parcel map TODO TOGLIERE
-		/*this.#parcel_memory.forEach((parcel) => {
-			this.setParcelAt(Math.round(parcel.x), Math.round(parcel.y));
-		});*/
 	}
 
 	/**
@@ -1345,6 +1365,14 @@ export class BeliefSet {
 
 	#JSONToMap(json) {
 		return new Map(Object.entries(JSON.parse(json)));
+	}
+
+	/**
+	 * Check agent type
+	 * @returns True if the agent is in single agent mode
+	 */
+	isSingleAgent() {
+		return this.#agent_mode == 1;
 	}
 
 	/**

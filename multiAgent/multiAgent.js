@@ -79,7 +79,7 @@ class Explore extends Plan {
 }
 
 /**
- * Plan class handling the "share_parcels" intention
+ * Plan class handling the "share_parcels" intention (note that a single agent should never push such action in the first place)
  */
 class ShareParcels extends Plan {
 	static isApplicableTo(share_parcels) {
@@ -99,6 +99,20 @@ class ShareParcels extends Plan {
 		let response = undefined;
 		while (!askOutcome) {
 			response = await myEmitAsk("MSG_shareRequest", JSON.stringify({ x: Math.round(belief.getMePosition()[0]), y: Math.round(belief.getMePosition()[1]) }));
+
+			// If the pal doesn't respond in time
+			if (response == "timeout") {
+				// Then error
+				belief.releaseCoop();
+				throw ["ask timed out"];
+			}
+
+			// If I am a single agent
+			if (response == null) {
+				// Then error
+				belief.releaseCoop();
+				throw ["I am a single agent!"];
+			}
 
 			if (this.stopped) {
 				belief.releaseCoop();
@@ -715,7 +729,7 @@ function optionsGeneration() {
 			}
 		} else {
 			// If I have no valid option, then...
-			// If I am carrying parcels and I can reach the pal
+			// If I am carrying parcels and I can reach the pal (if the pal exists)
 			let pathToPal = belief.pathFromMeToPal();
 			// TODO aggiungi undefined a tutti i null
 			if (belief.getCarriedParcels().size > 0 && pathToPal != null && pathToPal != undefined) {
@@ -821,22 +835,27 @@ async function myEmitPutDown() {
 }
 
 /**
- * emitSay wrapper
+ * emitSay wrapper, this will send the message only in multi agent mode
  * @param {String} msg_type - message type
  * @param {String} msg_content - message content in JSON format
  */
 async function myEmitSay(msg_type, msg_content) {
-	await client.emitSay(belief.getPalId(), { type: msg_type, content: msg_content });
+	if (!belief.isSingleAgent()) {
+		await client.emitSay(belief.getPalId(), { type: msg_type, content: msg_content });
+	}
 }
 
 /**
- * emitAsk wrapper
+ * emitAsk wrapper, this will send the message only in multi agent mode
  * @param {String} msg_type - message type
  * @param {String} msg_content - message content in JSON format
- * @returns output of emitAsk
+ * @returns output of emitAsk if multi agent, null otherwise
  */
 async function myEmitAsk(msg_type, msg_content) {
-	return await client.emitAsk(belief.getPalId(), { type: msg_type, content: msg_content });
+	if (!belief.isSingleAgent()) {
+		return await client.emitAsk(belief.getPalId(), { type: msg_type, content: msg_content });
+	}
+	return null;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -884,10 +903,39 @@ for (let i = 0; i < process.argv.length; i++) {
 				throw "Error: invalid planning probability, provide a value in the range [0, 100]!";
 			}
 			// I am a single agent, with a specific planning probability
-			belief.setAgentsInfo(AGENT_S_ID, AGENT_S_TOKEN, null, null, 2, prob);
+			belief.setAgentsInfo(AGENT_S_ID, AGENT_S_TOKEN, null, null, 1, prob);
 		} else {
 			// I am a single agent, with the default planning probability
-			belief.setAgentsInfo(AGENT_S_ID, AGENT_S_TOKEN, null, null, 2, DEFAULT_PLANNING_PROB);
+			belief.setAgentsInfo(AGENT_S_ID, AGENT_S_TOKEN, null, null, 1, DEFAULT_PLANNING_PROB);
+		}
+
+		// Remember that a mode has been selected
+		single_parameter = true;
+	}
+
+	// Single agent mode
+	if (process.argv[i] == "-r") {
+		// If another parameter has already been set
+		if (single_parameter) {
+			// Return error, only one mode can be active at the same time
+			throw "Error: too many arguments!";
+		}
+
+		// Select the correct agent
+		if (process.argv[i + 1] != null && !isNaN(Number(process.argv[i + 1]))) {
+			// Extract the probability
+			let prob = Number(process.argv[i + 1]) / 100;
+
+			// If the provided probability is not correct
+			if (prob > 1 || prob < 0) {
+				// Return error
+				throw "Error: invalid planning probability, provide a value in the range [0, 100]!";
+			}
+			// I am a single agent, with a specific planning probability
+			belief.setAgentsInfo(undefined, undefined, null, null, 1, prob);
+		} else {
+			// I am a single agent, with the default planning probability
+			belief.setAgentsInfo(undefined, undefined, null, null, 1, DEFAULT_PLANNING_PROB);
 		}
 
 		// Remember that a mode has been selected
@@ -900,32 +948,6 @@ if (!single_parameter) {
 	throw "Error: too few arguments!";
 }
 
-/*
-process.argv.forEach(function (val, index, array) {
-	// Multi agent mode
-	if (val == "-a") {
-
-		if (process.argv[index + 1] == "1") {
-			// I am AGENT1
-			belief.setAgentsInfo(AGENT1_ID, AGENT1_TOKEN, AGENT2_ID, AGENT2_TOKEN);
-		} else {
-			// I am AGENT2
-			belief.setAgentsInfo(AGENT2_ID, AGENT2_TOKEN, AGENT1_ID, AGENT1_TOKEN);
-		}
-	}
-
-	// Single agent mode
-	if (val == "-s") {
-		if (process.argv[index + 1] == "1") {
-			// I am AGENT1
-			belief.setAgentsInfo(AGENT1_ID, AGENT1_TOKEN, AGENT2_ID, AGENT2_TOKEN);
-		} else {
-			// I am AGENT2
-			belief.setAgentsInfo(AGENT2_ID, AGENT2_TOKEN, AGENT1_ID, AGENT1_TOKEN);
-		}
-	}
-});
-*/
 const client = new DeliverooApi(SERVER_ADDRS, belief.getMyToken());
 const myAgent = new IntentionRevisionReplace();
 
@@ -987,45 +1009,47 @@ await new Promise((res) => {
 });
 
 client.onMsg(async (id, name, msg, reply) => {
-	switch (msg.type) {
-		case "MSG_positionUpdate":
-			belief.messageHandler_positionUpdate(msg.content);
-			break;
-		case "MSG_memoryShare":
-			belief.messageHandler_memoryShare(msg.content);
-			break;
-		case "MSG_currentIntention":
-			belief.messageHandler_currentIntention(msg.content);
-			break;
-		case "MSG_shareRequest":
-			while (true) {
-				// Allow message handling while in loop
-				await new Promise((res) => setTimeout(res, 1));
+	if (!belief.isSingleAgent()) {
+		switch (msg.type) {
+			case "MSG_positionUpdate":
+				belief.messageHandler_positionUpdate(msg.content);
+				break;
+			case "MSG_memoryShare":
+				belief.messageHandler_memoryShare(msg.content);
+				break;
+			case "MSG_currentIntention":
+				belief.messageHandler_currentIntention(msg.content);
+				break;
+			case "MSG_shareRequest":
+				while (true) {
+					// Allow message handling while in loop
+					await new Promise((res) => setTimeout(res, 1));
 
-				// Compte response to the share request
-				let response = belief.messageHandler_shareRequest(msg.content);
-				if (response.outcome == "true") {
-					// If the response is positive, then we can proceed with the share
-					pushIntention(["recover_shared_parcels", response.mePosX, response.mePosY, response.yourPosX, response.yourPosY, response.yourSupportPosX, response.yourSupportPosY]);
-					belief.requireCoop();
-					reply(response);
-					break;
-				} else if (response.outcome == "false") {
-					// If the response is negative, signal it to the pal
-					reply(response);
-					break;
-				} else if (response.outcome == "me_move") {
-					// If I have to move to gain free spaces before committing to the share, do so and repeat the process
-					for (let i = 0; i < response.missingCells; i++) {
-						await myEmitMove(response.path[i]);
+					// Compte response to the share request
+					let response = belief.messageHandler_shareRequest(msg.content);
+					if (response.outcome == "true") {
+						// If the response is positive, then we can proceed with the share
+						pushIntention(["recover_shared_parcels", response.mePosX, response.mePosY, response.yourPosX, response.yourPosY, response.yourSupportPosX, response.yourSupportPosY]);
+						belief.requireCoop();
+						reply(response);
+						break;
+					} else if (response.outcome == "false") {
+						// If the response is negative, signal it to the pal
+						reply(response);
+						break;
+					} else if (response.outcome == "me_move") {
+						// If I have to move to gain free spaces before committing to the share, do so and repeat the process
+						for (let i = 0; i < response.missingCells; i++) {
+							await myEmitMove(response.path[i]);
+						}
+					} else if (response.outcome == "you_move") {
+						// If the pal has to move to gain free spaces before committing to the share, signal him so
+						reply(response);
+						break;
 					}
-				} else if (response.outcome == "you_move") {
-					// If the pal has to move to gain free spaces before committing to the share, signal him so
-					reply(response);
-					break;
 				}
-			}
-			break;
+				break;
+		}
 	}
 });
 
