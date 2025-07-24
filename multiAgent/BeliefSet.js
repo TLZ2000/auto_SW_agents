@@ -1545,25 +1545,25 @@ export class BeliefSet {
 
 			let tmpPalX = tmpMeX;
 			let tmpPalY = tmpMeY;
-			if (path[length + 1] == "U") {
+			if (path[length] == "U") {
 				tmpPalY++;
-			} else if (path[length + 1] == "D") {
+			} else if (path[length] == "D") {
 				tmpPalY--;
-			} else if (path[length + 1] == "R") {
+			} else if (path[length] == "R") {
 				tmpPalX++;
-			} else if (path[length + 1] == "L") {
+			} else if (path[length] == "L") {
 				tmpPalX--;
 			}
 
 			let tmpPalSupX = tmpPalX;
 			let tmpPalSupY = tmpPalY;
-			if (path[length + 2] == "U") {
+			if (path[length + 1] == "U") {
 				tmpPalSupY++;
-			} else if (path[length + 2] == "D") {
+			} else if (path[length + 1] == "D") {
 				tmpPalSupY--;
-			} else if (path[length + 2] == "R") {
+			} else if (path[length + 1] == "R") {
 				tmpPalSupX++;
-			} else if (path[length + 2] == "L") {
+			} else if (path[length + 1] == "L") {
 				tmpPalSupX--;
 			}
 			return { outcome: "true", mePosX: tmpMeX, mePosY: tmpMeY, yourPosX: tmpPalX, yourPosY: tmpPalY, yourSupportPosX: tmpPalSupX, yourSupportPosY: tmpPalSupY };
