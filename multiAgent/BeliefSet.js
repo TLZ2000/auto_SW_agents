@@ -1,3 +1,4 @@
+import { PddlProblem, Beliefset } from "@unitn-asa/pddl-client";
 import { GameMap } from "./GameMap.js";
 import { Queue } from "./Queue.js";
 
@@ -18,6 +19,8 @@ export class BeliefSet {
 	#parcels_to_ignore = undefined;
 	#planning_prob = undefined;
 	#agent_mode = undefined;
+	#block_option_generation_planning_flag = false;
+	#belief_set_planning = null;
 
 	constructor() {
 		this.#agent_memory = new Map();
@@ -47,6 +50,65 @@ export class BeliefSet {
 		this.#parcels_map = [];
 		this.#parcels_to_ignore = new Set();
 		this.#planning_prob = 0;
+		this.#belief_set_planning = new Beliefset();
+	}
+
+	/**
+	 * Update the planning belief set with map information
+	 */
+	generatePlanningBeliefSetMap() {
+		// Add me info to planning belief set
+		this.#belief_set_planning.declare("me agent");
+
+		// Cycle the map
+		for (let x = 0; x < this.#game_map.getWidth(); x++) {
+			for (let y = 0; y < this.#game_map.getHeight(); y++) {
+				// Check if the tile in position [x,y] is walkable
+				if (this.#game_map.getItem(x, y) != 0) {
+					// If so, add it in the belief set
+					let tileName = "x" + x + "y" + y;
+					this.#belief_set_planning.declare("tile " + tileName);
+					this.#belief_set_planning.declare("free " + tileName);
+
+					// Check its neighbors
+					if (y - 1 >= 0 && this.#game_map.getItem(x, y - 1) != 0) {
+						// If cell has down walkable neighbor, add it to the belief set
+						this.#belief_set_planning.declare("down " + "x" + x + "y" + (y - 1) + " " + tileName);
+					}
+
+					if (y + 1 < this.#game_map.getHeight() && this.#game_map.getItem(x, y + 1) != 0) {
+						// If cell has up walkable neighbor, add it to the belief set
+						this.#belief_set_planning.declare("up " + "x" + x + "y" + (y + 1) + " " + tileName);
+					}
+
+					if (x - 1 >= 0 && this.#game_map.getItem(x - 1, y) != 0) {
+						// If cell has left walkable neighbor, add it to the belief set
+						this.#belief_set_planning.declare("left " + "x" + (x - 1) + "y" + y + " " + tileName);
+					}
+
+					if (x + 1 < this.#game_map.getWidth() && this.#game_map.getItem(x + 1, y) != 0) {
+						// If cell has right walkable neighbor, add it to the belief set
+						this.#belief_set_planning.declare("right " + "x" + (x + 1) + "y" + y + " " + tileName);
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Use planning belief set to compute PddlProblem, remove all the negative prepositions (they violate PDDL closed-world assumption) from the PddlProblem and return it
+	 * @param {Number} x - agent current x coordinate
+	 * @param {Number} y - agent current y coordinate
+	 * @return {String} pddlProblem
+	 */
+	getPDDLProblemString(x, y) {
+		let pddlProblem = new PddlProblem("deliveroo_go_to", this.#belief_set_planning.objects.join(" "), this.#belief_set_planning.toPddlString(), "and (at agent " + "x" + x + "y" + y + ")");
+		pddlProblem = pddlProblem.toPddlString();
+
+		// Remove all the undeclares from the problem file, otherwise the planning.domains service stop working after a while
+		let regEx = / \(not \((.+?)\)\)/g;
+		pddlProblem = pddlProblem.replace(regEx, "");
+		return pddlProblem;
 	}
 
 	/**
@@ -79,6 +141,20 @@ export class BeliefSet {
 	 * @param {Number} y - agent current y coordinate
 	 */
 	updateMePosition(x, y) {
+		if (this.#me_memory.x != null && this.#me_memory.y != null) {
+			// Undeclare old agent position
+			this.#belief_set_planning.undeclare("at agent " + "x" + Math.round(this.#me_memory.x) + "y" + Math.round(this.#me_memory.y));
+
+			// Declare free old agent position
+			this.#belief_set_planning.declare("free " + "x" + Math.round(this.#me_memory.x) + "y" + Math.round(this.#me_memory.y));
+		}
+
+		// Undeclare free new agent position
+		this.#belief_set_planning.undeclare("free " + "x" + Math.round(x) + "y" + Math.round(y));
+
+		// Declare new agent position
+		this.#belief_set_planning.declare("at agent " + "x" + Math.round(x) + "y" + Math.round(y));
+
 		// Update agent coordinates
 		this.#me_memory.x = x;
 		this.#me_memory.y = y;
@@ -155,6 +231,35 @@ export class BeliefSet {
 		}
 
 		return freeParcels;
+	}
+
+	/**
+	 * Returns the probability of a planning based action
+	 * @returns {Number} planning probability
+	 */
+	getPlanningProb() {
+		return this.#planning_prob;
+	}
+
+	/**
+	 * @returns {Boolean} true -> I have no planner running so you can do option generation, false -> I have planner running so you can't do option generation
+	 */
+	isPlannerFree() {
+		return !this.#block_option_generation_planning_flag;
+	}
+
+	/**
+	 * Signal that a planner is currently running
+	 */
+	setPlannerRunning() {
+		this.#block_option_generation_planning_flag = true;
+	}
+
+	/**
+	 * Signal that the planner has finished
+	 */
+	setPlannerNotRunning() {
+		this.#block_option_generation_planning_flag = false;
 	}
 
 	/**
@@ -524,12 +629,18 @@ export class BeliefSet {
 				// Remove old position in agent map
 				let oldAgent = this.#agent_memory.get(a.id);
 				this.clearAgentAt(Math.round(oldAgent.x), Math.round(oldAgent.y));
+
+				// Declare free the old agent position
+				this.#belief_set_planning.declare("free " + "x" + Math.round(oldAgent.x) + "y" + Math.round(oldAgent.y));
 			}
 			// Update agent memory
 			this.#agent_memory.set(a.id, a);
 
 			// Update agent map
 			this.setAgentAt(Math.round(a.x), Math.round(a.y));
+
+			// Undeclare free the new agent position
+			this.#belief_set_planning.undeclare("free " + "x" + Math.round(a.x) + "y" + Math.round(a.y));
 		});
 	}
 
@@ -1158,12 +1269,18 @@ export class BeliefSet {
 				if (Date.now() - agent.time < this.#game_config.INVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
 					// If so, preserve it
 					tmpAgents.set(agent.id, agent);
+				} else {
+					// Declare free the agent that we will remove from set
+					this.#belief_set_planning.declare("free " + "x" + Math.round(agent.x) + "y" + Math.round(agent.y));
 				}
 			} else {
 				// Check if I saw the agent (not in our vision range) recently
 				if (Date.now() - agent.time < this.#game_config.OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD || agent.id == this.#pal_memory.id) {
 					// If so, preserve it
 					tmpAgents.set(agent.id, agent);
+				} else {
+					// Declare free the agent that we will remove from set
+					this.#belief_set_planning.declare("free " + "x" + Math.round(agent.x) + "y" + Math.round(agent.y));
 				}
 			}
 		});

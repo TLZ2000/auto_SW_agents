@@ -1,6 +1,8 @@
 import { DeliverooApi } from "@unitn-asa/deliveroo-js-client";
+import { onlineSolver } from "@unitn-asa/pddl-client";
 import { BeliefSet } from "./BeliefSet.js";
 import { IntentionRevisionReplace, Plan } from "./Intentions.js";
+import fs from "fs";
 
 const AGENT1_ID = "a6cdae";
 const AGENT2_ID = "ff8ff0";
@@ -434,6 +436,9 @@ class FollowPath extends Plan {
 				}
 			}
 
+			// If stopped then quit
+			if (this.stopped) throw ["stopped"];
+
 			// Check if the next position is free to move
 			if (!belief.isNextCellFree(path[i])) {
 				// If not, fail the action and stop here
@@ -528,6 +533,173 @@ class GoDeliver extends Plan {
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		return true;
 	}
+}
+
+/**
+ * Plan class handling the "go_to" intention (with PLANNING_MOVE_PROB probability it uses planning to compute the path, otherwise it uses the BFS)
+ */
+class Move extends Plan {
+	static isApplicableTo(go_to, x, y) {
+		return go_to == "go_to";
+	}
+
+	async execute(go_to, x, y) {
+		// Compute random value
+		let random = Math.random();
+		let path = undefined;
+
+		// Use the random value to choose to compute the path whether with BFS or Planning
+		if (random > belief.getPlanningProb()) {
+			// Use the BFS
+			path = belief.pathFromMeTo(x, y);
+		} else {
+			// Use the Planning
+
+			// Define problem
+			let pddlProblem = belief.getPDDLProblemString(x, y);
+
+			// Define domain
+			let pddlDomain = await readFile("./deliveroo_domain.pddl");
+
+			if (this.stopped) throw ["stopped"];
+
+			// Get the plan
+			belief.setPlannerRunning();
+			let plan = await onlineSolver(pddlDomain, pddlProblem);
+			belief.setPlannerNotRunning();
+
+			if (this.stopped) throw ["stopped"];
+
+			if (plan == undefined) {
+				console.log("Plan undefined, stop intention");
+				this.stop();
+				throw ["stopped"];
+			}
+
+			path = [];
+
+			// If a plan exists
+			if (plan != undefined) {
+				// Cycle the plan and convert it to a path
+				for (let i = 0; i < plan.length; i++) {
+					switch (plan[i].action) {
+						case "RIGHT":
+							path.push("R");
+							break;
+						case "LEFT":
+							path.push("L");
+							break;
+						case "UP":
+							path.push("U");
+							break;
+						case "DOWN":
+							path.push("D");
+							break;
+					}
+				}
+			}
+		}
+
+		// If no path applicable, fail the intention
+		if (path == undefined || path == null) {
+			this.stop();
+			throw ["stopped"];
+		}
+
+		// Otherwise, follow the path
+		let i = 0;
+		while (i < path.length) {
+			// If stopped then quit
+			if (this.stopped) throw ["stopped"];
+
+			// If I am not at the final position already
+			if (i < path.length - 1) {
+				// If I am on a parcel
+				if (belief.amIOnParcelLong()) {
+					// Then force a pickup because it is free
+					await myEmitPickUp();
+				}
+
+				// If I am on a deliver and I am carrying parcels
+				if (belief.amIOnDelivery() && belief.getCarriedParcels().size > 0) {
+					// Then deliver the parcels because it is free
+					await myEmitPutDown();
+				}
+			}
+
+			// If stopped then quit
+			if (this.stopped) throw ["stopped"];
+
+			// Check if the next position is free to move
+			if (!belief.isNextCellFree(path[i])) {
+				// If not, fail the action and stop here
+				this.stop();
+				throw ["stopped"];
+			}
+
+			// Otherwise commit to the move
+			let moved_horizontally = undefined;
+			let moved_vertically = undefined;
+
+			if (path[i] == "R" || path[i] == "L") {
+				moved_horizontally = await myEmitMove(path[i]);
+			}
+
+			// Check if agent is carrying parcels
+			let carriedParcels = belief.getCarriedParcels();
+
+			// If moved horizontally
+			if (moved_horizontally) {
+				belief.updateMePosition(moved_horizontally.x, moved_horizontally.y);
+
+				// And if agent is carrying parcels
+				if (carriedParcels.size > 0) {
+					// Increment the movement penalty (increase probability to go deliver)
+					belief.increaseMeMoves();
+				}
+			}
+
+			if (this.stopped) throw ["stopped"]; // if stopped then quit
+
+			if (path[i] == "U" || path[i] == "D") {
+				moved_vertically = await myEmitMove(path[i]);
+			}
+
+			// If moved vertically
+			if (moved_vertically) {
+				belief.updateMePosition(moved_vertically.x, moved_vertically.y);
+
+				// And if agent is carrying parcels
+				if (carriedParcels.size > 0) {
+					// Increment the movement penalty (increase probability to go deliver)
+					belief.increaseMeMoves();
+				}
+			}
+
+			// If stucked, stop the action
+			if (!moved_horizontally && !moved_vertically) {
+				this.stop();
+				throw ["stopped"];
+			}
+
+			i++;
+		}
+		return true;
+	}
+}
+
+/**
+ * Read txt file content
+ * @param {String} path - path of file
+ * @returns content of txt file as string
+ */
+function readFile(path) {
+	return new Promise((res, rej) => {
+		fs.readFile(path, "utf8", (err, data) => {
+			if (err) rej(err);
+			else res(data);
+		});
+	});
 }
 
 /**
@@ -668,100 +840,102 @@ function getBestOption() {
  * Generate all possible options, based on the current game state and configuration, perform option filtering and select the best possible option as current intention
  */
 function optionsGeneration() {
-	// Check if the option generation is allowed (no other option generation is running)
-	if (belief.isOptionGenerationAllowed()) {
-		// Signal that an option generation is currently running
-		belief.setOptionGenerationRunning();
+	if (belief.isPlannerFree()) {
+		// Check if the option generation is allowed (no other option generation is running)
+		if (belief.isOptionGenerationAllowed()) {
+			// Signal that an option generation is currently running
+			belief.setOptionGenerationRunning();
 
-		// Get the best option between go_pick_up and go_deliver
-		let bestOption = getBestOption();
-		let push = false;
+			// Get the best option between go_pick_up and go_deliver
+			let bestOption = getBestOption();
+			let push = false;
 
-		// Check if I should push the best option without waiting to finish the current intention
-		if (bestOption != undefined && bestOption != null) {
-			// Get current intention
-			let currentIntention = myAgent.getCurrentIntentionPredicate();
+			// Check if I should push the best option without waiting to finish the current intention
+			if (bestOption != undefined && bestOption != null) {
+				// Get current intention
+				let currentIntention = myAgent.getCurrentIntentionPredicate();
 
-			// Check if I have a current intention
-			if (currentIntention == undefined) {
-				// If not, then push the best option
-				push = true;
-			} else {
-				// Otherwise, check if the best option reward is better than the current intention reward
-				if (bestOption[0] == "go_pick_up") {
-					if (currentIntention[0] == "go_pick_up") {
-						if (bestOption[4] > currentIntention[4]) {
-							push = true;
-						}
-					} else if (currentIntention[0] == "go_deliver") {
-						if (bestOption[4] > currentIntention[1]) {
-							push = true;
-						}
-					} else {
-						// If the current intention is neither go_pick_up nor go_deliver, then push the best option
-						push = true;
-					}
-				} else if (bestOption[0] == "go_deliver") {
-					if (currentIntention[0] == "go_pick_up") {
-						if (bestOption[1] > currentIntention[4]) {
-							push = true;
-						}
-					} else if (currentIntention[0] == "go_deliver") {
-						// I am already delivering, so I don't want to push another deliver
-						push = false;
-					} else {
-						// If the current intention is neither go_pick_up nor go_deliver, then push the best option
-						push = true;
-					}
-				}
-
-				// If my best option is go_deliver but my current intention is go_pick_up
-				if (currentIntention[0] == "go_pick_up" && bestOption[0] == "go_deliver") {
-					// First finish the go_pick_up, to avoid that the agent moves towards the cell with the parcel to pickup and then change direction to go deliver
-					belief.setOptionGenerationNotRunning();
-					return;
-				}
-			}
-
-			// Check if I should push
-			if (push) {
-				pushIntention(bestOption);
-			}
-		} else {
-			// If I have no valid option, then...
-			// If I am carrying parcels and I can reach the pal (if the pal exists)
-			let pathToPal = belief.pathFromMeToPal();
-			// TODO aggiungi undefined a tutti i null
-			if (belief.getCarriedParcels().size > 0 && pathToPal != null && pathToPal != undefined) {
-				// Then co-op with pal to deliver
-				pushIntention(["share_parcels"]);
-			} else {
-				// Otherwise explore
-				if (Math.random() < TIMED_EXPLORE) {
-					// Explore oldest tiles
-					pushIntention(["explore", "timed"]);
+				// Check if I have a current intention
+				if (currentIntention == undefined) {
+					// If not, then push the best option
+					push = true;
 				} else {
-					// Explore distant tiles
-					pushIntention(["explore", "distance"]);
+					// Otherwise, check if the best option reward is better than the current intention reward
+					if (bestOption[0] == "go_pick_up") {
+						if (currentIntention[0] == "go_pick_up") {
+							if (bestOption[4] > currentIntention[4]) {
+								push = true;
+							}
+						} else if (currentIntention[0] == "go_deliver") {
+							if (bestOption[4] > currentIntention[1]) {
+								push = true;
+							}
+						} else {
+							// If the current intention is neither go_pick_up nor go_deliver, then push the best option
+							push = true;
+						}
+					} else if (bestOption[0] == "go_deliver") {
+						if (currentIntention[0] == "go_pick_up") {
+							if (bestOption[1] > currentIntention[4]) {
+								push = true;
+							}
+						} else if (currentIntention[0] == "go_deliver") {
+							// I am already delivering, so I don't want to push another deliver
+							push = false;
+						} else {
+							// If the current intention is neither go_pick_up nor go_deliver, then push the best option
+							push = true;
+						}
+					}
+
+					// If my best option is go_deliver but my current intention is go_pick_up
+					if (currentIntention[0] == "go_pick_up" && bestOption[0] == "go_deliver") {
+						// First finish the go_pick_up, to avoid that the agent moves towards the cell with the parcel to pickup and then change direction to go deliver
+						belief.setOptionGenerationNotRunning();
+						return;
+					}
+				}
+
+				// Check if I should push
+				if (push) {
+					pushIntention(bestOption);
+				}
+			} else {
+				// If I have no valid option, then...
+				// If I am carrying parcels and I can reach the pal (if the pal exists)
+				let pathToPal = belief.pathFromMeToPal();
+				// TODO aggiungi undefined a tutti i null
+				if (belief.getCarriedParcels().size > 0 && pathToPal != null && pathToPal != undefined) {
+					// Then co-op with pal to deliver
+					pushIntention(["share_parcels"]);
+				} else {
+					// Otherwise explore
+					if (Math.random() < TIMED_EXPLORE) {
+						// Explore oldest tiles
+						pushIntention(["explore", "timed"]);
+					} else {
+						// Explore distant tiles
+						pushIntention(["explore", "distance"]);
+					}
 				}
 			}
-		}
 
-		// Signal that the option generation is finished
-		belief.setOptionGenerationNotRunning();
+			// Signal that the option generation is finished
+			belief.setOptionGenerationNotRunning();
+		}
 	}
 }
 
 /**
- * myAgent.push wrapper to avoid pushing intentions while cooperating with the pal and also to signal the pal my current intention
+ * myAgent.push wrapper to avoid pushing intentions while cooperating with the pal or computing a planning based solution, and also to signal the pal my current intention
  * @param {Array} intention - intention to push
  */
 function pushIntention(intention) {
-	if (!belief.isCooperating()) {
+	if (!belief.isCooperating() && belief.isPlannerFree()) {
 		myAgent.push(intention);
 		myEmitSay("MSG_currentIntention", intention[0]);
 	} else {
-		console.log("Push of ", intention, " failed due to coop");
+		console.log("Push of ", intention, " failed due to coop or planning");
 	}
 }
 
@@ -862,6 +1036,7 @@ async function myEmitAsk(msg_type, msg_content) {
 
 const belief = new BeliefSet();
 var single_parameter = false;
+
 // Recover command line arguments
 for (let i = 0; i < process.argv.length; i++) {
 	// Multi agent mode
@@ -956,7 +1131,8 @@ myAgent.addPlan(Explore);
 myAgent.addPlan(GoPickUp);
 myAgent.addPlan(GoDeliver);
 myAgent.addPlan(FollowPath);
-myAgent.addPlan(BFSmove);
+//myAgent.addPlan(BFSmove);
+myAgent.addPlan(Move);
 myAgent.addPlan(ShareParcels);
 myAgent.addPlan(RecoverSharedParcels);
 
@@ -981,6 +1157,7 @@ await new Promise((res) => {
 	// Get the map information
 	client.onMap((width, height, tile) => {
 		belief.instantiateGameMap(width, height, tile);
+		belief.generatePlanningBeliefSetMap();
 		res();
 	});
 
