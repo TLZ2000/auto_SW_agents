@@ -555,23 +555,36 @@ class Move extends Plan {
 		} else {
 			// Use the Planning
 
+			if (belief.isPlanningPrioritized()) {
+				belief.setPlannerRunning();
+			}
 			// Define problem
 			let pddlProblem = belief.getPDDLProblemString(x, y);
 
 			// Define domain
 			let pddlDomain = await readFile("./deliveroo_domain.pddl");
 
-			if (this.stopped) throw ["stopped"];
+			if (this.stopped) {
+				belief.setPlannerNotRunning();
+				throw ["stopped"];
+			}
 
 			// Get the plan
 			belief.setPlannerRunning();
 			let plan = await onlineSolver(pddlDomain, pddlProblem);
-			belief.setPlannerNotRunning();
 
-			if (this.stopped) throw ["stopped"];
+			if (!belief.isPlanningPrioritized()) {
+				belief.setPlannerNotRunning();
+			}
+
+			if (this.stopped) {
+				belief.setPlannerNotRunning();
+				throw ["stopped"];
+			}
 
 			if (plan == undefined) {
 				console.log("Plan undefined, stop intention");
+				belief.setPlannerNotRunning();
 				this.stop();
 				throw ["stopped"];
 			}
@@ -602,6 +615,7 @@ class Move extends Plan {
 
 		// If no path applicable, fail the intention
 		if (path == undefined || path == null) {
+			belief.setPlannerNotRunning();
 			this.stop();
 			throw ["stopped"];
 		}
@@ -610,7 +624,10 @@ class Move extends Plan {
 		let i = 0;
 		while (i < path.length) {
 			// If stopped then quit
-			if (this.stopped) throw ["stopped"];
+			if (this.stopped) {
+				belief.setPlannerNotRunning();
+				throw ["stopped"];
+			}
 
 			// If I am not at the final position already
 			if (i < path.length - 1) {
@@ -628,11 +645,15 @@ class Move extends Plan {
 			}
 
 			// If stopped then quit
-			if (this.stopped) throw ["stopped"];
+			if (this.stopped) {
+				belief.setPlannerNotRunning();
+				throw ["stopped"];
+			}
 
 			// Check if the next position is free to move
 			if (!belief.isNextCellFree(path[i])) {
 				// If not, fail the action and stop here
+				belief.setPlannerNotRunning();
 				this.stop();
 				throw ["stopped"];
 			}
@@ -643,6 +664,12 @@ class Move extends Plan {
 
 			if (path[i] == "R" || path[i] == "L") {
 				moved_horizontally = await myEmitMove(path[i]);
+			}
+
+			// If stopped then quit
+			if (this.stopped) {
+				belief.setPlannerNotRunning();
+				throw ["stopped"];
 			}
 
 			// Check if agent is carrying parcels
@@ -659,10 +686,22 @@ class Move extends Plan {
 				}
 			}
 
-			if (this.stopped) throw ["stopped"]; // if stopped then quit
+			// TODO mettere stopped nei piani dopo ogni await
+
+			// If stopped then quit
+			if (this.stopped) {
+				belief.setPlannerNotRunning();
+				throw ["stopped"];
+			}
 
 			if (path[i] == "U" || path[i] == "D") {
 				moved_vertically = await myEmitMove(path[i]);
+			}
+
+			// If stopped then quit
+			if (this.stopped) {
+				belief.setPlannerNotRunning();
+				throw ["stopped"];
 			}
 
 			// If moved vertically
@@ -676,14 +715,23 @@ class Move extends Plan {
 				}
 			}
 
+			// If stopped then quit
+			if (this.stopped) {
+				belief.setPlannerNotRunning();
+				throw ["stopped"];
+			}
+
 			// If stucked, stop the action
 			if (!moved_horizontally && !moved_vertically) {
+				belief.setPlannerNotRunning();
 				this.stop();
 				throw ["stopped"];
 			}
 
 			i++;
 		}
+
+		belief.setPlannerNotRunning();
 		return true;
 	}
 }
@@ -1035,16 +1083,16 @@ async function myEmitAsk(msg_type, msg_content) {
 // ---------------------------------------------------------------------------------------------------------------
 
 const belief = new BeliefSet();
-var single_parameter = false;
+var setModality = false;
 
 // Recover command line arguments
 for (let i = 0; i < process.argv.length; i++) {
 	// Multi agent mode
 	if (process.argv[i] == "-a") {
 		// If another parameter has already been set
-		if (single_parameter) {
+		if (setModality) {
 			// Return error, only one mode can be active at the same time
-			throw "Error: too many arguments!";
+			throw "Error: too many modalities!";
 		}
 
 		// Select the correct agent
@@ -1056,15 +1104,15 @@ for (let i = 0; i < process.argv.length; i++) {
 			belief.setAgentsInfo(AGENT2_ID, AGENT2_TOKEN, AGENT1_ID, AGENT1_TOKEN, 2, 0);
 		}
 		// Remember that a mode has been selected
-		single_parameter = true;
+		setModality = true;
 	}
 
 	// Single agent mode
 	if (process.argv[i] == "-s") {
 		// If another parameter has already been set
-		if (single_parameter) {
+		if (setModality) {
 			// Return error, only one mode can be active at the same time
-			throw "Error: too many arguments!";
+			throw "Error: too many modalities!";
 		}
 
 		// Select the correct agent
@@ -1085,15 +1133,15 @@ for (let i = 0; i < process.argv.length; i++) {
 		}
 
 		// Remember that a mode has been selected
-		single_parameter = true;
+		setModality = true;
 	}
 
-	// Single agent mode
+	// Single random agent mode
 	if (process.argv[i] == "-r") {
 		// If another parameter has already been set
-		if (single_parameter) {
+		if (setModality) {
 			// Return error, only one mode can be active at the same time
-			throw "Error: too many arguments!";
+			throw "Error: too many modalities!";
 		}
 
 		// Select the correct agent
@@ -1114,13 +1162,18 @@ for (let i = 0; i < process.argv.length; i++) {
 		}
 
 		// Remember that a mode has been selected
-		single_parameter = true;
+		setModality = true;
+	}
+
+	// Single agent mode
+	if (process.argv[i] == "-w") {
+		belief.prioritizePlanning();
 	}
 }
 
 // If no parameters have been set, then error to avoid inconsistent agents
-if (!single_parameter) {
-	throw "Error: too few arguments!";
+if (!setModality) {
+	throw "Error: no modality specified!";
 }
 
 const client = new DeliverooApi(SERVER_ADDRS, belief.getMyToken());

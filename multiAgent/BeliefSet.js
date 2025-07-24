@@ -21,6 +21,7 @@ export class BeliefSet {
 	#agent_mode = undefined;
 	#block_option_generation_planning_flag = false;
 	#belief_set_planning = null;
+	#prioritize_planning_flag = false;
 
 	constructor() {
 		this.#agent_memory = new Map();
@@ -239,6 +240,21 @@ export class BeliefSet {
 	 */
 	getPlanningProb() {
 		return this.#planning_prob;
+	}
+
+	/**
+	 * Set the flag that indicate that planning is prioritized (go_to with planning must not be stopped during execution)
+	 */
+	prioritizePlanning() {
+		this.#prioritize_planning_flag = true;
+	}
+
+	/**
+	 * Returns the flag that indicate if planning is prioritized (go_to with planning must not be stopped during execution)
+	 * @returns {Boolean}
+	 */
+	isPlanningPrioritized() {
+		return this.#prioritize_planning_flag;
 	}
 
 	/**
