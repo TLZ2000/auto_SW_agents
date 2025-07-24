@@ -525,9 +525,13 @@ class GoDeliver extends Plan {
 		return go_deliver == "go_deliver";
 	}
 
-	async execute(go_deliver, reward, path) {
+	async execute(go_deliver, reward, x, y) {
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
-		await this.subIntention(["follow_path", path], myAgent.getPlanLibrary());
+		if (belief.getCarriedParcels().size == 0) {
+			this.stop();
+			throw ["No parcels to deliver"];
+		}
+		await this.subIntention(["go_to", x, y], myAgent.getPlanLibrary());
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		await myEmitPutDown();
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
@@ -822,21 +826,21 @@ function getDeliveryOption() {
 
 	// Check if we are carrying parcels, so it makes sense to deliver them
 	if (belief.getCarriedParcels().size > 0) {
-		// Get the path to the nearest delivery
-		let pathNearestDelivery = belief.nearestDeliveryFromHere()[1];
+		// Get the nearest delivery
+		let nearestDelivery = belief.nearestDeliveryFromHere();
 
 		// If there is no viable path to a delivery
-		if (pathNearestDelivery == null || pathNearestDelivery == undefined) {
+		if (nearestDelivery[0][0] == null || nearestDelivery[0][1] == null) {
 			// Then I have no delivery option
 			return null;
 		}
 
 		if (belief.getParcelDecayInterval() == Infinity) {
 			// If there is no parcel decay, then increase the expected reward of the carried parcels using a dedicated scale factor
-			deliveryOption = ["go_deliver", belief.expectedRewardOfCarriedParcels(pathNearestDelivery, belief.getCarriedParcels()) * (belief.getMeMoves() / MOVES_SCALE_FACTOR_NO_DECAY + 1), pathNearestDelivery];
+			deliveryOption = ["go_deliver", belief.expectedRewardOfCarriedParcels(nearestDelivery[1], belief.getCarriedParcels()) * (belief.getMeMoves() / MOVES_SCALE_FACTOR_NO_DECAY + 1), nearestDelivery[0][0], nearestDelivery[0][1]];
 		} else {
 			// If there is parcel decay, let the user weight the parcel reward increase
-			deliveryOption = ["go_deliver", belief.expectedRewardOfCarriedParcels(pathNearestDelivery, belief.getCarriedParcels()) * (belief.getMeMoves() / MOVES_SCALE_FACTOR + 1), pathNearestDelivery];
+			deliveryOption = ["go_deliver", belief.expectedRewardOfCarriedParcels(nearestDelivery[1], belief.getCarriedParcels()) * (belief.getMeMoves() / MOVES_SCALE_FACTOR + 1), nearestDelivery[0][0], nearestDelivery[0][1]];
 		}
 	}
 

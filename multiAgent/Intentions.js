@@ -206,8 +206,8 @@ function areIntentionsEqual(intention1, intention2) {
 				// If the path to follow is the same, the intentions are equal
 				return intention1[1].join(" ") == intention2[1].join(" ");
 			case "go_deliver":
-				// If the path to follow is the same, the intentions are equal
-				return intention1[2].join(" ") == intention2[2].join(" ");
+				// If the go_deliver is to the same position, the intentions are equal
+				return intention1[2] == intention2[2] && intention1[3] == intention2[3];
 		}
 	}
 	return false;
