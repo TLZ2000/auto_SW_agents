@@ -11,8 +11,6 @@ export class BeliefSet {
 	#game_config = null;
 	#pal_carried_parcels = null;
 	#time_map = null; // Timestamp of last visit to the tile
-	#agents_map = null;
-	#parcels_map = null;
 	#emit_action_pending = false;
 	#block_option_generation_flag = false;
 	#coop_flag = false;
@@ -47,8 +45,6 @@ export class BeliefSet {
 		};
 		this.#pal_carried_parcels = new Map();
 		this.#time_map = [];
-		this.#agents_map = [];
-		this.#parcels_map = [];
 		this.#parcels_to_ignore = new Set();
 		this.#planning_prob = 0;
 		this.#belief_set_planning = new Beliefset();
@@ -162,7 +158,7 @@ export class BeliefSet {
 	}
 
 	/**
-	 * Initialize game_map, time_map, agents_map and parcels_map
+	 * Initialize game_map, time_map and parcels_map
 	 * @param {Number} width - width of the game map
 	 * @param {Number} height - height of the game map
 	 * @param {Array<Map>} tile - array containing the type of cells formatted as {x, y, type}
@@ -176,16 +172,6 @@ export class BeliefSet {
 			this.#time_map[x] = [];
 			for (let y = 0; y < height; y++) {
 				this.#time_map[x][y] = time;
-			}
-		}
-
-		// Initialize matrix containing all the agents positions (0 -> no agent/parcel, 1 -> agent/parcel)
-		for (let x = 0; x < width; x++) {
-			this.#agents_map[x] = [];
-			this.#parcels_map[x] = [];
-			for (let y = 0; y < height; y++) {
-				this.#agents_map[x][y] = 0;
-				this.#parcels_map[x][y] = 0;
 			}
 		}
 	}
@@ -360,30 +346,6 @@ export class BeliefSet {
 		return this.#game_map.getGraphNode(x, y);
 	}
 
-	setAgentAt(x, y) {
-		this.#agents_map[x][y] = 1;
-	}
-
-	clearAgentAt(x, y) {
-		this.#agents_map[x][y] = 0;
-	}
-
-	isAgentAt(x, y) {
-		return this.#agents_map[x][y] == 1;
-	}
-
-	setParcelAt(x, y) {
-		this.#parcels_map[x][y] = 1;
-	}
-
-	clearParcelAt(x, y) {
-		this.#parcels_map[x][y] = 0;
-	}
-
-	isParcelAt(x, y) {
-		return this.#parcels_map[x][y] == 1;
-	}
-
 	/**
 	 * Check if there is a parcel in a certain position
 	 * @param {Integer} x
@@ -422,14 +384,6 @@ export class BeliefSet {
 	 */
 	amIOnParcelLong() {
 		return this.isParcelHereLong(this.#me_memory.x, this.#me_memory.y);
-	}
-
-	/**
-	 * Check if there are parcels it the tile where I am
-	 * @returns {Boolean}
-	 */
-	amIOnParcel() {
-		return this.isParcelAt(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y));
 	}
 
 	/**
@@ -580,31 +534,6 @@ export class BeliefSet {
 		this.#block_option_generation_flag = false;
 	}
 
-	/**
-	 * Reset the internal map that represent the cells occupied by other agents (to 0, completely free)
-	 */
-	#resetAgentsMap() {
-		// Initialize matrix containing all the agents positions (0 -> no agent, 1 -> agent)
-		for (let x = 0; x < this.#game_map.getWidth(); x++) {
-			for (let y = 0; y < this.#game_map.getHeight(); y++) {
-				this.clearAgentAt(x, y);
-			}
-		}
-	}
-
-	/**
-	 * Reset the internal map that represent the cells where there are parcels (to 0, completely free)
-	 */
-	// TODO: toglie parcel e agent map
-	#resetParcelsMap() {
-		// Initialize matrix containing all the parcels positions (0 -> no parcels, 1 -> parcels)
-		for (let x = 0; x < this.#game_map.getWidth(); x++) {
-			for (let y = 0; y < this.#game_map.getHeight(); y++) {
-				this.clearParcelAt(x, y);
-			}
-		}
-	}
-
 	increaseMeMoves() {
 		this.#me_memory.moves += 1;
 	}
@@ -644,7 +573,6 @@ export class BeliefSet {
 
 				// Remove old position in agent map
 				let oldAgent = this.#agent_memory.get(a.id);
-				this.clearAgentAt(Math.round(oldAgent.x), Math.round(oldAgent.y));
 
 				// Declare free the old agent position
 				this.#belief_set_planning.declare("free " + "x" + Math.round(oldAgent.x) + "y" + Math.round(oldAgent.y));
@@ -652,18 +580,12 @@ export class BeliefSet {
 			// Update agent memory
 			this.#agent_memory.set(a.id, a);
 
-			// Update agent map
-			this.setAgentAt(Math.round(a.x), Math.round(a.y));
-
 			// Undeclare free the new agent position
 			this.#belief_set_planning.undeclare("free " + "x" + Math.round(a.x) + "y" + Math.round(a.y));
 		});
 	}
 
 	onParcelSensingUpdate(pp) {
-		// TODO togliere parcel map
-		this.#resetParcelsMap();
-
 		// Add the sensed parcels to the parcel belief set
 		let now = Date.now();
 		for (const p of pp) {
@@ -671,11 +593,6 @@ export class BeliefSet {
 			if (!this.#parcels_to_ignore.has(p.id)) {
 				p.time = now;
 				this.#parcel_memory.set(p.id, p);
-
-				// Update parcel map only with the free parcels
-				if (!p.carriedBy) {
-					this.setParcelAt(Math.round(p.x), Math.round(p.y));
-				}
 			}
 		}
 
@@ -1302,17 +1219,6 @@ export class BeliefSet {
 		});
 
 		this.#agent_memory = tmpAgents;
-
-		// Reset agents map
-		this.#resetAgentsMap();
-
-		// Add the agents to the agent map
-		this.#agent_memory.forEach((agent) => {
-			this.setAgentAt(Math.round(agent.x), Math.round(agent.y));
-		});
-
-		// Reset parcels map
-		this.#resetParcelsMap();
 	}
 
 	/**
@@ -1531,19 +1437,9 @@ export class BeliefSet {
 		let palX = JSON.parse(message).x;
 		let palY = JSON.parse(message).y;
 
-		// TODO rimuovere agentMap dappertutto
-		// If the pal has an old position
-		if (this.#pal_memory.x) {
-			// Clear it
-			this.clearAgentAt(Math.round(this.#pal_memory.x), Math.round(this.#pal_memory.y));
-		}
-
 		// Update pal position
 		this.#pal_memory.x = palX;
 		this.#pal_memory.y = palY;
-
-		// Update new pal position
-		this.setAgentAt(Math.round(this.#pal_memory.x), Math.round(this.#pal_memory.y));
 
 		let agent = { id: this.#pal_memory.id, x: this.#pal_memory.x, y: this.#pal_memory.y, time: Date.now() };
 		this.#agent_memory.set(agent.id, agent);
@@ -1590,23 +1486,13 @@ export class BeliefSet {
 			if (this.#agent_memory.has(a.id)) {
 				// If so, check if the received agent information is newer than the agent information in my memory
 				if (this.#agent_memory.get(a.id).time < a.time) {
-					// Remove old position in agent map
-					let oldAgent = this.#agent_memory.get(a.id);
-					this.clearAgentAt(Math.round(oldAgent.x), Math.round(oldAgent.y));
-
 					// If so, update my memory
 					this.#agent_memory.set(a.id, a);
-
-					// Update agent map
-					this.setAgentAt(Math.round(a.x), Math.round(a.y));
 				}
 			} else {
 				// If not in memory, add it if that agent is no me
 				if (this.#me_memory.id != a.id) {
 					this.#agent_memory.set(a.id, a);
-
-					// Update agent map
-					this.setAgentAt(Math.round(a.x), Math.round(a.y));
 				}
 			}
 		});
