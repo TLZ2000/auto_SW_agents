@@ -222,7 +222,7 @@ class RecoverSharedParcels extends Plan {
 		return recover_shared_parcels == "recover_shared_parcels";
 	}
 
-	async execute(recover_shared_parcels, mePosX, mePosY, yourPosX, yourPosY) {
+	async execute(recover_shared_parcels, mePosX, mePosY, yourPosX, yourPosY, supportX, supportY) {
 		belief.requireCoop();
 
 		if (this.stopped) {
@@ -250,8 +250,8 @@ class RecoverSharedParcels extends Plan {
 			// Allow the execution to serve messages
 			await new Promise((res) => setTimeout(res, 1));
 
-			// Check if the pal is in his accorded position (required the floor to cover the case in which the pal agent already dropped his parcel and is currently moving away, so floated coordinates)
-			if (belief.isPalHereFloor(yourPosX, yourPosY)) {
+			// Check if the pal is in his accorded position
+			if (belief.isPalHere(yourPosX, yourPosY) || belief.isPalHere(supportX, supportY)) {
 				palOK = true;
 			}
 		}
@@ -264,7 +264,7 @@ class RecoverSharedParcels extends Plan {
 		// If the pal is in the correct position, I can commit to the share
 		if (palOK) {
 			// Wait until the pal is out of the way
-			while (belief.isPalHereFloor(yourPosX, yourPosY)) {
+			while (belief.isPalHere(yourPosX, yourPosY)) {
 				// Allow the execution to serve messages
 				await new Promise((res) => setTimeout(res, 1));
 				if (this.stopped) {
@@ -958,8 +958,10 @@ function optionsGeneration() {
 				let pathToPal = belief.pathFromMeToPal();
 				// TODO aggiungi undefined a tutti i null
 				if (belief.getCarriedParcels().size > 0 && pathToPal != null && pathToPal != undefined) {
-					// Then co-op with pal to deliver
-					pushIntention(["share_parcels"]);
+					if (belief.shareParcelCounterIncrease()) {
+						// Then co-op with pal to deliver
+						pushIntention(["share_parcels"]);
+					}
 				} else {
 					// Otherwise explore
 					if (Math.random() < TIMED_EXPLORE) {
@@ -984,6 +986,7 @@ function optionsGeneration() {
  */
 function pushIntention(intention) {
 	if (!belief.isCooperating() && belief.isPlannerFree()) {
+		belief.shareParcelCounterReset();
 		myAgent.push(intention);
 		myEmitSay("MSG_currentIntention", intention[0]);
 	} else {
@@ -1234,6 +1237,7 @@ await new Promise((res) => {
 
 		config.TIMED_EXPLORE_ALPHA = TIMED_EXPLORE_ALPHA;
 		config.TIMED_EXPLORE_BETA = TIMED_EXPLORE_BETA;
+		config.OPTION_GENERATION_INTERVAL = OPTION_GENERATION_INTERVAL;
 
 		belief.instantiateGameConfig(config);
 

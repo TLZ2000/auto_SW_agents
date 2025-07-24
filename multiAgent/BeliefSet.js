@@ -20,6 +20,7 @@ export class BeliefSet {
 	#block_option_generation_planning_flag = false;
 	#belief_set_planning = null;
 	#prioritize_planning_flag = false;
+	#option_generation_movement_duration_counter = undefined;
 
 	constructor() {
 		this.#agent_memory = new Map();
@@ -48,6 +49,7 @@ export class BeliefSet {
 		this.#parcels_to_ignore = new Set();
 		this.#planning_prob = 0;
 		this.#belief_set_planning = new Beliefset();
+		this.#option_generation_movement_duration_counter = 0;
 	}
 
 	/**
@@ -182,6 +184,23 @@ export class BeliefSet {
 
 	getAgentMovementDuration() {
 		return this.#game_config.MOVEMENT_DURATION;
+	}
+
+	/**
+	 * Check if the agent should perform a share parcel or wait to see if the pal is just moving on its path (aka. wait some movement durations to be sure)
+	 * @returns true if the agent should go with a share, false otherwise
+	 */
+	shareParcelCounterIncrease() {
+		this.#option_generation_movement_duration_counter++;
+		console.log("INCREASED ", this.#option_generation_movement_duration_counter);
+		return this.#option_generation_movement_duration_counter > Math.ceil((2 * this.#game_config.MOVEMENT_DURATION) / this.#game_config.OPTION_GENERATION_INTERVAL);
+	}
+
+	/**
+	 * Reset the internal counter for the share parcel check
+	 */
+	shareParcelCounterReset() {
+		this.#option_generation_movement_duration_counter = 0;
 	}
 
 	getParcelDecayInterval() {
@@ -422,22 +441,6 @@ export class BeliefSet {
 		}
 		// TODO: ricontrolla possibili round(null)-> ritorna 0 di default e non va bene
 		return x == Math.round(this.#pal_memory.x) && y == Math.round(this.#pal_memory.y);
-	}
-
-	/**
-	 * Check if the pal is on a certain position with floored coordinates
-	 * @param {Integer} x
-	 * @param {Integer} y
-	 * @returns {Boolean} result, true if the pal is in [x,y], false if not
-	 */
-	isPalHereFloor(x, y) {
-		// If the pal doesn't exist
-		if (this.#pal_memory.x == null || this.#pal_memory.y == null) {
-			// Then return always false
-			return false;
-		}
-
-		return x == Math.floor(this.#pal_memory.x) && y == Math.floor(this.#pal_memory.y);
 	}
 
 	/**
