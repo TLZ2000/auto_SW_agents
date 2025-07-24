@@ -4,9 +4,11 @@ import { IntentionRevisionReplace, Plan } from "./Intentions.js";
 
 const AGENT1_ID = "a6cdae";
 const AGENT2_ID = "ff8ff0";
+const AGENT_S_ID = "e12f73";
 
 const AGENT1_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImE2Y2RhZSIsIm5hbWUiOiJUaGUgUm9ib1NhcGllbnNfMSIsInRlYW1JZCI6ImM1MTFhNCIsInRlYW1OYW1lIjoiVGhlIFJvYm9TYXBpZW5zIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDgzNTk4NTF9.ESkRP2T4LIP4z2ghpnmKFb-xkXldwNhaR2VShlL0dm4";
 const AGENT2_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImZmOGZmMCIsIm5hbWUiOiJUaGUgUm9ib1NhcGllbnNfMiIsInRlYW1JZCI6ImMzZTljYSIsInRlYW1OYW1lIjoiVGhlIFJvYm9TYXBpZW5zIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDgzNTk4NTV9.OOBVcCXkUxyLwY8OyDo6v8hfHiijKcAI2MRvOsrFJmA";
+const AGENT_S_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImUxMmY3MyIsIm5hbWUiOiJUaGUgUm9ib1NhcGllbnMiLCJ0ZWFtSWQiOiJlMzcwNmYiLCJ0ZWFtTmFtZSI6IlRoZSBSb2JvU2FwaWVucyIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzUyNDgxNTE2fQ.04NGjhhl648OjThrneW1JgrK7kNHI3-ioGUdlhIXBiU";
 const SERVER_ADDRS = "http://localhost:8080";
 // const SERVER_ADDRS = "https://deliveroojs.rtibdi.disi.unitn.it";
 // const SERVER_ADDRS = "https://deliveroojs25.azurewebsites.net";
@@ -34,6 +36,7 @@ const MEMORY_REVISION_INTERVAL = 250;
 const SHARE_PARCEL_TIMEOUT = 3000;
 const SHARE_PARCEL_WAIT_MUX = 4;
 const RECOVER_PARCEL_WAIT_MUX = 2;
+const DEFAULT_PLANNING_PROB = 0.5;
 
 //--------------------------------------------------------------------------------------------------------------
 
@@ -839,10 +842,80 @@ async function myEmitAsk(msg_type, msg_content) {
 // ---------------------------------------------------------------------------------------------------------------
 
 const belief = new BeliefSet();
-
+var single_parameter = false;
 // Recover command line arguments
+for (let i = 0; i < process.argv.length; i++) {
+	// Multi agent mode
+	if (process.argv[i] == "-a") {
+		// If another parameter has already been set
+		if (single_parameter) {
+			// Return error, only one mode can be active at the same time
+			throw "Error: too many arguments!";
+		}
+
+		// Select the correct agent
+		if (process.argv[i + 1] == "1") {
+			// I am AGENT1
+			belief.setAgentsInfo(AGENT1_ID, AGENT1_TOKEN, AGENT2_ID, AGENT2_TOKEN, 2, 0);
+		} else {
+			// I am AGENT2
+			belief.setAgentsInfo(AGENT2_ID, AGENT2_TOKEN, AGENT1_ID, AGENT1_TOKEN, 2, 0);
+		}
+		// Remember that a mode has been selected
+		single_parameter = true;
+	}
+
+	// Single agent mode
+	if (process.argv[i] == "-s") {
+		// If another parameter has already been set
+		if (single_parameter) {
+			// Return error, only one mode can be active at the same time
+			throw "Error: too many arguments!";
+		}
+
+		// Select the correct agent
+		if (process.argv[i + 1] != null && !isNaN(Number(process.argv[i + 1]))) {
+			// Extract the probability
+			let prob = Number(process.argv[i + 1]) / 100;
+
+			// If the provided probability is not correct
+			if (prob > 1 || prob < 0) {
+				// Return error
+				throw "Error: invalid planning probability, provide a value in the range [0, 100]!";
+			}
+			// I am a single agent, with a specific planning probability
+			belief.setAgentsInfo(AGENT_S_ID, AGENT_S_TOKEN, null, null, 2, prob);
+		} else {
+			// I am a single agent, with the default planning probability
+			belief.setAgentsInfo(AGENT_S_ID, AGENT_S_TOKEN, null, null, 2, DEFAULT_PLANNING_PROB);
+		}
+
+		// Remember that a mode has been selected
+		single_parameter = true;
+	}
+}
+
+// If no parameters have been set, then error to avoid inconsistent agents
+if (!single_parameter) {
+	throw "Error: too few arguments!";
+}
+
+/*
 process.argv.forEach(function (val, index, array) {
+	// Multi agent mode
 	if (val == "-a") {
+
+		if (process.argv[index + 1] == "1") {
+			// I am AGENT1
+			belief.setAgentsInfo(AGENT1_ID, AGENT1_TOKEN, AGENT2_ID, AGENT2_TOKEN);
+		} else {
+			// I am AGENT2
+			belief.setAgentsInfo(AGENT2_ID, AGENT2_TOKEN, AGENT1_ID, AGENT1_TOKEN);
+		}
+	}
+
+	// Single agent mode
+	if (val == "-s") {
 		if (process.argv[index + 1] == "1") {
 			// I am AGENT1
 			belief.setAgentsInfo(AGENT1_ID, AGENT1_TOKEN, AGENT2_ID, AGENT2_TOKEN);
@@ -852,7 +925,7 @@ process.argv.forEach(function (val, index, array) {
 		}
 	}
 });
-
+*/
 const client = new DeliverooApi(SERVER_ADDRS, belief.getMyToken());
 const myAgent = new IntentionRevisionReplace();
 

@@ -16,6 +16,8 @@ export class BeliefSet {
 	#block_option_generation_flag = false;
 	#coop_flag = false;
 	#parcels_to_ignore = undefined;
+	#planning_prob = undefined;
+	#agent_mode = undefined;
 
 	constructor() {
 		this.#agent_memory = new Map();
@@ -44,6 +46,7 @@ export class BeliefSet {
 		this.#agents_map = [];
 		this.#parcels_map = [];
 		this.#parcels_to_ignore = new Set();
+		this.#planning_prob = 0;
 	}
 
 	/**
@@ -53,12 +56,15 @@ export class BeliefSet {
 	 * @param {String} palId - pal id
 	 * @param {String} palToken - pal token
 	 */
-	setAgentsInfo(myId, myToken, palId, palToken) {
+	setAgentsInfo(myId, myToken, palId, palToken, agentMode, planningProb) {
 		this.#me_memory.id = myId;
 		this.#me_memory.token = myToken;
 
 		this.#pal_memory.id = palId;
 		this.#pal_memory.token = palToken;
+
+		this.#agent_mode = agentMode;
+		this.#planning_prob = planningProb;
 	}
 
 	getMyToken() {
