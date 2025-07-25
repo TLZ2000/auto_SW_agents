@@ -194,7 +194,6 @@ export class BeliefSet {
 	 */
 	shareParcelCounterIncrease() {
 		this.#option_generation_movement_duration_counter++;
-		console.log("INCREASED ", this.#option_generation_movement_duration_counter);
 		return this.#option_generation_movement_duration_counter > Math.ceil((2 * this.#game_config.MOVEMENT_DURATION) / this.#game_config.OPTION_GENERATION_INTERVAL);
 	}
 
@@ -1535,7 +1534,6 @@ export class BeliefSet {
 			// I want to deliver them first and then help the pal (I do to deliver, the pal follows me and then we share parcels)
 			let nearestDelivery = this.nearestDeliveryFromHere();
 			let pathToDeliver = nearestDelivery[1];
-			console.log("DELIVERY ", nearestDelivery[0][0], nearestDelivery[0][1], palX, palY);
 
 			if (nearestDelivery[1] != null) {
 				let pathToPal = this.computePathBFS(nearestDelivery[0], [palX, palY], true, true);
