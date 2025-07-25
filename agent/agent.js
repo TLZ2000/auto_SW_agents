@@ -328,22 +328,6 @@ class BFSmove extends Plan {
 			// If stopped then quit
 			if (this.stopped) throw ["stopped"];
 
-			// If I am not at the final position already
-			// TODO ricorda di scrivere che a volte funziona e a volte no
-			if (i < path.length - 1) {
-				// If I am on a parcel
-				if (belief.amIOnParcelLong()) {
-					// Then force a pickup because it is free
-					await myEmitPickUp();
-				}
-
-				// If I am on a deliver and I am carrying parcels
-				if (belief.amIOnDelivery() && belief.getCarriedParcels().size > 0) {
-					// Then deliver the parcels because it is free
-					await myEmitPutDown();
-				}
-			}
-
 			// Check if the next position is free to move
 			if (!belief.isNextCellFree(path[i])) {
 				// If not, fail the action and stop here
@@ -421,24 +405,6 @@ class FollowPath extends Plan {
 		// Otherwise, follow the path
 		let i = 0;
 		while (i < path.length) {
-			// If stopped then quit
-			if (this.stopped) throw ["stopped"];
-
-			// If I am not at the final position already
-			if (i < path.length - 1) {
-				// If I am on a parcel
-				if (belief.amIOnParcelLong()) {
-					// Then force a pickup because it is free
-					await myEmitPickUp();
-				}
-
-				// If I am on a deliver and I am carrying parcels
-				if (belief.amIOnDelivery() && belief.getCarriedParcels().size > 0) {
-					// Then deliver the parcels because it is free
-					await myEmitPutDown();
-				}
-			}
-
 			// If stopped then quit
 			if (this.stopped) throw ["stopped"];
 
@@ -636,28 +602,7 @@ class Move extends Plan {
 				throw ["stopped"];
 			}
 
-			// If I am not at the final position already
-			if (i < path.length - 1) {
-				// If I am on a parcel
-				if (belief.amIOnParcelLong()) {
-					// Then force a pickup because it is free
-					await myEmitPickUp();
-				}
-
-				// If I am on a deliver and I am carrying parcels
-				if (belief.amIOnDelivery() && belief.getCarriedParcels().size > 0) {
-					// Then deliver the parcels because it is free
-					await myEmitPutDown();
-				}
-			}
-
-			// If stopped then quit
-			if (this.stopped) {
-				belief.setPlannerNotRunning();
-				throw ["stopped"];
-			}
-
-			// Check if the next position is free to move
+			// Check if the next position is fr  ee to move
 			if (!belief.isNextCellFree(path[i])) {
 				// If not, fail the action and stop here
 				belief.setPlannerNotRunning();
@@ -796,7 +741,8 @@ function getBestPickupOption() {
 	let minDistance = 0;
 
 	// Select best pickup option
-	options.forEach((option) => {
+	for (let i = 0; i < options.length; i++) {
+		let option = options[i];
 		let currentExpectedScore = option[4];
 		let currentDistance = option[5];
 
@@ -812,9 +758,8 @@ function getBestPickupOption() {
 				bestOption = option;
 			}
 		}
-	});
+	}
 
-	console.log("BEST OPTION", bestOption);
 	return bestOption;
 }
 
@@ -904,13 +849,11 @@ function optionsGeneration() {
 			let bestOption = getBestOption();
 			let push = false;
 
-			console.log("BEST OPTION ", getBestOption());
-
 			// If I have no best option (so I should do a share or explore) but I am committed to a go_pick_up
 			if (myAgent.getCurrentIntentionPredicate() && myAgent.getCurrentIntentionPredicate()[0] == "go_pick_up" && bestOption == null) {
 				// First finish the go_pick_up, to avoid that the agent moves towards the cell with the parcel to pickup and then change direction to do something else
-				//belief.setOptionGenerationNotRunning();
-				//return;
+				belief.setOptionGenerationNotRunning();
+				return;
 			}
 
 			// Check if I should push the best option without waiting to finish the current intention
