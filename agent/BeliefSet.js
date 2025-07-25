@@ -397,7 +397,6 @@ export class BeliefSet {
 			// Then return always false
 			return false;
 		}
-		// TODO: ricontrolla possibili round(null)-> ritorna 0 di default e non va bene
 		return x == Math.round(this.#pal_memory.x) && y == Math.round(this.#pal_memory.y);
 	}
 
@@ -413,7 +412,6 @@ export class BeliefSet {
 			// Then return always false
 			return false;
 		}
-		// TODO: ricontrolla possibili round(null)-> ritorna 0 di default e non va bene
 		return x == this.#pal_memory.x && y == this.#pal_memory.y;
 	}
 
@@ -696,6 +694,12 @@ export class BeliefSet {
 		// If I don't have a pal
 		if (this.isSingleAgent()) {
 			// Then I don't have a path to it
+			return null;
+		}
+
+		// If the pal doesn't exist
+		if (this.#pal_memory.x == null || this.#pal_memory.y == null) {
+			// Then return always null because the path doesn't exists
 			return null;
 		}
 
