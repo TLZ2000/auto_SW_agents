@@ -212,14 +212,6 @@ export class BeliefSet {
 		}
 	}
 
-	getParcelObservationDistance() {
-		return this.#game_config.PARCELS_OBSERVATION_DISTANCE;
-	}
-
-	getAgentObservationDistance() {
-		return this.#game_config.AGENTS_OBSERVATION_DISTANCE;
-	}
-
 	/**
 	 * Compute the list of parcels that are carried by nobody and return it
 	 * @returns {Array} freeParcels
@@ -361,10 +353,6 @@ export class BeliefSet {
 		return [this.#me_memory.x, this.#me_memory.y];
 	}
 
-	getGraphMapNode(x, y) {
-		return this.#game_map.getGraphNode(x, y);
-	}
-
 	/**
 	 * Check if there is a parcel in a certain position
 	 * @param {Integer} x
@@ -395,36 +383,6 @@ export class BeliefSet {
 			}
 		});
 		return result;
-	}
-
-	/**
-	 * Check if there are parcels it the tile where I am
-	 * @returns {Boolean}
-	 */
-	amIOnParcelLong() {
-		return this.isParcelHereLong(this.#me_memory.x, this.#me_memory.y);
-	}
-
-	/**
-	 * Check if I am on a delivery tile
-	 * @returns {Boolean}
-	 */
-	amIOnDelivery() {
-		// TODO: controllare perche questo funziona a volte (+ parcel pickup)
-		if (Number.isInteger(this.#me_memory.x) && Number.isInteger(this.#me_memory.y)) {
-			return this.#game_map.getItem(this.#me_memory.x, this.#me_memory.y) == 2;
-		}
-		return false;
-	}
-
-	/**
-	 * Check if I am on a certain position
-	 * @param {Integer} x
-	 * @param {Integer} y
-	 * @returns {Boolean} result, true if I am in [x,y], false if not
-	 */
-	amIHere(x, y) {
-		return x == Math.round(this.#me_memory.x) && y == Math.round(this.#me_memory.y);
 	}
 
 	/**
@@ -563,10 +521,6 @@ export class BeliefSet {
 
 	getMeMoves() {
 		return this.#me_memory.moves;
-	}
-
-	printRaw() {
-		this.#game_map.printRaw();
 	}
 
 	onYouUpdate(id, name, x, y, score) {

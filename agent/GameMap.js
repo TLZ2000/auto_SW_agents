@@ -191,19 +191,6 @@ export class GameMap {
 	}
 
 	/**
-	 * Print raw map info, for testing
-	 */
-	printRaw() {
-		for (let y = this.#raw.height - 1; y >= 0; y--) {
-			let row = "";
-			for (let x = 0; x < this.#raw.width; x++) {
-				row = row + " " + this.#raw.getItem(x, y);
-			}
-			console.log(row);
-		}
-	}
-
-	/**
 	 * Get a specific graph node
 	 * @param {BigInt} x
 	 * @param {BigInt} y
