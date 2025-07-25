@@ -590,7 +590,7 @@ export class BeliefSet {
 
 		let initialNode = this.#game_map.getGraphNode(initialPos[0], initialPos[1]);
 
-		if (initialNode == undefined) {
+		if (initialNode == null) {
 			return undefined;
 		}
 
@@ -718,7 +718,7 @@ export class BeliefSet {
 		let initialNode = this.#game_map.getGraphNode(Math.round(this.#me_memory.x), Math.round(this.#me_memory.y));
 
 		// Check if the initial node is undefined
-		if (initialNode == undefined) {
+		if (initialNode == null) {
 			return undefined;
 		}
 
@@ -980,7 +980,7 @@ export class BeliefSet {
 
 		let initialNode = this.#game_map.getGraphNode(x, y);
 
-		if (initialNode == undefined) {
+		if (initialNode == null) {
 			return [[undefined, undefined], undefined];
 		}
 
@@ -1061,7 +1061,7 @@ export class BeliefSet {
 
 		let initialNode = this.#game_map.getGraphNode(x, y);
 
-		if (initialNode == undefined) {
+		if (initialNode == null) {
 			return [[undefined, undefined], undefined];
 		}
 
@@ -1155,6 +1155,11 @@ export class BeliefSet {
 
 		// Revise memory information about parcels
 		this.#parcel_memory.forEach((parcel) => {
+			// Check if the parcel's coordinates are undefined for some reason
+			if (parcel.x == undefined || parcel.y == undefined) {
+				// Then forget this parcel without saving it
+				return;
+			}
 			// Check if I see old parcels position
 			if (this.#distance(parcel.x, parcel.y, this.#me_memory.x, this.#me_memory.y) < this.#game_config.PARCELS_OBSERVATION_DISTANCE) {
 				// Check if I saw the parcel recently (aka. the onParcelsSensing was called by it)
@@ -1174,6 +1179,12 @@ export class BeliefSet {
 
 		// Revise memory information about agents
 		this.#agent_memory.forEach((agent) => {
+			// Check if the agent's coordinates are undefined for some reason
+			if (agent.x == undefined || agent.y == undefined) {
+				// Then forget this agent without saving it
+				return;
+			}
+
 			// Check if I see old agents position
 			if (this.#distance(agent.x, agent.y, this.#me_memory.x, this.#me_memory.y) < this.#game_config.AGENTS_OBSERVATION_DISTANCE) {
 				// Check if I saw the agent recently (aka. the onAgentSensing was called by it)

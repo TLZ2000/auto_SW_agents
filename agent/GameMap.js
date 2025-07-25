@@ -197,7 +197,11 @@ export class GameMap {
 	 * @returns graphNode in position [x,y]
 	 */
 	getGraphNode(x, y) {
-		return this.#graph_map[x][y];
+		if (x != null && y != null) {
+			return this.#graph_map[x][y];
+		}
+		console.log("NULLED", x, y);
+		return null;
 	}
 
 	/**
