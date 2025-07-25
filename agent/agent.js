@@ -284,14 +284,6 @@ class RecoverSharedParcels extends Plan {
 				}
 			}
 
-			// Give time to the pal to move out of the way
-			/*await new Promise((res) => setTimeout(res, belief.getAgentMovementDuration() * RECOVER_PARCEL_WAIT_MUX));
-
-			if (this.stopped) {
-				belief.releaseCoop();
-				throw ["stopped"]; // if stopped then quit
-			}*/
-
 			// Go and pick up the shared parcel
 			try {
 				await this.subIntention(["go_pick_up", yourPosX, yourPosY], myAgent.getPlanLibrary());
@@ -798,12 +790,10 @@ function getBestPickupOption() {
 		}
 	});
 
-	console.log("OPTIONS", options);
-
 	// Options filtering
 	let bestOption = null;
 	let maxExpectedScore = 0;
-	let minDistance = 1000000;
+	let minDistance = 0;
 
 	// Select best pickup option
 	options.forEach((option) => {
@@ -919,8 +909,8 @@ function optionsGeneration() {
 			// If I have no best option (so I should do a share or explore) but I am committed to a go_pick_up
 			if (myAgent.getCurrentIntentionPredicate() && myAgent.getCurrentIntentionPredicate()[0] == "go_pick_up" && bestOption == null) {
 				// First finish the go_pick_up, to avoid that the agent moves towards the cell with the parcel to pickup and then change direction to do something else
-				belief.setOptionGenerationNotRunning();
-				return;
+				//belief.setOptionGenerationNotRunning();
+				//return;
 			}
 
 			// Check if I should push the best option without waiting to finish the current intention
