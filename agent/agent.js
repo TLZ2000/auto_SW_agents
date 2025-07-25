@@ -37,7 +37,7 @@ const OPTION_GENERATION_INTERVAL = 50;
 const MEMORY_REVISION_INTERVAL = 250;
 const SHARE_PARCEL_TIMEOUT = 3000;
 const SHARE_PARCEL_WAIT_MUX = 2;
-const RECOVER_PARCEL_WAIT_MUX = 4;
+const MAX_STUCK_WAIT = 5;
 const DEFAULT_PLANNING_PROB = 0.5;
 
 //--------------------------------------------------------------------------------------------------------------
@@ -393,8 +393,11 @@ class BFSmove extends Plan {
 
 			// If stucked, stop the action
 			if (!moved_horizontally && !moved_vertically) {
+				// If stucked, wait some movement durations to allow the pal (or also me) to break to stale
+				await new Promise((res) => setTimeout(res, Math.floor(Math.random() * MAX_STUCK_WAIT) * belief.getAgentMovementDuration()));
+
 				this.stop();
-				throw ["stopped"];
+				throw ["stucked"];
 			}
 
 			// Consider next position
@@ -477,8 +480,11 @@ class FollowPath extends Plan {
 
 			// If stucked, stop the action
 			if (!moved_horizontally && !moved_vertically) {
+				// If stucked, wait some movement durations to allow the pal (or also me) to break to stale
+				await new Promise((res) => setTimeout(res, Math.floor(Math.random() * MAX_STUCK_WAIT) * belief.getAgentMovementDuration()));
+
 				this.stop();
-				throw ["stopped"];
+				throw ["stucked"];
 			}
 
 			// Consider next position
@@ -703,9 +709,12 @@ class Move extends Plan {
 
 			// If stucked, stop the action
 			if (!moved_horizontally && !moved_vertically) {
+				// If stucked, wait some movement durations to allow the pal (or also me) to break to stale
+				await new Promise((res) => setTimeout(res, Math.floor(Math.random() * MAX_STUCK_WAIT) * belief.getAgentMovementDuration()));
+
 				belief.setPlannerNotRunning();
 				this.stop();
-				throw ["stopped"];
+				throw ["stucked"];
 			}
 
 			i++;
