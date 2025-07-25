@@ -274,8 +274,8 @@ class RecoverSharedParcels extends Plan {
 
 		// If the pal is in the correct position, I can commit to the share
 		if (palOK) {
-			// Wait until the pal is out of the way
-			while (belief.isPalHerePrecise(yourPosX, yourPosY)) {
+			// Wait until the pal is out of the way (aka. pal is in support position)
+			while (!belief.isPalHerePrecise(supportX, supportY)) {
 				// Allow the execution to serve messages
 				await new Promise((res) => setTimeout(res, 1));
 				if (this.stopped) {
@@ -285,12 +285,12 @@ class RecoverSharedParcels extends Plan {
 			}
 
 			// Give time to the pal to move out of the way
-			await new Promise((res) => setTimeout(res, belief.getAgentMovementDuration() * RECOVER_PARCEL_WAIT_MUX));
+			/*await new Promise((res) => setTimeout(res, belief.getAgentMovementDuration() * RECOVER_PARCEL_WAIT_MUX));
 
 			if (this.stopped) {
 				belief.releaseCoop();
 				throw ["stopped"]; // if stopped then quit
-			}
+			}*/
 
 			// Go and pick up the shared parcel
 			try {
@@ -798,17 +798,17 @@ function getBestPickupOption() {
 		}
 	});
 
+	console.log("OPTIONS", options);
+
 	// Options filtering
 	let bestOption = null;
 	let maxExpectedScore = 0;
-	let minDistance = 0;
+	let minDistance = 1000000;
 
 	// Select best pickup option
 	options.forEach((option) => {
-		let currentExpectedScore = 0;
-		let currentDistance = 0;
-		currentExpectedScore = option[4];
-		currentDistance = option[5];
+		let currentExpectedScore = option[4];
+		let currentDistance = option[5];
 
 		// Check the best expected score
 		if (currentExpectedScore > maxExpectedScore) {
@@ -824,6 +824,7 @@ function getBestPickupOption() {
 		}
 	});
 
+	console.log("BEST OPTION", bestOption);
 	return bestOption;
 }
 
@@ -912,6 +913,15 @@ function optionsGeneration() {
 			// Get the best option between go_pick_up and go_deliver
 			let bestOption = getBestOption();
 			let push = false;
+
+			console.log("BEST OPTION ", getBestOption());
+
+			// If I have no best option (so I should do a share or explore) but I am committed to a go_pick_up
+			if (myAgent.getCurrentIntentionPredicate() && myAgent.getCurrentIntentionPredicate()[0] == "go_pick_up" && bestOption == null) {
+				// First finish the go_pick_up, to avoid that the agent moves towards the cell with the parcel to pickup and then change direction to do something else
+				belief.setOptionGenerationNotRunning();
+				return;
+			}
 
 			// Check if I should push the best option without waiting to finish the current intention
 			if (bestOption != undefined && bestOption != null) {
