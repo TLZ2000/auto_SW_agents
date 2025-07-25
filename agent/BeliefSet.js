@@ -43,6 +43,7 @@ export class BeliefSet {
 			moves: 0,
 			token: undefined,
 			currentIntention: undefined,
+			last_update: null,
 		};
 		this.#pal_carried_parcels = new Map();
 		this.#time_map = [];
@@ -125,6 +126,7 @@ export class BeliefSet {
 
 		this.#pal_memory.id = palId;
 		this.#pal_memory.token = palToken;
+		this.#pal_memory.last_update = Date.now();
 
 		this.#agent_mode = agentMode;
 		this.#planning_prob = planningProb;
@@ -1207,6 +1209,18 @@ export class BeliefSet {
 			}
 		});
 
+		// If, for some reason, the pal stops updating us about his info then we assume it has died
+		if (this.#pal_memory.last_update != null && Date.now() - this.#pal_memory.last_update > this.#game_config.OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
+			// So, clear his info
+			this.#pal_memory = {
+				x: undefined,
+				y: undefined,
+				score: undefined,
+				moves: 0,
+				currentIntention: undefined,
+				last_update: null,
+			};
+		}
 		this.#agent_memory = tmpAgents;
 	}
 
@@ -1429,6 +1443,7 @@ export class BeliefSet {
 		// Update pal position
 		this.#pal_memory.x = palX;
 		this.#pal_memory.y = palY;
+		this.#pal_memory.last_update = Date.now();
 
 		let agent = { id: this.#pal_memory.id, x: this.#pal_memory.x, y: this.#pal_memory.y, time: Date.now() };
 		this.#agent_memory.set(agent.id, agent);
@@ -1494,6 +1509,7 @@ export class BeliefSet {
 	messageHandler_currentIntention(message) {
 		// Save pal current intention
 		this.#pal_memory.currentIntention = message;
+		this.#pal_memory.last_update = Date.now();
 	}
 
 	/**
@@ -1509,6 +1525,7 @@ export class BeliefSet {
 		// Update pal position
 		this.#pal_memory.x = palX;
 		this.#pal_memory.y = palY;
+		this.#pal_memory.last_update = Date.now();
 
 		// If I am carrying parcels
 		let path = null;
