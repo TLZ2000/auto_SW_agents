@@ -101,6 +101,10 @@ class ShareParcels extends Plan {
 		let response = undefined;
 		while (!askOutcome) {
 			response = await myEmitAsk("MSG_shareRequest", JSON.stringify({ x: Math.round(belief.getMePosition()[0]), y: Math.round(belief.getMePosition()[1]) }));
+			if (this.stopped) {
+				belief.releaseCoop();
+				throw ["stopped"]; // if stopped then quit
+			}
 
 			// If the pal doesn't respond in time
 			if (response == "timeout") {
@@ -114,11 +118,6 @@ class ShareParcels extends Plan {
 				// Then error
 				belief.releaseCoop();
 				throw ["I am a single agent!"];
-			}
-
-			if (this.stopped) {
-				belief.releaseCoop();
-				throw ["stopped"]; // if stopped then quit
 			}
 
 			// If pal returns false, stop the intention
@@ -135,6 +134,10 @@ class ShareParcels extends Plan {
 					// Then move to have at least 4 free positions between me and the pal
 					for (let i = 0; i < response.missingCells; i++) {
 						await myEmitMove(path[i]);
+						if (this.stopped) {
+							belief.releaseCoop();
+							throw ["stopped"]; // if stopped then quit
+						}
 					}
 				} else {
 					// Otherwise return error
@@ -153,7 +156,6 @@ class ShareParcels extends Plan {
 			throw ["stopped"]; // if stopped then quit
 		}
 
-		// TODO ricontrollare altri possibili try/catch
 		try {
 			await this.subIntention(["go_to", response.yourPosX, response.yourPosY, true], myAgent.getPlanLibrary());
 		} catch (err) {
@@ -165,13 +167,12 @@ class ShareParcels extends Plan {
 		let time = Date.now();
 		let palOK = false;
 		while (Date.now() < time + SHARE_PARCEL_TIMEOUT && !palOK) {
+			// Allow the execution to serve messages
+			await new Promise((res) => setTimeout(res, 1));
 			if (this.stopped) {
 				belief.releaseCoop();
 				throw ["stopped"]; // if stopped then quit
 			}
-
-			// Allow the execution to serve messages
-			await new Promise((res) => setTimeout(res, 1));
 
 			// Check if the pal is in his accorded position
 			if (belief.isPalHerePrecise(response.mePosX, response.mePosY)) {
@@ -191,6 +192,10 @@ class ShareParcels extends Plan {
 
 			// Drop them
 			await myEmitPutDown();
+			if (this.stopped) {
+				belief.releaseCoop();
+				throw ["stopped"]; // if stopped then quit
+			}
 
 			// Move to support position
 			try {
@@ -201,6 +206,10 @@ class ShareParcels extends Plan {
 			}
 			// Give time to the pal to move and pick the parcels up
 			await new Promise((res) => setTimeout(res, belief.getAgentMovementDuration() * SHARE_PARCEL_WAIT_MUX));
+			if (this.stopped) {
+				belief.releaseCoop();
+				throw ["stopped"]; // if stopped then quit
+			}
 		} else {
 			// Otherwise something wrong has happened so I can invalidate this action
 			belief.releaseCoop();
@@ -233,7 +242,12 @@ class RecoverSharedParcels extends Plan {
 		// If I have to deliver first
 		if (deliver != null) {
 			// Then first deliver and only then commit to the share
-			await this.subIntention(["go_deliver", undefined, deliver[0], deliver[1]], myAgent.getPlanLibrary());
+			try {
+				await this.subIntention(["go_deliver", undefined, deliver[0], deliver[1]], myAgent.getPlanLibrary());
+			} catch (err) {
+				belief.releaseCoop();
+				throw [err];
+			}
 		}
 
 		if (this.stopped) {
@@ -253,13 +267,12 @@ class RecoverSharedParcels extends Plan {
 		let time = Date.now();
 		let palOK = false;
 		while (Date.now() < time + SHARE_PARCEL_TIMEOUT && !palOK) {
+			// Allow the execution to serve messages
+			await new Promise((res) => setTimeout(res, 1));
 			if (this.stopped) {
 				belief.releaseCoop();
 				throw ["stopped"]; // if stopped then quit
 			}
-
-			// Allow the execution to serve messages
-			await new Promise((res) => setTimeout(res, 1));
 
 			// Check if the pal is in his accorded position
 			if (belief.isPalHerePrecise(yourPosX, yourPosY)) {
@@ -341,6 +354,8 @@ class BFSmove extends Plan {
 
 			if (path[i] == "R" || path[i] == "L") {
 				moved_horizontally = await myEmitMove(path[i]);
+				// If stopped then quit
+				if (this.stopped) throw ["stopped"];
 			}
 
 			// Check if agent is carrying parcels
@@ -361,6 +376,8 @@ class BFSmove extends Plan {
 
 			if (path[i] == "U" || path[i] == "D") {
 				moved_vertically = await myEmitMove(path[i]);
+				// If stopped then quit
+				if (this.stopped) throw ["stopped"];
 			}
 
 			// If moved vertically
@@ -421,6 +438,8 @@ class FollowPath extends Plan {
 
 			if (path[i] == "R" || path[i] == "L") {
 				moved_horizontally = await myEmitMove(path[i]);
+				// If stopped then quit
+				if (this.stopped) throw ["stopped"];
 			}
 
 			// Check if agent is carrying parcels
@@ -441,6 +460,8 @@ class FollowPath extends Plan {
 
 			if (path[i] == "U" || path[i] == "D") {
 				moved_vertically = await myEmitMove(path[i]);
+				// If stopped then quit
+				if (this.stopped) throw ["stopped"];
 			}
 
 			// If moved vertically
@@ -546,6 +567,11 @@ class Move extends Plan {
 			belief.setPlannerRunning();
 			let plan = await onlineSolver(pddlDomain, pddlProblem);
 
+			if (this.stopped) {
+				belief.setPlannerNotRunning();
+				throw ["stopped"];
+			}
+
 			if (!belief.isPlanningPrioritized()) {
 				belief.setPlannerNotRunning();
 			}
@@ -616,6 +642,10 @@ class Move extends Plan {
 
 			if (path[i] == "R" || path[i] == "L") {
 				moved_horizontally = await myEmitMove(path[i]);
+				if (this.stopped) {
+					belief.setPlannerNotRunning();
+					throw ["stopped"];
+				}
 			}
 
 			// If stopped then quit
@@ -637,8 +667,6 @@ class Move extends Plan {
 					belief.increaseMeMoves();
 				}
 			}
-
-			// TODO mettere stopped nei piani dopo ogni await
 
 			// If stopped then quit
 			if (this.stopped) {
@@ -910,7 +938,6 @@ function optionsGeneration() {
 				// If I have no valid option, then...
 				// If I am carrying parcels and I can reach the pal (if the pal exists)
 				let pathToPal = belief.pathFromMeToPal();
-				// TODO aggiungi undefined a tutti i null
 				if (belief.getCarriedParcels().size > 0 && pathToPal != null && pathToPal != undefined) {
 					if (belief.shareParcelCounterIncrease()) {
 						// Then co-op with pal to deliver
