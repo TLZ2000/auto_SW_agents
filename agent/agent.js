@@ -36,8 +36,8 @@ const TIMED_EXPLORE = 0.99;
 const OPTION_GENERATION_INTERVAL = 50;
 const MEMORY_REVISION_INTERVAL = 250;
 const SHARE_PARCEL_TIMEOUT = 3000;
-const SHARE_PARCEL_WAIT_MUX = 4;
-const RECOVER_PARCEL_WAIT_MUX = 2;
+const SHARE_PARCEL_WAIT_MUX = 2;
+const RECOVER_PARCEL_WAIT_MUX = 4;
 const DEFAULT_PLANNING_PROB = 0.5;
 
 //--------------------------------------------------------------------------------------------------------------
@@ -155,7 +155,7 @@ class ShareParcels extends Plan {
 
 		// TODO ricontrollare altri possibili try/catch
 		try {
-			await this.subIntention(["go_to", response.yourPosX, response.yourPosY], myAgent.getPlanLibrary());
+			await this.subIntention(["go_to", response.yourPosX, response.yourPosY, true], myAgent.getPlanLibrary());
 		} catch (err) {
 			belief.releaseCoop();
 			throw [err];
@@ -174,7 +174,7 @@ class ShareParcels extends Plan {
 			await new Promise((res) => setTimeout(res, 1));
 
 			// Check if the pal is in his accorded position
-			if (belief.isPalHere(response.mePosX, response.mePosY)) {
+			if (belief.isPalHerePrecise(response.mePosX, response.mePosY)) {
 				palOK = true;
 			}
 		}
@@ -194,7 +194,7 @@ class ShareParcels extends Plan {
 
 			// Move to support position
 			try {
-				await this.subIntention(["go_to", response.yourSupportPosX, response.yourSupportPosY], myAgent.getPlanLibrary());
+				await this.subIntention(["go_to", response.yourSupportPosX, response.yourSupportPosY, true], myAgent.getPlanLibrary());
 			} catch (err) {
 				belief.releaseCoop();
 				throw [err];
@@ -222,8 +222,19 @@ class RecoverSharedParcels extends Plan {
 		return recover_shared_parcels == "recover_shared_parcels";
 	}
 
-	async execute(recover_shared_parcels, mePosX, mePosY, yourPosX, yourPosY, supportX, supportY) {
+	async execute(recover_shared_parcels, mePosX, mePosY, yourPosX, yourPosY, supportX, supportY, deliver) {
 		belief.requireCoop();
+
+		if (this.stopped) {
+			belief.releaseCoop();
+			throw ["stopped"]; // if stopped then quit
+		}
+
+		// If I have to deliver first
+		if (deliver != null) {
+			// Then first deliver and only then commit to the share
+			await this.subIntention(["go_deliver", undefined, deliver[0], deliver[1]], myAgent.getPlanLibrary());
+		}
 
 		if (this.stopped) {
 			belief.releaseCoop();
@@ -251,7 +262,7 @@ class RecoverSharedParcels extends Plan {
 			await new Promise((res) => setTimeout(res, 1));
 
 			// Check if the pal is in his accorded position
-			if (belief.isPalHere(yourPosX, yourPosY) || belief.isPalHere(supportX, supportY)) {
+			if (belief.isPalHerePrecise(yourPosX, yourPosY)) {
 				palOK = true;
 			}
 		}
@@ -264,7 +275,7 @@ class RecoverSharedParcels extends Plan {
 		// If the pal is in the correct position, I can commit to the share
 		if (palOK) {
 			// Wait until the pal is out of the way
-			while (belief.isPalHere(yourPosX, yourPosY)) {
+			while (belief.isPalHerePrecise(yourPosX, yourPosY)) {
 				// Allow the execution to serve messages
 				await new Promise((res) => setTimeout(res, 1));
 				if (this.stopped) {
@@ -309,9 +320,9 @@ class BFSmove extends Plan {
 		return go_to == "go_to";
 	}
 
-	async execute(go_to, x, y) {
+	async execute(go_to, x, y, ignorePal = false) {
 		// Get path
-		let path = belief.pathFromMeTo(x, y);
+		let path = belief.pathFromMeTo(x, y, ignorePal);
 
 		// If no path applicable, fail the intention
 		if (path == undefined || path == null) {
@@ -547,7 +558,7 @@ class Move extends Plan {
 		return go_to == "go_to";
 	}
 
-	async execute(go_to, x, y) {
+	async execute(go_to, x, y, ignorePal = false) {
 		// Compute random value
 		let random = Math.random();
 		let path = undefined;
@@ -555,7 +566,7 @@ class Move extends Plan {
 		// Use the random value to choose to compute the path whether with BFS or Planning
 		if (random > belief.getPlanningProb()) {
 			// Use the BFS
-			path = belief.pathFromMeTo(x, y);
+			path = belief.pathFromMeTo(x, y, ignorePal);
 		} else {
 			// Use the Planning
 
@@ -985,8 +996,8 @@ function optionsGeneration() {
  * @param {Array} intention - intention to push
  */
 function pushIntention(intention) {
+	belief.shareParcelCounterReset();
 	if (!belief.isCooperating() && belief.isPlannerFree()) {
-		belief.shareParcelCounterReset();
 		myAgent.push(intention);
 		myEmitSay("MSG_currentIntention", intention[0]);
 	} else {
@@ -1267,7 +1278,7 @@ client.onMsg(async (id, name, msg, reply) => {
 					let response = belief.messageHandler_shareRequest(msg.content);
 					if (response.outcome == "true") {
 						// If the response is positive, then we can proceed with the share
-						pushIntention(["recover_shared_parcels", response.mePosX, response.mePosY, response.yourPosX, response.yourPosY, response.yourSupportPosX, response.yourSupportPosY]);
+						pushIntention(["recover_shared_parcels", response.mePosX, response.mePosY, response.yourPosX, response.yourPosY, response.yourSupportPosX, response.yourSupportPosY, response.deliver]);
 						belief.requireCoop();
 						reply(response);
 						break;

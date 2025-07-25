@@ -444,6 +444,22 @@ export class BeliefSet {
 	}
 
 	/**
+	 * Check if the pal is on a certain position without rounded coordinates
+	 * @param {Integer} x
+	 * @param {Integer} y
+	 * @returns {Boolean} result, true if the pal is in [x,y], false if not
+	 */
+	isPalHerePrecise(x, y) {
+		// If the pal doesn't exist
+		if (this.#pal_memory.x == null || this.#pal_memory.y == null || !Number.isInteger(this.#pal_memory.x) || !Number.isInteger(this.#pal_memory.y)) {
+			// Then return always false
+			return false;
+		}
+		// TODO: ricontrolla possibili round(null)-> ritorna 0 di default e non va bene
+		return x == this.#pal_memory.x && y == this.#pal_memory.y;
+	}
+
+	/**
 	 * Check if the next cell in which I want to move is free from other agents (both enemy and pal)
 	 * @param direction - direction to move
 	 * @returns true if next cell is free, false otherwise
@@ -710,10 +726,11 @@ export class BeliefSet {
 	/**
 	 * Wrapper computePathBFS from my position to finalPos using BFS
 	 * @param {[int, int]} finalPos
+	 * @param {Boolean} ignorePal - default = false, false if I should consider the pal as blocking, true if pal should have no collisions
 	 * @returns path, undefined (if initialNode is undefined) or null (if path not existing)
 	 */
-	pathFromMeTo(x, y) {
-		return this.computePathBFS([Math.round(this.#me_memory.x), Math.round(this.#me_memory.y)], [x, y], false, false);
+	pathFromMeTo(x, y, ignorePal = false) {
+		return this.computePathBFS([Math.round(this.#me_memory.x), Math.round(this.#me_memory.y)], [x, y], ignorePal, ignorePal);
 	}
 
 	/**
@@ -1524,8 +1541,30 @@ export class BeliefSet {
 		this.#pal_memory.x = palX;
 		this.#pal_memory.y = palY;
 
+		// If I am carrying parcels
+		let path = null;
+		let deliveryFirst = null; // Flag that says if I should deliver before recover the parcels
+
+		if (this.getCarriedParcels().size > 0) {
+			// I want to deliver them first and then help the pal (I do to deliver, the pal follows me and then we share parcels)
+			let nearestDelivery = this.nearestDeliveryFromHere();
+			let pathToDeliver = nearestDelivery[1];
+			console.log("DELIVERY ", nearestDelivery[0][0], nearestDelivery[0][1], palX, palY);
+
+			if (nearestDelivery[1] != null) {
+				let pathToPal = this.computePathBFS(nearestDelivery[0], [palX, palY], true, true);
+				if (pathToPal != null) {
+					path = pathToDeliver.concat(pathToPal);
+					deliveryFirst = nearestDelivery[0];
+				}
+			} else {
+				path = this.pathFromMeToPal();
+			}
+		} else {
+			path = this.pathFromMeToPal();
+		}
+		//path = this.pathFromMeToPal();
 		// Compute middle point between me and pal
-		let path = this.pathFromMeToPal();
 		if (path == null) {
 			return { outcome: "false" };
 		} else if (path.length >= 4) {
@@ -1569,7 +1608,7 @@ export class BeliefSet {
 			} else if (path[length + 1] == "L") {
 				tmpPalSupX--;
 			}
-			return { outcome: "true", mePosX: tmpMeX, mePosY: tmpMeY, yourPosX: tmpPalX, yourPosY: tmpPalY, yourSupportPosX: tmpPalSupX, yourSupportPosY: tmpPalSupY };
+			return { outcome: "true", mePosX: tmpMeX, mePosY: tmpMeY, yourPosX: tmpPalX, yourPosY: tmpPalY, yourSupportPosX: tmpPalSupX, yourSupportPosY: tmpPalSupY, deliver: deliveryFirst };
 		} else {
 			// I don't have enough space between me and the pal to define the 3 positions I need
 			let missingCells = 4 - path.length; // How many free spaces I need
