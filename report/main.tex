@@ -1,0 +1,363 @@
+\documentclass[12pt]{article}
+\usepackage{fullpage}
+\usepackage{adjustbox}
+\usepackage{mathtools}
+\usepackage{tabularx}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{natbib}
+\usepackage{graphicx}
+\usepackage[english]{babel}
+\usepackage{hyperref}
+\usepackage{textcomp}
+\usepackage{float}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{sectsty}
+\usepackage{pdfpages}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage[shortlabels]{enumitem}
+\usepackage{bm}
+\usepackage{geometry}
+\usepackage{bigints}
+\usepackage{mdframed}
+\usepackage{cancel}
+\usepackage{gensymb}
+\usepackage{tikz}
+\usepackage{eurosym}
+\usepackage{titlesec}
+\usepackage{multicol}
+\usepackage{multirow}
+\usepackage{framed}
+\usepackage[font={small,it}]{caption}
+\usepackage{dsfont}
+\usepackage{statmath}
+\usepackage{mathrsfs}
+
+\setlength{\parindent}{0pt}
+
+\newcounter{cols}
+\setcounter{cols}{0} % 1 => colonne, altrimenti no colonne
+
+\usetikzlibrary{shapes}
+\paragraphfont{\color{red}}
+\flushbottom
+
+\setcounter{tocdepth}{5}
+\setcounter{secnumdepth}{5}
+\graphicspath{{./Img/}}
+\newgeometry{vmargin={15mm}, hmargin={12mm}}    % set the margins
+
+%\DeclareMathOperator*{\argmax}{arg\,max}        %argmax
+%\DeclareMathOperator*{\argmin}{arg\,min}        %argmin
+
+%definition of the subsubparagraph
+\titleclass{\subsubparagraph}{straight}[\subparagraph]
+\newcounter{subsubparagraph}
+\renewcommand{\thesubsubparagraph}{\Alph{subsubparagraph}}
+\titleformat{\subsubparagraph}[runin]{\normalfont\normalsize\bfseries\color{OliveGreen}}{\thesubsubparagraph}{1em}{}
+\titlespacing*{\subsubparagraph} {\parindent}{3.25ex plus 1ex minus .2ex}{1em}
+
+\makeatletter
+\renewcommand{\paragraph}{\@startsection{paragraph}{4}{0ex}%
+   {-3.25ex plus -1ex minus -0.2ex}%
+   {1.5ex plus 0.2ex}%
+   {\normalfont\normalsize\bfseries}}
+\renewcommand{\subparagraph}{\@startsection{subparagraph}{4}{0ex}%
+  {-3.25ex plus -1ex minus -0.2ex}%
+  {1.5ex plus 0.2ex}%
+  {\normalfont\normalsize\bfseries}}
+\renewcommand{\subsubparagraph}{\@startsection{subsubparagraph}{4}{0ex}%
+  {-3.25ex plus -1ex minus -0.2ex}%
+  {1.5ex plus 0.2ex}%
+  {\normalfont\normalsize\bfseries}}
+\makeatother
+
+\stepcounter{secnumdepth}
+\stepcounter{tocdepth}
+
+\definecolor{Amber}{rgb}{1,0.49,0.0} % Colore
+\subparagraphfont{\color{Amber}}  % SETTA SUBPARAGRAPH colore
+
+\newcommand{\notDSeparated}{\rotatebox[origin=c]{270}{$\models$}}
+
+\newcommand\defeq{\stackrel{\mathclap{\normalfont\mbox{def}}}{=}}
+\newcommand{\myparagraph}[1]{\paragraph{#1}\mbox{}\\}
+\newcommand{\framedImg}[2]
+{
+  \label{#2}
+	\begin{figure}[H]
+		\centering
+		\begin{tabular}{c}
+			\framebox{\includegraphics[width=.#1\textwidth]{#2}}
+		\end{tabular}
+	\end{figure}
+}
+
+\newcommand{\nFramedImg}[2]
+{
+  \label{#2}
+	\begin{figure}[H]
+		\centering
+		\begin{tabular}{c}
+			\includegraphics[width=.#1\textwidth]{#2}
+		\end{tabular}
+	\end{figure}
+}
+
+\newcommand{\nFramedDoubleImg}[3]
+{
+	\begin{figure}[H]
+		\centering
+		\begin{tabular}{c c}
+			\includegraphics[width=.#1\textwidth]{#2}
+			\includegraphics[width=.#1\textwidth]{#3}
+		\end{tabular}
+		\label{#2}
+	\end{figure}
+}
+
+\newcommand{\framedDoubleImg}[3]
+{
+  \label{#2}
+	\begin{figure}[H]
+		\centering
+		\framebox{
+			\begin{tabular}{c c}
+				\includegraphics[width=.#1\textwidth]{#2}
+				\includegraphics[width=.#1\textwidth]{#3}
+			\end{tabular}
+		}
+	\end{figure}
+}
+
+\newcommand{\definizione}[2]{\textbf{\textit{\textcolor{OliveGreen}{def. #1}}}\label{#2}}
+
+\newcommand{\importante}[1]{\textbf{\textit{\textcolor{Red}{#1}}}}
+
+\newcommand{\framedImgTMP}[2]
+{
+  \label{#2}
+	\begin{figure}[H]
+		\centering
+    	\vspace{0pt} % Adjust vertical alignment
+		\begin{tabular}{c}
+			\adjustbox{width=0.9\linewidth, valign=m}{\framebox{\includegraphics[width=.#1\textwidth]{#2}}}
+		\end{tabular}
+	\end{figure}
+}
+
+\newcommand{\nFramedImgTMP}[2]
+{
+  \label{#2}
+	\begin{figure}[H]
+		\centering
+    	\vspace{0pt} % Adjust vertical alignment
+		\begin{tabular}{c}
+			\adjustbox{width=0.9\linewidth, valign=m}{\includegraphics[width=.#1\textwidth]{#2}}
+		\end{tabular}
+	\end{figure}
+}
+
+
+
+\newcommand{\columnText}[4]
+{
+  \noindent
+  \begin{minipage}[c]{0.#1\textwidth}
+    \vspace*{\fill}
+		#3	
+    \vspace*{\fill}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}[c]{0.#2\textwidth}
+    \vspace*{\fill}
+		#4	
+    \vspace*{\fill}
+  \end{minipage}%
+  \medskip\\
+}
+
+
+\newcommand{\lColumnImage}[4]
+{
+  \noindent
+  \begin{minipage}[c]{0.#1\textwidth}
+    \centering
+    \nFramedImgTMP{95}{#3}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}[c]{0.#2\textwidth}
+    \vspace*{\fill}
+		#4	
+    \vspace*{\fill}
+  \end{minipage}%
+  \medskip\\
+}
+
+
+
+\newcommand{\rColumnImage}[4]
+{
+  \noindent
+  \begin{minipage}[c]{0.#1\textwidth}
+    \vspace*{\fill}
+		#4
+    \vspace*{\fill}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}[c]{0.#2\textwidth}
+	\centering
+    \nFramedImgTMP{95}{#3}    
+  \end{minipage}%
+  \medskip\\
+}
+
+\newcommand{\lFColumnImage}[4]
+{
+  \noindent
+  \begin{minipage}[c]{0.#1\textwidth}
+    \centering
+    \framedImgTMP{95}{#3}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}[c]{0.#2\textwidth}
+    \vspace*{\fill}
+    #4
+    \vspace*{\fill}
+  \end{minipage}%
+  \medskip\\
+}
+
+\newcommand{\rFColumnImage}[4]
+{
+  \noindent
+  \begin{minipage}[c]{0.#1\textwidth}
+    \vspace*{\fill}
+    #4
+    \vspace*{\fill}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}[c]{0.#2\textwidth}
+	\centering
+    \framedImgTMP{95}{#3}    
+  \end{minipage}%
+  \medskip\\
+}
+
+\newcommand{\captionedImage}[3]
+{
+	\begin{figure}[H]
+		\centering
+		\begin{tabular}{c}
+			\includegraphics[width=.#1\textwidth]{#2}
+		\end{tabular}
+		\caption{#3}
+		\label{#2}
+	\end{figure}
+}
+
+\newcommand{\captionedFramedImage}[3]
+{
+	\begin{figure}[H]
+		\centering
+		\begin{tabular}{c}
+			\boxed{\includegraphics[width=.#1\textwidth]{#2}}			
+		\end{tabular}
+		\caption{#3}
+		\label{#2}
+	\end{figure}
+}
+
+\newcommand{\fullPageImage}[3]
+{
+	\ifthenelse{\value{cols}=1}{
+      \end{multicols}
+  }{
+      % Pass
+  }
+      \captionedImage{#1}{#2}{#3}
+  \ifthenelse{\value{cols}=1}{
+      \setlength{\columnsep}{20pt} % Spacing tra le colonne
+      \begin{multicols}{2}
+  }{
+      % Pass
+  }
+}
+
+\newcommand{\fullPageImageFramed}[3]
+{
+	\ifthenelse{\value{cols}=1}{
+      \end{multicols}
+  }{
+      % Pass
+  }
+      \captionedFramedImage{#1}{#2}{#3}
+  \ifthenelse{\value{cols}=1}{
+      \setlength{\columnsep}{20pt} % Spacing tra le colonne
+      \begin{multicols}{2}
+  }{
+      % Pass
+  }
+}
+
+\newcommand{\fullPageImageNoCaption}[2]
+{
+	\ifthenelse{\value{cols}=1}{
+      \end{multicols}
+  }{
+      % Pass
+  }
+      \nFramedImg{#1}{#2}
+  \ifthenelse{\value{cols}=1}{
+      \setlength{\columnsep}{20pt} % Spacing tra le colonne
+      \begin{multicols}{2}
+  }{
+      % Pass
+  }
+}
+
+\newcommand{\fullPageImageNoCaptionFramed}[2]
+{
+	\ifthenelse{\value{cols}=1}{
+      \end{multicols}
+  }{
+      % Pass
+  }
+      \framedImg{#1}{#2}
+  \ifthenelse{\value{cols}=1}{
+      \setlength{\columnsep}{20pt} % Spacing tra le colonne
+      \begin{multicols}{2}
+  }{
+      % Pass
+  }
+}
+
+\newcommand*\circled[1]{\tikz[baseline=(char.base)]{
+            \node[shape=circle,draw,inner sep=2pt] (char) {#1};}}
+
+\newcolumntype{M}[1]{>{\centering\arraybackslash}m{#1}}
+\newcommand{\myrule}{\rule[-.4cm]{0pt}{1.05cm}}
+
+\newcommand{\realR}{{\rm I\!R}}
+\newcommand{\mytilde}{\raisebox{0.5ex}{\texttildelow}}
+\newcommand{\expectation}[1]{\mathbb{E}_{#1}}
+
+\title{
+    \textbf{\huge Autonomous Software Agents Project Report}
+}
+\author{
+    \begin{tabular}{c c}
+        Cappelletti Samuele - 247367 & Lazzerini Thomas - 247368 \\  
+        samuele.cappelletti@studenti.unitn.it &  thomas.lazzerini@studenti.unitn.it
+    \end{tabular}
+}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\input{Sections/introduction.tex}
+
+\end{document}
