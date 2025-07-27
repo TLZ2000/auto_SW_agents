@@ -345,7 +345,7 @@ class BFSmove extends Plan {
 			if (!belief.isNextCellFree(path[i])) {
 				// If not, fail the action and stop here
 				this.stop();
-				throw ["stopped"];
+				throw ["next cell not free"];
 			}
 
 			// Otherwise commit to the move
@@ -432,7 +432,7 @@ class FollowPath extends Plan {
 			if (!belief.isNextCellFree(path[i])) {
 				// If not, fail the action and stop here
 				this.stop();
-				throw ["stopped"];
+				throw ["next cell not free"];
 			}
 
 			// Otherwise commit to the move
@@ -525,7 +525,7 @@ class GoDeliver extends Plan {
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		if (belief.getCarriedParcels().size == 0) {
 			this.stop();
-			throw ["No parcels to deliver"];
+			throw ["no parcels to deliver"];
 		}
 		await this.subIntention(["go_to", x, y], myAgent.getPlanLibrary());
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
@@ -639,7 +639,7 @@ class Move extends Plan {
 				// If not, fail the action and stop here
 				belief.setPlannerNotRunning();
 				this.stop();
-				throw ["stopped"];
+				throw ["next cell not free"];
 			}
 
 			// Otherwise commit to the move
