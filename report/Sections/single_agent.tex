@@ -7,8 +7,18 @@
         The first step is to initialize the agent's \textit{belief set}, this include the initialization of an empty memory. Then, the script will evaluate the command line parameters and will initialize the connection using a specific single agent token or, if required, a token created on the fly. The script will initialize the intention system, will add the predefined plans to its internal library and will initialize the callbacks for the \textit{updates} from the server, like "\textit{onParcelsSensing}" and "\textit{onYou}". Lastly, the script defines a \textit{Promise} on the "\textit{onMap}" and "\textit{onConfig}" callbacks on their resolution before continuing with the normal execution, in particular a temporized loop both on the "\textit{agent's memory revision}" and the "\textit{option generation}" phases.
 
     \subsection{Belief}
-        initial connection (mappa e config),
-         memory update (metodi onSensing), memory revision
+        In this part we cover the \textit{BeliefSet} class regarding the single agent part. In particular it is composed by an initial setup phase where we define the game map and the game configurations, then a "\textit{sensing update}" part where we update the agent's belief using the information sensed from the environment and a last "\textit{memory revision}" phase where we remove old and no longer valid information from the memory.
+
+        \subsubsection{Initial Configuration}
+            The first step includes the initialization of the internal memory, the most important components are the "\textit{agent memory}", in which is stored the information about the other agents, the "\textit{parcel memory}", in which is stored the information about the parcels, and the "\textit{me memory}", in which is stored the information about our agent, like its position, id and token.
+            \medskip\\
+            The second step is to define an internal representation of the game map. Firstly, we define a simple matrix containing the type of the tiles given their $[x, y]$ position. Then we perform a check on the validity of each cell, automatically setting as "wall" (type $0$) all those cells that have no neighbors and thus not reachable. Lastly, we use the information of this matrix to define a graph structure on the map itself, where each node represent a single tile containing the associated position, type and neighbors. This allow us to perform efficient navigation using BFS search. Associated to this map, we also define another matrix called "\textit{time map}", of the same sizes of the game map, which contain the "last visited timestamp" of each map tile. This map is needed during the exploration phase.
+            \medskip\\
+            Finally, we save the game configuration in a dedicated map, to have an easier access to it during the game execution.
+
+        \subsubsection{Sensing Update}
+            During the normal execution, the agent will receive the information about the parcels and the agents that he is able to sense and its own updated information from the server. Upon reception of these messages, the belief set will update its internal representation, to be coherent with the new setting of the environment.  In particular, the "\textit{onYou}" handler will update the agent's id (necessary in the case in which we generate a random token on the fly), its current position and the time map, accordingly to the current agent's position (all the cells in the agent field of view are updated with the current timestamp).
+        \subsubsection{Memory Revision}
 
     \subsection{Options and Filtering}
         options generation, e filtering con reward (migliore pickup e delivery)
