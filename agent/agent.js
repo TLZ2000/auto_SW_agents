@@ -16,7 +16,6 @@ const SERVER_ADDRS = "http://localhost:8080";
 // const SERVER_ADDRS = "https://deliveroojs25.azurewebsites.net";
 
 const MAX_EXPLORABLE_SPAWN_CELLS = 100;
-const INVIEW_MEMORY_DIFFERENCE_THRESHOLD = 2000; // Threshold for parcels and agent in our vision range
 const OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD = 10000; // Threshold for parcels and agent not in our vision range
 
 const PARCEL_DISTANCE_LOW = 3;
@@ -580,6 +579,8 @@ class Move extends Plan {
 	static isApplicableTo(go_to, x, y) {
 		return go_to == "go_to";
 	}
+
+	// TODO: mettere controllo su current intention per vedere se pickup è ancora valido dopo un memory revision
 
 	async execute(go_to, x, y, ignorePal = false) {
 		// Compute random value
@@ -1335,7 +1336,6 @@ await new Promise((res) => {
 	client.onConfig((config) => {
 		// Add some constants to the game config
 		config.MAX_EXPLORABLE_SPAWN_CELLS = MAX_EXPLORABLE_SPAWN_CELLS;
-		config.INVIEW_MEMORY_DIFFERENCE_THRESHOLD = INVIEW_MEMORY_DIFFERENCE_THRESHOLD;
 		config.OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD = OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD;
 
 		config.PARCEL_DISTANCE_LOW = PARCEL_DISTANCE_LOW;

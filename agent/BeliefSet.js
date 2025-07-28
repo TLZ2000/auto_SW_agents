@@ -1197,7 +1197,7 @@ export class BeliefSet {
 			// Check if I see old parcels position
 			if (this.#distance(parcel.x, parcel.y, this.#me_memory.x, this.#me_memory.y) < this.#game_config.PARCELS_OBSERVATION_DISTANCE) {
 				// Check if I saw the parcel recently (aka. the onParcelsSensing was called by it)
-				if (Date.now() - parcel.time < this.getParcelDecayInterval() + 100) {
+				if (Date.now() - parcel.time < this.getAgentMovementDuration() + this.getAgentMovementDuration() / 5) {
 					// If so, preserve it
 					tmpParcels.set(parcel.id, parcel);
 				}
@@ -1222,7 +1222,7 @@ export class BeliefSet {
 			// Check if I see old agents position
 			if (this.#distance(agent.x, agent.y, this.#me_memory.x, this.#me_memory.y) < this.#game_config.AGENTS_OBSERVATION_DISTANCE) {
 				// Check if I saw the agent recently (aka. the onAgentSensing was called by it)
-				if (Date.now() - agent.time < this.#game_config.INVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
+				if (Date.now() - agent.time < this.getAgentMovementDuration() + this.getAgentMovementDuration() / 5) {
 					// If so, preserve it
 					tmpAgents.set(agent.id, agent);
 				} else {
