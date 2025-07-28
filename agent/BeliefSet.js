@@ -1245,10 +1245,10 @@ export class BeliefSet {
 		if (this.#pal_memory.last_update != null && Date.now() - this.#pal_memory.last_update > this.#game_config.OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD) {
 			// So, clear his info
 			this.#pal_memory = {
+				id: this.#pal_memory.id,
 				x: undefined,
 				y: undefined,
-				score: undefined,
-				moves: 0,
+				token: this.#pal_memory.token,
 				currentIntention: undefined,
 				last_update: null,
 			};
