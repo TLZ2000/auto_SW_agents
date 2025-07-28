@@ -677,8 +677,9 @@ export class BeliefSet {
 	}
 
 	/**
-	 * Wrapper computePathBFS from my position to finalPos using BFS
-	 * @param {[int, int]} finalPos
+	 * Wrapper computePathBFS from my position to finalPos [x,y] using BFS
+	 * @param {Number} x - final x coordinate
+	 * @param {Number} y - final y coordinate
 	 * @param {Boolean} ignorePal - default = false, false if I should consider the pal as blocking, true if pal should have no collisions
 	 * @returns path, undefined (if initialNode is undefined) or null (if path not existing)
 	 */
@@ -688,7 +689,6 @@ export class BeliefSet {
 
 	/**
 	 * Wrapper computePathBFS from my position to pal position using BFS considering pal not blocking
-	 * @param {[int, int]} finalPos
 	 * @returns path, undefined (if initialNode is undefined) or null (if path not existing)
 	 */
 	pathFromMeToPal() {
@@ -705,6 +705,46 @@ export class BeliefSet {
 		}
 
 		return this.computePathBFS([Math.round(this.#me_memory.x), Math.round(this.#me_memory.y)], [Math.round(this.#pal_memory.x), Math.round(this.#pal_memory.y)], true, false);
+	}
+
+	/**
+	 * Compute the list of coordinates of the cells visited by the path
+	 * @param {Array} path - list containing the path
+	 * @returns coords
+	 */
+	computePathCoordsFromMe(path) {
+		let coords = [];
+		let tmpX = Math.round(this.#me_memory.x);
+		let tmpY = Math.round(this.#me_memory.y);
+
+		// Cycle the path
+		for (let i = 0; i < path.length; i++) {
+			switch (path[i]) {
+				case "U":
+					tmpY++;
+					break;
+				case "D":
+					tmpY--;
+					break;
+				case "R":
+					tmpX++;
+					break;
+				case "L":
+					tmpX--;
+					break;
+			}
+			coords.push([tmpX, tmpY]);
+		}
+		return coords;
+	}
+
+	areThosePosFree(coords) {
+		for (let i = 0; i < coords.length; i++) {
+			if (this.isAgentHereLong(coords[i][0], coords[i][1])) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**

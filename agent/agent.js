@@ -39,6 +39,7 @@ const SHARE_PARCEL_TIMEOUT = 3000;
 const SHARE_PARCEL_WAIT_MUX = 2;
 const MAX_STUCK_WAIT = 5;
 const DEFAULT_PLANNING_PROB = 0.5;
+const MAX_OCCUPIED_PATH_COUNTER = 3;
 
 //--------------------------------------------------------------------------------------------------------------
 
@@ -335,11 +336,31 @@ class BFSmove extends Plan {
 			throw ["stopped"];
 		}
 
+		// Get the path coordinates
+		let pathCoords = belief.computePathCoordsFromMe(path);
+		let occupiedPathCounter = 0;
+
 		// Otherwise, follow the path
 		let i = 0;
 		while (i < path.length) {
 			// If stopped then quit
 			if (this.stopped) throw ["stopped"];
+
+			// Check if the path is occupied by another agent
+			if (!belief.areThosePosFree(pathCoords)) {
+				// If so, increment the counter
+				occupiedPathCounter++;
+			} else {
+				// Otherwise, reset the counter
+				occupiedPathCounter = 0;
+			}
+
+			if (occupiedPathCounter >= MAX_OCCUPIED_PATH_COUNTER) {
+				// If the path is still occupied after at least MAX_OCCUPIED_PATH_COUNTER attempts, I consider the path invalid so I stop
+				belief.setPlannerNotRunning();
+				this.stop();
+				throw ["path occupied by another agent"];
+			}
 
 			// Check if the next position is free to move
 			if (!belief.isNextCellFree(path[i])) {
@@ -422,11 +443,31 @@ class FollowPath extends Plan {
 			throw ["stopped"];
 		}
 
+		// Get the path coordinates
+		let pathCoords = belief.computePathCoordsFromMe(path);
+		let occupiedPathCounter = 0;
+
 		// Otherwise, follow the path
 		let i = 0;
 		while (i < path.length) {
 			// If stopped then quit
 			if (this.stopped) throw ["stopped"];
+
+			// Check if the path is occupied by another agent
+			if (!belief.areThosePosFree(pathCoords)) {
+				// If so, increment the counter
+				occupiedPathCounter++;
+			} else {
+				// Otherwise, reset the counter
+				occupiedPathCounter = 0;
+			}
+
+			if (occupiedPathCounter >= MAX_OCCUPIED_PATH_COUNTER) {
+				// If the path is still occupied after at least MAX_OCCUPIED_PATH_COUNTER attempts, I consider the path invalid so I stop
+				belief.setPlannerNotRunning();
+				this.stop();
+				throw ["path occupied by another agent"];
+			}
 
 			// Check if the next position is free to move
 			if (!belief.isNextCellFree(path[i])) {
@@ -625,6 +666,10 @@ class Move extends Plan {
 			throw ["stopped"];
 		}
 
+		// Get the path coordinates
+		let pathCoords = belief.computePathCoordsFromMe(path);
+		let occupiedPathCounter = 0;
+
 		// Otherwise, follow the path
 		let i = 0;
 		while (i < path.length) {
@@ -634,7 +679,25 @@ class Move extends Plan {
 				throw ["stopped"];
 			}
 
-			// Check if the next position is fr  ee to move
+			// Check if the path is occupied by another agent
+			if (!belief.areThosePosFree(pathCoords)) {
+				// If so, increment the counter
+				occupiedPathCounter++;
+			} else {
+				// Otherwise, reset the counter
+				occupiedPathCounter = 0;
+			}
+
+			console.log("COUNTER: ", occupiedPathCounter);
+
+			if (occupiedPathCounter >= MAX_OCCUPIED_PATH_COUNTER) {
+				// If the path is still occupied after at least MAX_OCCUPIED_PATH_COUNTER attempts, I consider the path invalid so I stop
+				belief.setPlannerNotRunning();
+				this.stop();
+				throw ["path occupied by another agent"];
+			}
+
+			// Check if the next position is free to move
 			if (!belief.isNextCellFree(path[i])) {
 				// If not, fail the action and stop here
 				belief.setPlannerNotRunning();
@@ -1180,7 +1243,7 @@ const myAgent = new IntentionRevisionReplace();
 myAgent.addPlan(Explore);
 myAgent.addPlan(GoPickUp);
 myAgent.addPlan(GoDeliver);
-myAgent.addPlan(FollowPath);
+//myAgent.addPlan(FollowPath);
 //myAgent.addPlan(BFSmove);
 myAgent.addPlan(Move);
 myAgent.addPlan(ShareParcels);
