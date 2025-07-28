@@ -1460,7 +1460,7 @@ export class BeliefSet {
 	 * Return content of message to send to pal with the parcels, the agents and the carried parcels in the current belief set
 	 */
 	messageContent_memoryShare() {
-		return JSON.stringify({ parcels: this.#mapToJSON(this.#parcel_memory), agents: this.#mapToJSON(this.#agent_memory), carriedParcels: this.#mapToJSON(this.getCarriedParcels()) });
+		return JSON.stringify({ parcels: this.#mapToJSON(this.#parcel_memory), agents: this.#mapToJSON(this.#agent_memory), carriedParcels: this.#mapToJSON(this.getCarriedParcels()), x: this.#me_memory.x, y: this.#me_memory.y });
 	}
 
 	/**
@@ -1532,6 +1532,8 @@ export class BeliefSet {
 				}
 			}
 		});
+
+		this.messageHandler_positionUpdate(message);
 	}
 
 	/**
