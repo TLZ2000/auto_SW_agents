@@ -228,6 +228,24 @@ export class BeliefSet {
 	}
 
 	/**
+	 * Check if there is a parcel at coordinates [x, y]
+	 * @param {Number} x
+	 * @param {Number} y
+	 * @returns {Boolean} true if parcel in [x, y], false otherwise
+	 */
+	isParcelAtPos(x, y) {
+		// Cycle the parcels in my memory
+		for (const parcel of this.#parcel_memory.values()) {
+			// Check if there is a parcel at coordinates [x, y]
+			if (parcel.x == x && parcel.y == y) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * Returns the probability of a planning based action
 	 * @returns {Number} planning probability
 	 */

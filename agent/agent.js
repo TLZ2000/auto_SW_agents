@@ -587,6 +587,12 @@ class Move extends Plan {
 		let random = Math.random();
 		let path = undefined;
 
+		// Check if the current intention is a go_pick_up
+		let isGoPickUp = false;
+		if (myAgent.getCurrentIntentionPredicate()[0] == "go_pick_up") {
+			isGoPickUp = true;
+		}
+
 		// Use the random value to choose to compute the path whether with BFS or Planning
 		if (random > belief.getPlanningProb()) {
 			// Use the BFS
@@ -675,6 +681,17 @@ class Move extends Plan {
 			if (this.stopped) {
 				belief.setPlannerNotRunning();
 				throw ["stopped"];
+			}
+
+			// If this is the go_to associated to a go_pick_up
+			if (isGoPickUp) {
+				// Check if there is still a parcel at the destination
+				if (!belief.isParcelAtPos(x, y)) {
+					// If not, the plan is no longer valid
+					belief.setPlannerNotRunning();
+					this.stop();
+					throw ["parcel no longer valid"];
+				}
 			}
 
 			// Check if the path is occupied by another agent
@@ -777,6 +794,7 @@ class Move extends Plan {
 			}
 
 			i++;
+			pathCoords.shift();
 		}
 
 		belief.setPlannerNotRunning();
