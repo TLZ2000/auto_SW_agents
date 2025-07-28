@@ -688,8 +688,6 @@ class Move extends Plan {
 				occupiedPathCounter = 0;
 			}
 
-			console.log("COUNTER: ", occupiedPathCounter);
-
 			if (occupiedPathCounter >= MAX_OCCUPIED_PATH_COUNTER) {
 				// If the path is still occupied after at least MAX_OCCUPIED_PATH_COUNTER attempts, I consider the path invalid so I stop
 				belief.setPlannerNotRunning();
@@ -1060,6 +1058,17 @@ async function memoryRevisionLoop(time) {
 }
 
 /**
+ * Call the optionsGeneration function every time milliseconds
+ * @param time - time in milliseconds
+ */
+async function optionsGenerationLoop(time) {
+	while (true) {
+		await new Promise((res) => setTimeout(res, time));
+		optionsGeneration();
+	}
+}
+
+/**
  * emitMove wrapper to force a single emit action execution in parallel
  * @param {String} direction - direction to move
  * @returns output of emitMove
@@ -1266,39 +1275,6 @@ client.onYou(({ id, name, x, y, score }) => {
 	myEmitSay("MSG_positionUpdate", belief.messageContent_positionUpdate());
 });
 
-await new Promise((res) => {
-	// Get the map information
-	client.onMap((width, height, tile) => {
-		belief.instantiateGameMap(width, height, tile);
-		belief.generatePlanningBeliefSetMap();
-		res();
-	});
-
-	// Get the configuration
-	client.onConfig((config) => {
-		// Add some constants to the game config
-		config.MAX_EXPLORABLE_SPAWN_CELLS = MAX_EXPLORABLE_SPAWN_CELLS;
-		config.INVIEW_MEMORY_DIFFERENCE_THRESHOLD = INVIEW_MEMORY_DIFFERENCE_THRESHOLD;
-		config.OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD = OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD;
-
-		config.PARCEL_DISTANCE_LOW = PARCEL_DISTANCE_LOW;
-		config.PARCEL_DISTANCE_MID = PARCEL_DISTANCE_MID;
-		config.PARCEL_DISTANCE_HIGH = PARCEL_DISTANCE_HIGH;
-		config.PARCEL_WEIGHT_LOW = PARCEL_WEIGHT_LOW;
-		config.PARCEL_WEIGHT_MID = PARCEL_WEIGHT_MID;
-		config.PARCEL_WEIGHT_HIGH = PARCEL_WEIGHT_HIGH;
-
-		config.TIMED_EXPLORE_ALPHA = TIMED_EXPLORE_ALPHA;
-		config.TIMED_EXPLORE_BETA = TIMED_EXPLORE_BETA;
-		config.OPTION_GENERATION_INTERVAL = OPTION_GENERATION_INTERVAL;
-
-		belief.instantiateGameConfig(config);
-
-		memoryRevisionLoop(MEMORY_REVISION_INTERVAL);
-		res();
-	});
-});
-
 client.onMsg(async (id, name, msg, reply) => {
 	if (!belief.isSingleAgent()) {
 		switch (msg.type) {
@@ -1344,8 +1320,37 @@ client.onMsg(async (id, name, msg, reply) => {
 	}
 });
 
-// Initialize the option generation loop every OPTION_GENERATION_INTERVAL milliseconds
-while (true) {
-	await new Promise((res) => setTimeout(res, OPTION_GENERATION_INTERVAL));
-	optionsGeneration();
-}
+await new Promise((res) => {
+	// Get the map information
+	client.onMap((width, height, tile) => {
+		belief.instantiateGameMap(width, height, tile);
+		belief.generatePlanningBeliefSetMap();
+		res();
+	});
+
+	// Get the configuration
+	client.onConfig((config) => {
+		// Add some constants to the game config
+		config.MAX_EXPLORABLE_SPAWN_CELLS = MAX_EXPLORABLE_SPAWN_CELLS;
+		config.INVIEW_MEMORY_DIFFERENCE_THRESHOLD = INVIEW_MEMORY_DIFFERENCE_THRESHOLD;
+		config.OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD = OUTVIEW_MEMORY_DIFFERENCE_THRESHOLD;
+
+		config.PARCEL_DISTANCE_LOW = PARCEL_DISTANCE_LOW;
+		config.PARCEL_DISTANCE_MID = PARCEL_DISTANCE_MID;
+		config.PARCEL_DISTANCE_HIGH = PARCEL_DISTANCE_HIGH;
+		config.PARCEL_WEIGHT_LOW = PARCEL_WEIGHT_LOW;
+		config.PARCEL_WEIGHT_MID = PARCEL_WEIGHT_MID;
+		config.PARCEL_WEIGHT_HIGH = PARCEL_WEIGHT_HIGH;
+
+		config.TIMED_EXPLORE_ALPHA = TIMED_EXPLORE_ALPHA;
+		config.TIMED_EXPLORE_BETA = TIMED_EXPLORE_BETA;
+		config.OPTION_GENERATION_INTERVAL = OPTION_GENERATION_INTERVAL;
+
+		belief.instantiateGameConfig(config);
+		res();
+	});
+});
+
+// Initialize the normal execution of the agent
+memoryRevisionLoop(MEMORY_REVISION_INTERVAL);
+optionsGenerationLoop(OPTION_GENERATION_INTERVAL);
