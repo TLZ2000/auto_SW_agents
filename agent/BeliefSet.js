@@ -526,6 +526,10 @@ export class BeliefSet {
 		}
 	}
 
+	/**
+	 * Update the agent memory with the sensed agent list
+	 * @param {Map} aa - list of sensed agents
+	 */
 	onAgentSensingUpdate(aa) {
 		// Add the sensed agents to the agent belief set
 		let now = Date.now();
@@ -550,6 +554,10 @@ export class BeliefSet {
 		});
 	}
 
+	/**
+	 * Update the parcel memory with the sensed parcel list
+	 * @param {Map} pp - list of sensed parcels
+	 */
 	onParcelSensingUpdate(pp) {
 		// Add the sensed parcels to the parcel belief set
 		let now = Date.now();
@@ -560,18 +568,10 @@ export class BeliefSet {
 				this.#parcel_memory.set(p.id, p);
 			}
 		}
-
-		// Remove carried parcels after delivery
-		for (const [id, parcel] of this.#parcel_memory) {
-			if (parcel.carriedBy == this.#me_memory.id && parcel.time != now) {
-				this.#parcel_memory.delete(id);
-			}
-		}
 	}
 
 	/**
 	 * Compute path from initialPos to finalPos using BFS
-	 *
 	 * @param {[int, int]} initialPos
 	 * @param {[int, int]} finalPos
 	 * @param {Boolean} palOkFinal - false if the pal should block the final position

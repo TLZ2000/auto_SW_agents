@@ -188,9 +188,6 @@ class ShareParcels extends Plan {
 
 		// If the pal is in the correct position, I can commit to the share
 		if (palOK) {
-			// Ignore the parcels we are carrying now (so we don't ever pick them up again)
-			belief.ignoreCarriedParcels();
-
 			// Drop them
 			await myEmitPutDown();
 			if (this.stopped) {
@@ -570,7 +567,7 @@ class GoDeliver extends Plan {
 		}
 		await this.subIntention(["go_to", x, y], myAgent.getPlanLibrary());
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
-		await myEmitPutDown();
+		await myEmitPutDown(true);
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		return true;
 	}
@@ -1110,13 +1107,17 @@ async function myEmitPickUp() {
 
 /**
  * emitPutdown wrapper to force a single emit action execution in parallel
+ * @param {boolean} ignoreParcels - default false, if true add the carried parcels to the ignore
  * @returns output of emitPutdown
  */
-async function myEmitPutDown() {
+async function myEmitPutDown(ignoreParcels = false) {
 	let pick = undefined;
 	if (belief.requireEmit()) {
-		belief.resetCarriedParcels();
 		belief.resetMeMoves();
+		if (ignoreParcels) {
+			belief.ignoreCarriedParcels();
+		}
+		belief.resetCarriedParcels();
 		pick = await client.emitPutdown();
 		belief.releaseEmit();
 	} else {
@@ -1272,7 +1273,7 @@ client.onAgentsSensing(async (aa) => {
 client.onYou(({ id, name, x, y, score }) => {
 	// I ignore name and score because I don't actually use them in any way
 	belief.onYouUpdate(id, x, y);
-	
+
 	//Send to pal my updated position info
 	myEmitSay("MSG_positionUpdate", belief.messageContent_positionUpdate());
 });
