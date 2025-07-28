@@ -27,20 +27,15 @@ export class BeliefSet {
 		this.#parcel_memory = new Map();
 		this.#me_memory = {
 			id: undefined,
-			name: undefined,
 			x: undefined,
 			y: undefined,
-			score: undefined,
 			moves: 0,
 			token: undefined,
 		};
 		this.#pal_memory = {
 			id: undefined,
-			name: undefined,
 			x: undefined,
 			y: undefined,
-			score: undefined,
-			moves: 0,
 			token: undefined,
 			currentIntention: undefined,
 			last_update: null,
@@ -522,11 +517,9 @@ export class BeliefSet {
 		return this.#me_memory.moves;
 	}
 
-	onYouUpdate(id, name, x, y, score) {
+	onYouUpdate(id, x, y) {
 		this.#me_memory.id = id;
-		this.#me_memory.name = name;
 		this.updateMePosition(x, y);
-		this.#me_memory.score = score;
 
 		if (Number.isInteger(x) && Number.isInteger(y)) {
 			this.#updateTimeMap(x, y);

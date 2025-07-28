@@ -1270,7 +1270,9 @@ client.onAgentsSensing(async (aa) => {
 });
 
 client.onYou(({ id, name, x, y, score }) => {
-	belief.onYouUpdate(id, name, x, y, score);
+	// I ignore name and score because I don't actually use them in any way
+	belief.onYouUpdate(id, x, y);
+	
 	//Send to pal my updated position info
 	myEmitSay("MSG_positionUpdate", belief.messageContent_positionUpdate());
 });
