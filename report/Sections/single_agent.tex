@@ -1,12 +1,14 @@
 \section{Single Agent}
-
-    PICCOLA INTRODUZIONE PER DIRE COSA È STATO INTRODOTTO
-    mettere che il file è unico e lanciamo single o multi agent con parametri (single agent è come il multi agent ma senza pal, agente funziona bene anche senza bisogno di pal (possiamo aggiungere e togliere il secondo agente in qualsiasi momento e il primo continua a funzionare))
+    This part regards the development of a simple single agent, able to perform the basic functions to operate in the \textit{Deliveroo.js} setting. In particular, this should include the ability to represents and manage an internal belief system, built from sensing data received from the server and able to perform revision of outdated or no longer valid beliefs. Based on these beliefs, the agent should be able to define and activate  intentions, also performing revision of older intentions, and also act in the environment to achieve such intentions. To achieve the intentions the agent should use a set of predefined plans or an integration with a planner utility to perform the correct actions.
+    \medskip\\    
+    In particular, our single agent operates with the same script as the multi agent configuration, as this multi agent configuration is resilient to the absence of the second agent. Specifically, the single agent configuration will avoid to send messages to the non existing companion and, in all of those situations where it is necessary to know the companion information, like its position or the parcels he is carrying, the agent will consider the companion as null, so like he is nowhere and he is carrying no parcels.
 
     \subsection{Initial Connection}
+        The first step is to initialize the agent's \textit{belief set}, this include the initialization of an empty memory. Then, the script will evaluate the command line parameters and will initialize the connection using a specific single agent token or, if required, a token created on the fly. The script will initialize the intention system, will add the predefined plans to its internal library and will initialize the callbacks for the \textit{updates} from the server, like "\textit{onParcelsSensing}" and "\textit{onYou}". Lastly, the script defines a \textit{Promise} on the "\textit{onMap}" and "\textit{onConfig}" callbacks on their resolution before continuing with the normal execution, in particular a temporized loop both on the "\textit{agent's memory revision}" and the "\textit{option generation}" phases.
 
     \subsection{Belief}
-        initial connection (mappa e config), memory update (metodi onSensing), memory revision
+        initial connection (mappa e config),
+         memory update (metodi onSensing), memory revision
 
     \subsection{Options and Filtering}
         options generation, e filtering con reward (migliore pickup e delivery)
@@ -19,10 +21,3 @@
 
     \subsection{Planning}
         come abbiamo implementato il planning e per cosa, spiegare che fa schifo, spiegare roba dei negative prepositions (in conflitto con closed world assumption) che fa crashare il FF planner
-    
-    
-    
-    
-
-
-    %TODO mettere dentro che subito quando vede un agente che lo ostacola si blocca e fallisce il piano
