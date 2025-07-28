@@ -33,12 +33,6 @@ class RawMap {
 		this.width = width;
 		this.height = height;
 		this.map = [];
-		this.deliveryZones = [];
-		this.deliveryZonesCounter = 0;
-		this.spawnZones = [];
-		this.spawnZonesCounter = 0;
-		this.nonSpawnZones = [];
-		this.nonSpawnZonesCounter = 0;
 
 		for (let i = 0; i < width; i++) {
 			this.map[i] = [];
@@ -78,21 +72,7 @@ class RawMap {
 				}
 
 				// If tile has no neighbors, then remove it as invalid
-				if (valid) {
-					if (this.map[x][y].type == 1) {
-						// Spawn zone
-						this.spawnZones.push({ ...this.map[x][y] });
-						this.spawnZonesCounter++;
-					} else if (this.map[x][y].type == 2) {
-						// Delivery zone
-						this.deliveryZones.push({ ...this.map[x][y] });
-						this.deliveryZonesCounter++;
-					} else if (this.map[x][y].type == 3) {
-						// Delivery zone
-						// this.nonSpawnZones.push({...this.map[x][y]});
-						this.nonSpawnZonesCounter++;
-					}
-				} else {
+				if (!valid) {
 					// Non walkable tile because no neighbors
 					this.map[x][y].type = 0;
 				}
