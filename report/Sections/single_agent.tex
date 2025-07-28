@@ -27,6 +27,7 @@
             Regarding the parcel's revision, we cycle all the parcels in the memory. If the position of the parcel falls into the agent's sensing range and the last time we saw the parcel is recent (less than an \textit{agent's movement duration}, which, generally, is the shortest time period in which something may happen both to a parcel and to an agent) then we can safely keep the parcel as we know it is still there, otherwise we know that the parcel isn't there anymore (because it has expired or it has been picked up by another agent) so we can remove it from the memory. Otherwise, if the parcel is not in the agent's sensing range, we consider a larger time window, since we can't be sure if the parcel is still there or not, before removing it from the memory. The same approach is considered also for the \textit{agent memory}.
 
     \subsection{Options and Filtering}
+
         options generation, e filtering con reward (migliore pickup e delivery)
 
     \subsection{Intention}
@@ -37,3 +38,7 @@
 
     \subsection{Planning}
         come abbiamo implementato il planning e per cosa, spiegare che fa schifo, spiegare roba dei negative prepositions (in conflitto con closed world assumption) che fa crashare il FF planner
+
+    \subsection{Strategy}
+        TODO vedere se mettere o cosa
+        perche tempi option generation e memory revision
