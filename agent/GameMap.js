@@ -180,7 +180,6 @@ export class GameMap {
 		if (x != null && y != null) {
 			return this.#graph_map[x][y];
 		}
-		console.log("NULLED", x, y);
 		return null;
 	}
 
