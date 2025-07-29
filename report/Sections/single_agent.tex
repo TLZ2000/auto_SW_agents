@@ -51,7 +51,23 @@
         During the \textit{optionsGeneration}, it may happen that the same option is pushed multiple times rapidly, for this reason, there is the need to understand if the next intention is really a new intention, so it must be replaced, or just a copy of the same intention, that must be discarded. To do so, we implemented a comparison function (\textit{areIntentionsEqual}), that compares the option's parameters with the intention's predicate.
 
     \subsection{Plan}
-    
+        Due to the fact that we divided the code in multiple files, it was necessary to share somehow the plans, defined in the \textit{agent.js} file. For this reason, we created the plan library directly in the "\textit{IntentionRevision}" class and add the plans directly there. Then, when calling the \textit{achieve} function on the intention we provide as parameter the plan library, needed select the correct plan to achieve the intention. Similarly, the basic "\textit{Plan}" class is the same as the one presented in the laboratories with the difference that we provide the plan library when calling a sub-intention.
+        \medskip\\
+        Using the "\textit{Plan}" class we defined the list of predefined plans used by the agent to execute the different intentions.
+
+        \subsubsection{Explore Plan}
+            The "\textit{Explore}" plan is used to serve the "\textit{explore}" intention. It is composed by a "\textit{go\_to}" sub-intention with the goal to explore the map and discover parcels to pickup. The coordinates to reach are computed using different randomly selected strategies: a time-based or a distance-based. Both of them compute at first a list of explorable cells using BFS. Then, the former will use the \textit{time map} defined in the "\textit{BeliefSet}" to incentivize those positions that we have not seen in a long time. On the other hand, the latter will simply select distant cells with higher probability. If, for some reason, we do not find any valid cell in the \textit{timed explore}, we automatically perform a \textit{distance explore}.
+            \medskip\\
+            The probability of the cells to explore in the time-based strategy is computed as follows:
+            TODO descrivere strategia timedExplore
+
+        \subsubsection{GoPickUp Plan}
+            The "\textit{GoPickUp}" plan is used to serve the "\textit{go\_pick\_up}" intention. It is simply composed by a "\textit{go\_to}" sub-intention to move to the desired cell where the parcel is located and a pickup action performed in a simple wrapper that avoids multiple emit actions in parallel, manually save the picked up parcel as carried by me and perform the pickup action. 
+
+        \subsubsection{GoDeliver Plan}
+            The "\textit{GoDeliver}" plan is used to serve the "\textit{go\_deliver}" intention. Similarly to the "\textit{GoPickUp}" plan, it is composed by a "\textit{go\_to}" sub-intention to move to the desired delivery cell and a putdown action performed in a wrapper that avoids multiple emit actions in parallel, resets the moves counter, manually removes the carried parcels (and adds them to an ignore list to avoid consistency problems) and performs the putdown action. 
+
+        \subsubsection{Move Plan}
 
         spiegare i vari piani, come li gestiamo, come facciamo revision dei piani (come la mettiamo insieme a option generation)
 
