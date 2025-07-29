@@ -926,13 +926,8 @@ function getDeliveryOption() {
 		}
 	}
 
-	// Re-check if I am still carrying parcels, just to be sure
-	if (belief.getCarriedParcels().size > 0) {
-		// If so, return the delivery option
-		return deliveryOption;
-	}
-	// Otherwise, it means that I already delivered the parcels, so there is no point in returning a delivery option
-	return null;
+	// Return the delivery option (or null if non existing)
+	return deliveryOption;
 }
 
 /**
