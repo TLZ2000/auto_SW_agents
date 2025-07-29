@@ -567,7 +567,6 @@ class GoDeliver extends Plan {
 		await this.subIntention(["go_to", x, y], myAgent.getPlanLibrary());
 		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		await myEmitPutDown(true);
-		if (this.stopped) throw ["stopped"]; // if stopped then quit
 		return true;
 	}
 }
@@ -844,7 +843,8 @@ function getBestPickupOption() {
 				parcel.y, // Y coord
 				parcel.id, // ID
 				tmpReward[0], // Expected reward
-				tmpReward[1], // length of the path to pickup the parcel
+				tmpReward[1], // Length of the path to pickup the parcel
+				parcel.reward, // Score of parcel
 			]);
 		}
 	});
@@ -870,6 +870,27 @@ function getBestPickupOption() {
 			if (currentDistance <= minDistance) {
 				minDistance = currentDistance;
 				bestOption = option;
+			}
+		}
+	}
+
+	// Specific case handler: no delivery available, so all scores are 0 and I am stucked into an explore loop even if I have parcels available
+	let maxSimpleScore = 0;
+	// If no best option selected but there actually are options available
+	if (bestOption == null && options.length > 0) {
+		// Then cycle all the options
+		for (let i = 0; i < options.length; i++) {
+			let option = options[i];
+			let score = option[6];
+			let parcelLen = option[5];
+
+			// Compute a simple reward as the ratio between the parcel reward and distance from it (max to avoid fractions by 0)
+			let currentSimpleScore = score / Math.max(parcelLen, 1);
+
+			// Select the one with the highest score
+			if (currentSimpleScore > maxSimpleScore) {
+				bestOption = option;
+				maxSimpleScore = currentSimpleScore;
 			}
 		}
 	}
@@ -1024,6 +1045,7 @@ function optionsGeneration() {
 				// If I have no valid option, then...
 				// If I am carrying parcels and I can reach the pal (if the pal exists)
 				let pathToPal = belief.pathFromMeToPal();
+
 				if (belief.getCarriedParcels().size > 0 && pathToPal != null && pathToPal != undefined) {
 					if (belief.shareParcelCounterIncrease()) {
 						// Then co-op with pal to deliver
@@ -1115,8 +1137,8 @@ async function myEmitMove(direction) {
 async function myEmitPickUp() {
 	let pick = undefined;
 	if (belief.requireEmit()) {
-		belief.pickUpMyCell();
 		pick = await client.emitPickup();
+		belief.pickUpMyCell();
 		belief.releaseEmit();
 	} else {
 		console.log("TOO FAST");
