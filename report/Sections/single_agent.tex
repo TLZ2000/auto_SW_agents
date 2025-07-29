@@ -4,7 +4,7 @@
     In particular, our single agent operates with the same script as the multi agent configuration, as this multi agent configuration is resilient to the absence of the second agent. Specifically, the single agent configuration will avoid to send messages to the non existing companion and, in all of those situations where it is necessary to know the companion information, like its position or the parcels he is carrying, the agent will consider the companion as null, so like he is nowhere and he is carrying no parcels.
 
     \subsection{Initial Connection}
-        The first step is to initialize the agent's \textit{belief set}, this include the initialization of an empty memory. Then, the script will evaluate the command line parameters and will initialize the connection using a specific single agent token or, if required, a token created on the fly. The script will initialize the intention system, will add the predefined plans to its internal library and will initialize the callbacks for the \textit{updates} from the server, like "\textit{onParcelsSensing}" and "\textit{onYou}". Lastly, the script defines a \textit{Promise} on the "\textit{onMap}" and "\textit{onConfig}" callbacks on their resolution before continuing with the normal execution, in particular a temporized loop both on the "\textit{agent's memory revision}" and the "\textit{option generation}" phases.
+        The first step is to initialize the agent's \textit{belief set}, this include the initialization of an empty memory. Then, the script will evaluate the command line parameters and will initialize the connection using a specific single agent token or, if required, a token created on the fly. The script will initialize the intention system, will add the predefined plans to its internal library and will initialize the callbacks for the \textit{updates} from the server, like "\textit{onParcelsSensing}" and "\textit{onYou}". Lastly, the script defines a \textit{Promise} on the "\textit{onMap}" and "\textit{onConfig}" callbacks on their resolution before continuing with the normal execution, in particular a temporized loop both on the "\textit{agent's memory revision}" and the "\textit{option generation}" phases. The temporization of both these loops is set, at the moment, at $50\;ms$: from our tests, this is the shortest possible time period in which something significant may happen, the lower bound being the agent movement duration. This decision is justified by the rapidly-evolving nature of the Deliveroo.js environment, thus keeping the overall approach simple and avoid manually calling these function.
 
     \subsection{Belief}
         In this part we cover the \textit{BeliefSet} class regarding the single agent part. In particular it is composed by an initial setup phase where we define the game map and the game configurations, then an "\textit{environment sensing}" part where we update the agent's belief using the information sensed from the environment and a last "\textit{memory revision}" phase where we remove old and unreliable information from the memory.
@@ -51,11 +51,9 @@
         During the \textit{optionsGeneration}, it may happen that the same option is pushed multiple times rapidly, for this reason, there is the need to understand if the next intention is really a new intention, so it must be replaced, or just a copy of the same intention, that must be discarded. To do so, we implemented a comparison function (\textit{areIntentionsEqual}), that compares the option's parameters with the intention's predicate.
 
     \subsection{Plan}
+    
+
         spiegare i vari piani, come li gestiamo, come facciamo revision dei piani (come la mettiamo insieme a option generation)
 
     \subsection{Planning}
         come abbiamo implementato il planning e per cosa, spiegare che fa schifo, spiegare roba dei negative prepositions (in conflitto con closed world assumption) che fa crashare il FF planner
-
-    \subsection{Strategy}
-        TODO vedere se mettere o cosa
-        perche tempi option generation e memory revision
