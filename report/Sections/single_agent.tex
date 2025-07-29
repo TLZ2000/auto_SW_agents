@@ -44,7 +44,11 @@
             To avoid unwanted behaviors, like a dominance of "\textit{go\_pick\_up}" options, we track the number of moves performed by the agent while carrying parcels. We use this counter, paired with a fixed constant, to scale up the reward of the "\textit{go\_deliver}" option. This will increase the probability of performing a delivery as the moves increase. After performing the delivery, the moves counter is reset.
 
     \subsection{Intention}
-        spiegare classi nel file Intentions.js dicendo come gestiamo il push di nuove intention e come facciamo intention revision
+        The intention's management part is highly inspired by the code presented in the laboratories with some modifications. The most important regards the "\textit{intention revision}", in particular we removed the intention queue, considering only the current and next intentions. We decided to adopt this approach considering the rapidly-evolving nature of the Deliveroo.js environment, replacing a queue of multiple sequential intention that probably will be invalid when executed, in favor of a simpler system that consider only the current intention, which is being achieved, and a possible next intention, which the agent consider better than the current intention and will replace it as soon as possible.
+        \medskip\\
+        The async \textit{loop} function in the "\textit{IntentionRevisionReplace}" class, serves the current intention, if existing. Once this intention is achieved, it is removed as current intention and replaced by the next intention, if existing. On the other hand, the async \textit{push} function in the same class, will receive a new option from the \textit{optionsGeneration} and shall decide if saving it as the next intention. In this case, the \textit{stop} function will be called on the current intention, causing it to stop as soon as possible, allowing the \textit{loop} function to replace it with the next intention.
+        \medskip\\
+        During the \textit{optionsGeneration}, it may happen that the same option is pushed multiple times rapidly, for this reason, there is the need to understand if the next intention is really a new intention, so it must be replaced, or just a copy of the same intention, that must be discarded. To do so, we implemented a comparison function (\textit{areIntentionsEqual}), that compares the option's parameters with the intention's predicate.
 
     \subsection{Plan}
         spiegare i vari piani, come li gestiamo, come facciamo revision dei piani (come la mettiamo insieme a option generation)
