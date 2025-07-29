@@ -199,12 +199,16 @@ export class BeliefSet {
 		this.#option_generation_movement_duration_counter = 0;
 	}
 
+	/**
+	 * Returns the parcel decay interval in ms
+	 * @returns Infinity if no decay interval, otherwise the time in milliseconds
+	 */
 	getParcelDecayInterval() {
 		// Convert decade interval to number (in the game config it is a string)
 		if (this.#game_config.PARCEL_DECADING_INTERVAL == "infinite") {
 			return Infinity;
 		} else {
-			return Number(this.#game_config.PARCEL_DECADING_INTERVAL.substring(0, this.#game_config.PARCEL_DECADING_INTERVAL.length - 1));
+			return Number(this.#game_config.PARCEL_DECADING_INTERVAL.substring(0, this.#game_config.PARCEL_DECADING_INTERVAL.length - 1)) * 1000;
 		}
 	}
 
@@ -299,7 +303,7 @@ export class BeliefSet {
 		// Cycle the parcel memory
 		this.#parcel_memory.forEach((parcel) => {
 			// Save only the parcels carried by me
-			if (parcel.carriedBy == this.#me_memory.id) {
+			if (parcel.carriedBy && parcel.carriedBy == this.#me_memory.id) {
 				tmpCarried.set(parcel.id, parcel);
 			}
 		});
@@ -315,7 +319,7 @@ export class BeliefSet {
 		let tmpParcels = new Map();
 		// Cycle the parcel memory
 		this.#parcel_memory.forEach((parcel) => {
-			// Save only the parcels carried by me
+			// Select only the parcels in my position and set them as carried by me
 			if (parcel.x == Math.round(this.#me_memory.x) && parcel.y == Math.round(this.#me_memory.y)) {
 				parcel.carriedBy = this.#me_memory.id;
 			}
@@ -1215,7 +1219,7 @@ export class BeliefSet {
 			// Check if I see old parcels position
 			if (this.#distance(parcel.x, parcel.y, this.#me_memory.x, this.#me_memory.y) < this.#game_config.PARCELS_OBSERVATION_DISTANCE) {
 				// Check if I saw the parcel recently (aka. the onParcelsSensing was called by it)
-				if (Date.now() - parcel.time < this.getAgentMovementDuration() + this.getAgentMovementDuration() / 5) {
+				if (Date.now() - parcel.time < this.getParcelDecayInterval() + this.getParcelDecayInterval() / 10) {
 					// If so, preserve it
 					tmpParcels.set(parcel.id, parcel);
 				}
@@ -1283,9 +1287,6 @@ export class BeliefSet {
 	 */
 	#parcelScoreAfterMs(time, parcelScore, lastVisitTime) {
 		let decadeInterval = this.getParcelDecayInterval(); //Seconds
-
-		// Convert to ms
-		decadeInterval *= 1000;
 
 		// Add some additional time margin
 		let marginedTime = time + this.getAgentMovementDuration();
@@ -1515,6 +1516,15 @@ export class BeliefSet {
 		let agents = this.#JSONToMap(msg.agents);
 
 		this.#pal_carried_parcels = this.#JSONToMap(msg.carriedParcels);
+
+		// Clear parcel_memory from all the parcels carried by the pal IN MY BELIEF (if he still carries them, he will say it to me)
+		let tmpParcels = new Map();
+		this.#parcel_memory.forEach((p) => {
+			if (p.carriedBy != this.#pal_memory.id) {
+				tmpParcels.set(p.id, p);
+			}
+		});
+		this.#parcel_memory = tmpParcels;
 
 		// Cycle all the reconstructed parcels
 		parcels.forEach((p) => {
