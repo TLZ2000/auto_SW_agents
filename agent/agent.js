@@ -421,24 +421,21 @@ class Move extends Plan {
 
 			path = [];
 
-			// If a plan exists
-			if (plan != undefined) {
-				// Cycle the plan and convert it to a path
-				for (let i = 0; i < plan.length; i++) {
-					switch (plan[i].action) {
-						case "RIGHT":
-							path.push("R");
-							break;
-						case "LEFT":
-							path.push("L");
-							break;
-						case "UP":
-							path.push("U");
-							break;
-						case "DOWN":
-							path.push("D");
-							break;
-					}
+			// Cycle the plan and convert it to a path
+			for (let i = 0; i < plan.length; i++) {
+				switch (plan[i].action) {
+					case "RIGHT":
+						path.push("R");
+						break;
+					case "LEFT":
+						path.push("L");
+						break;
+					case "UP":
+						path.push("U");
+						break;
+					case "DOWN":
+						path.push("D");
+						break;
 				}
 			}
 		}

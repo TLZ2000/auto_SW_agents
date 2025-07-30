@@ -1,3 +1,16 @@
+\ifthenelse{\value{cols}=1}{
+    \setlength{\columnsep}{20pt} % Spacing tra le colonne
+    \begin{multicols}{2}[\section{Multi Agent}]
+}{
+    \section{Multi Agent}
+}
+
 \section{Results and Conclusion}
     indicare un po di test che abbiamo fatto sulle varie mappe (e le due/tre mappe che abbiamo creato noi) e un po di conclusioni
     
+
+\ifthenelse{\value{cols}=1}{
+    \end{multicols}
+}{
+    % Pass
+}
