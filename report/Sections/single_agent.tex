@@ -58,8 +58,11 @@
         \subsubsection{Explore Plan}
             The "\textit{Explore}" plan is used to serve the "\textit{explore}" intention. It is composed by a "\textit{go\_to}" sub-intention with the goal to explore the map and discover parcels to pickup. The coordinates to reach are computed using different randomly selected strategies: a time-based or a distance-based. Both of them compute at first a list of explorable cells using BFS. Then, the former will use the \textit{time map} defined in the "\textit{BeliefSet}" to incentivize those positions that we have not seen in a long time. On the other hand, the latter will simply select distant cells with higher probability. If, for some reason, we do not find any valid cell in the \textit{timed explore}, we automatically perform a \textit{distance explore}.
             \medskip\\
-            The probability of the cells to explore in the time-based strategy is computed as follows:
-            TODO descrivere strategia timedExplore
+            The probability of the cells to explore in the time-based strategy is computed as follows: the first step is to compute the \textit{age} of all the explorable cells (i.e., the ms we have not seen that cell) and normalize them in a range between $[0, 1]$. In the meantime, we also compute the \textit{Manhattan distance} of each cell from the agent's position, and also apply a logarithm of the $distance + 1$ to adjust the scale between age and distance. After this, we compute a softmax-like \textit{priority} of each cell as:
+            \begin{gather*}
+                priority_{cell} = \frac{e^{\alpha \cdot age_{cell} - \beta \cdot distance_{cell}}}{\sum_{c \in cells}e^{\alpha \cdot age_c - \beta \cdot distance_c}}
+            \end{gather*}
+            From our testings, we found out the best values for $\alpha$ and $\beta$ to be respectively $5$ and $1$. After this, we simply select randomly a cell using the associated priority as probability.
 
         \subsubsection{GoPickUp Plan}
             The "\textit{GoPickUp}" plan is used to serve the "\textit{go\_pick\_up}" intention. It is simply composed by a "\textit{go\_to}" sub-intention to move to the desired cell where the parcel is located and a pickup action performed in a simple wrapper that avoids multiple emit actions in parallel, manually save the picked up parcel as carried by me and perform the pickup action. 
@@ -68,8 +71,11 @@
             The "\textit{GoDeliver}" plan is used to serve the "\textit{go\_deliver}" intention. Similarly to the "\textit{GoPickUp}" plan, it is composed by a "\textit{go\_to}" sub-intention to move to the desired delivery cell and a putdown action performed in a wrapper that avoids multiple emit actions in parallel, resets the moves counter, manually removes the carried parcels (and adds them to an ignore list to avoid consistency problems) and performs the putdown action. 
 
         \subsubsection{Move Plan}
+            The "\textit{Move}" plan is used to serve the "\textit{go\_to}" intention. The first step is to compte a path from the agent's current position to the target coordinates using BFS or an automated planner (detailed in \ref{planning}). Once the path is defined (if not, the plan fails) the agent will follow it move by move until it reaches the final position, where the plan terminates with success.
+            \medskip\\
+            During the path-following phase, the agent performs a set of checks to ensure the validity and relevance of the action. In particular, the first regards the "\textit{go\_pick\_up}" intentions, where the agent checks if at the final position there is still a parcel to pick up, if not the intention fails because it is no longer relevant. Another check regards the path itself, as it may happen that another agent blocks a cell in the path. For this reason, the agent maintains an internal counter: if the following path results to be occupied by anyone for more than three consecutive moves, then the path is considered no longer valid and the intention fails. Similarly, another check regards the adjacent cell in which the agent wants to move to, and if that cell appears to be occupied, then the intention fails immediately. Lastly, a final check is a fail-safe to manage the case in which, for some reason, the agent was unable to move and got stuck. Also in this case, the intention is failed.
+            \medskip\\
+            In all of these cases, the intention fails regardless of the situation. This respects our strategy of single and frequent option generation: instead of trying to fix an invalid intention, we make it fail and, almost immediately, another one, which we are sure to be valid and relevant, is ready to take its place.
 
-        spiegare i vari piani, come li gestiamo, come facciamo revision dei piani (come la mettiamo insieme a option generation)
-
-    \subsection{Planning}
+    \subsection{Planning}\label{planning}
         come abbiamo implementato il planning e per cosa, spiegare che fa schifo, spiegare roba dei negative prepositions (in conflitto con closed world assumption) che fa crashare il FF planner

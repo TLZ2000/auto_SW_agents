@@ -579,8 +579,6 @@ class Move extends Plan {
 		return go_to == "go_to";
 	}
 
-	// TODO: mettere controllo su current intention per vedere se pickup è ancora valido dopo un memory revision
-
 	async execute(go_to, x, y, ignorePal = false) {
 		// Compute random value
 		let random = Math.random();
