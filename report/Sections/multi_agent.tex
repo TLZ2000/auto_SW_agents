@@ -11,23 +11,38 @@
     \subsection{Additions to the Single Agent}
         With respect to the standard single agent components, several important components were added to ensure the multi agent compatibility. Doing so, we allow the multi agent to be able to operate even in the absence of the pal, making it resilient to those situations in which the pal may unexpectedly disconnect.
         \medskip\\
-        Follows a description of the main additions with respect to the single agent.
+        Similarly to the single agent, also in the multi agent case we have two specific multi agent tokens with the associated ids, this allows both the agents (i.e., \textit{agent1} and \textit{agent2}) to communicate. Follows a description of the main additions with respect to the single agent.
 
-        \subsubsection{Belief}
-            The first step is to define an additional memory to contain all the information about the pal, in particular, his id, his position, his current intention and the timestamp of the last update we received from him.
-
-            spiegare cosa abbiamo aggiunto nel belief del single agent
-            spiegare come aggiorniamo belief con info ricevute da pal
-
-        \subsubsection{Options and Filtering}
-            spiegare calcolo reward anche per il pal per scegliere solo le options che ci convengono, spiegare come aggiungiamo la option per scambiare parcel (counter per evitare scambi non voluti)
-
+        \subsubsection{Pal Memory}
+            The first step is to define an additional memory to contain all the information about the pal, in particular, his id, his position, his current intention and the timestamp of the last update we received from him. The pal's id will be set at the beginning of the agent script, since both of the ids and tokens are hardcoded in it, while the other information will be set and updated via message communication.
+            \medskip\\
+            Another component modified in this regards is the \textit{reviseMemory} function. In particular, if the pal fails to communicate with us for a certain time window, we consider hil as disconnected and, therefore, we clear his memory information. This allows the agent, despite him continuing to send non-blocking "\textit{say}" messages to the non-existing pal, to operating as a single agent assuming that the pal is nowhere and carries no parcels.
+            
         \subsubsection{Communication}
+            The most important difference with respect to the single agent is the presence of a communication part that allows the agents to send an receive messages. In particular, we have defined four types of messages, one of which will be described in details in a next section (\ref{shareRequest}). The other three message types allow the agents to synchronize their beliefs and operate accordingly. Following our rapid-oping-generation strategy and after multiple failed attempts with structured message share, we decided to adopt a "\textit{UDP-like}" message share strategy for these three message types: if the pal is listening, he will update his belief accordingly, otherwise nothing problematic will happen. Similarly for the message reception strategy: if the pal is operative and sends us updates, we will update our belief, otherwise we will continue to operate with our current belief without problems.
+            \medskip\\
+            Here is a rapid description of the three "\textit{UDP-like}" message types:
+            \begin{itemize}
+                \item \textbf{\textit{MSG\_positionUpdate}}: in every \textit{onYou} callback, we use this kind of message to share the agent's current position with the pal. When the agent receives this message type, he will update his belief with the pal's new position, will set the new \textit{last update} from the pal, will update the pal's entry in the \textit{agent memory} and use the new pal's position to update its internal \textit{time map}, allowing him to explore different parts of the map with respect to the pal;
+                \item \textbf{\textit{MSG\_memoryShare}}: after every \textit{memory revision}, the agent sends the revised verion of his memory to the pal, in particular the \textit{parcel and agent memories}, the parcels he is currently carrying  and, again, its updated position. On the other hand, when the agent receives this type of message he will save the pal's carried parcels in a dedicated variable, he will remove from his \textit{parcel memory} the parcels that, in his belief, are carried by the pal (if the pal is still carrying them, the agent will add these entries back to his parcel memory), and then, update his \textit{parcel} and \textit{agent} memories based on the information shared by the pal. Finally, he will call the handler of the \textit{MSG\_positionUpdate} type to update the pal position;
+                \item \textbf{\textit{MSG\_currentIntention}}: when the agent pushes a new \textit{next intention}, he will also send it to the pal. If the agent receives this message, he will update the current pal's intention.
+            \end{itemize}
+            
+            \subsubsection{Options and Filtering}
+                The presence of a collaborative pal, allows us to introduce some improvements during the option generation and filtering procedures. The first regards the best pick up option generation, in particular the reward computation. When the agent process all the single parcels, he will compute the reward of the single parcel, both for him and the pal, using his internal information about the pal without any communication. If the pal, for some reason, is not present in the agent's memory, his reward will automatically be zero. This additional pal reward allows the agent to perform additional filtering on the parcel: if the agent's reward is bigger than the pal's reward or the rewards are the same but his distance to the parcel is lower, then he will generate an associated option. Furthermore, if the current pal's intention is a "\textit{go\_deliver}", the agent know that the pal will probably ignore all the parcels and, therefore, he should always generate an option.
+                \medskip\\
+                The second, and most important, improvement regards the introduction of a new option type: "\textit{share\_parcels}". This particular option is designed to solve "\textit{corridor-like}" situations, where one agent can pick up parcels but not deliver them, while the other agent can deliver parcels but not pick them up. This option is pushed if no \textit{best option} is identified before (there are not "\textit{go\_pick\_up}" or "\textit{go\_deliver}"), if the agent is carrying parcels and there is a path to reach the pal. Furthermore, to handle the situation in which the path to a delivery is obstructed only temporarily
+
+                TODO: RICONTROLLA CODICE PER CASO SU TELEGRAM E FINIRE FRASE SOPRA
+
+
+
+
+            spiegare calcolo reward anche per il pal per scegliere solo le options che ci convengono, spiegare come aggiungiamo la option per scambiare parcel (counter per evitare scambi non voluti)
+            
+            \subsubsection{Plans}\label{shareRequest}
+            spiegare piani aggiunti per scambio carried parcels
             spiegare i vari messaggi e il tipo di comunicazione che usiamo
-
-        \subsubsection{Plans}
-            spiegare piani aggiunti per scambio carried parcels 
-
             
 
         
