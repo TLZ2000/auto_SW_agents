@@ -1,22 +1,35 @@
+\ifthenelse{\value{cols}=1}{
+    \setlength{\columnsep}{20pt} % Spacing tra le colonne
+    \begin{multicols}{2}[\section{Multi Agent}]
+}{
+    \section{Multi Agent}
+}
+    This second part regards the development of the multi agent, in particular, the addition of a second agent (\textit{"pal"}) that is able to operate in the \textit{Deliveroo.js} setting. The two agents should be able to communicate, update the their internal beliefs with the shared information, coordinate and negotiate common solutions (e.g., decide who should pick up a certain parcel or collaborate to achieve goals).
+    \medskip\\    
+    Moreover, as said previously, the multi agent script is the same as the single agent one, and the multi agent mode can be enabled with a parameter when launching the agent's script.
 
-    PICCOLA INTRODUZIONE
-    PICCOLA INTRODUZIONE PER DIRE COSA È STATO INTRODOTTO
-    mettere che il file è unico e lanciamo single o multi agent con parametri (single agent è come il multi agent ma senza pal, agente funziona bene anche senza bisogno di pal (possiamo aggiungere e togliere il secondo agente in qualsiasi momento e il primo continua a funzionare))
+    \subsection{Additions to the Single Agent}
+        With respect to the standard single agent components, several important components were added to ensure the multi agent compatibility. Doing so, we allow the multi agent to be able to operate even in the absence of the pal, making it resilient to those situations in which the pal may unexpectedly disconnect.
+        \medskip\\
+        Follows a description of the main additions with respect to the single agent.
 
-    \subsection{Multi Agent Memory}
-        spiegare cosa abbiamo aggiunto nel belief del single agent
+        \subsubsection{Belief}
+            The first step is to define an additional memory to contain all the information about the pal, in particular, his id, his position, his current intention and the timestamp of the last update we received from him.
 
-    \subsection{Communication}
-        spiegare i vari messaggi e il tipo di comunicazione che usiamo
+            spiegare cosa abbiamo aggiunto nel belief del single agent
+            spiegare come aggiorniamo belief con info ricevute da pal
 
-    \subsection{Belief}
-        spiegare come aggiorniamo belief con info ricevute da pal
+        \subsubsection{Options and Filtering}
+            spiegare calcolo reward anche per il pal per scegliere solo le options che ci convengono, spiegare come aggiungiamo la option per scambiare parcel (counter per evitare scambi non voluti)
 
-    \subsection{Options and Filtering}
-        spiegare calcolo reward anche per il pal per scegliere solo le options che ci convengono, spiegare come aggiungiamo la option per scambiare parcel (counter per evitare scambi non voluti)
+        \subsubsection{Communication}
+            spiegare i vari messaggi e il tipo di comunicazione che usiamo
 
-    \subsection{Plans}
-        spiegare piani aggiunti per scambio carried parcels 
+        \subsubsection{Plans}
+            spiegare piani aggiunti per scambio carried parcels 
+
+            
+
         
 \ifthenelse{\value{cols}=1}{
     \end{multicols}
