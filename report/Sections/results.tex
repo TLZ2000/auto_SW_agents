@@ -2,15 +2,58 @@
     \setlength{\columnsep}{20pt} % Spacing tra le colonne
     \begin{multicols}{2}[\section{Results and Conclusion}]
 }{
-    \section{Results and Conclusion}
+    \section{Conclusion}
 }
-    indicare un po di test che abbiamo fatto sulle varie mappe (e le due/tre mappe che abbiamo creato noi) e un po di conclusioni
+    In this chapter we report some conclusive details about our agent, in particular, some tournament results we obtaining on various challenge maps after performing intensive testing and some possible future improvements.
+
+    \subsection{Results}
+        We conducted various tests on some of the maps used during both challenges, we selected the maps to best test the components of both the single and multi agent and executed multiple instances of our agent to ensure a real world competitive scenario.
+        \medskip\\
+        For the single agent we tested four maps used during the first challenge with two modalities: no planning (NP) and planning with 50\% probability (5P). For the tests with planning we used the parameter "\textit{-w}" to block the option generation during the entire execution of the action. As can be seen in the results in Table \ref{tab:table_1}, looking at the difference between the total cumulative score between the same map with and without planning, the presence of planning degrade the agent's performance, especially in smaller maps which contain narrow corridors or few spawning tiles.
+        \medskip\\
+        For the multi agent we tested four maps used during the second challenge and, in addition, the hallway map. In Table \ref{tab:table_2} you can see the results. Regarding these results there is nothing relevant to report, the agents behaved well and were able to exchange parcels when needed.
     
-    todo: se gli agenti sono fermi diventano invisibili perche il server non ci dice piu dove sono 
-    
-    speigare perche messaggi semplici
+    \subsection{Possible Improvements}
+        We observed that it is not the agent itself that performs the actual sensing whenever he wants, but rather, it is the server that automatically sends the updated information. While this behavior is correct in most of the situations, we noticed that the server sends the update only when something changes. For this reason, we found essential to perform some internal predictions to update the agent's belief. One example is when a parcel expires: we have to understand internally that this specific parcel has expired, since the server does not inform the agents about this event. Another example regards other moving agents: if we see the other agent and he is moving, the server will rapidly notify us about this. But, if we move and cannot longer see the other agent, the server will not notify us about this and, therefore, we need a system to remove that agent from our memory, when we expect that he is no longer there. We implemented both these systems using a time window approach (\ref{memoryRevision}): for the parcels this approach works perfectly, but, for the agents, there is a specific case where it may cause problems. In particular, if the other agent is stationary and does not move, the server will send us only a first message when he enters our sensing range. Since the server does not send us updates anymore, our time window ends and we remove the other agent from our memory. This is not a game-breaking problem, given also that the other agents generally keep moving, but a problem that we could fix in the future.
 \ifthenelse{\value{cols}=1}{
     \end{multicols}
 }{
     % Pass
 }
+
+\begin{table}[h!]
+    \centering
+    \begin{tabular}{|c|c|c|c|c|c|c|}
+        \hline
+        Map & Teams & First & Second & Third & Total Score & Percentage First \\
+        \hline
+        25c1\_1 (NP)  & 10   & 230   & 210   & 190  & 1600  & 14.4\%  \\
+        25c1\_1 (5P)  & 10   & 250   & 160   & 140  & 1270  & 19.7\% \\
+        25c1\_2 (NP)  & 10  & 1134  & 1094  & 1047  & 8164  & 13.9\% \\
+        25c1\_2 (5P)  & 10   & 534   & 483   & 455  & 3452  & 15.5\% \\
+        25c1\_6 (NP)   & 5   & 363   & 196   & 167  & 1005  & 36.1\% \\
+        25c1\_6 (5P)   & 5   & 189   & 179   & 175   & 739  & 25.6\% \\
+        25c1\_8 (NP)   & 5   & 833   & 694   & 680  & 3539  & 23.5\% \\
+        25c1\_8 (5P)   & 5   & 258   & 214   & 161   & 901  & 28.6\% \\
+        \hline
+    \end{tabular}
+    \caption{Testing results for the single agent. In order, we report the map name (presence of planning), the number of competing teams, first place score, second place score, third place score, total cumulative score of all teams and percentage first place score with respect to the total score}
+    \label{tab:table_1}
+\end{table}
+
+\begin{table}[h!]
+    \centering
+    \begin{tabular}{|c|c|c|c|c|c|c|}
+        \hline
+        Map & Teams & First & Second & Third & Total Score & Percentage First \\
+        \hline
+        25c2\_3         & 5  & 2172   & 1811  & 1721  & 8462  & 25.7\% \\
+        25c2\_5         & 3  & 1468   & 1432  & 1370  & 4270  & 34.4\% \\
+        25c2\_6         & 5  & 1941   & 1601  & 1579  & 7947  & 24.4\% \\
+        25c2\_7         & 5  & 1805   & 1738  & 1555  & 7859  & 23.0\% \\
+        25c2\_hallway   & 1  & 1471   & -     & -     & 1471  & 100\% \\
+        \hline
+    \end{tabular}
+    \caption{Testing results for the multi agent. In order, we report the map name, the number of competing teams, first place score, second place score, third place score, total cumulative score of all teams and percentage first place score with respect to the total score}
+    \label{tab:table_2}
+\end{table}
