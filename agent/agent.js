@@ -178,6 +178,14 @@ class ShareParcels extends Plan {
 			if (belief.isPalHerePrecise(response.mePosX, response.mePosY)) {
 				palOK = true;
 			}
+
+			// If the pal failed the recover_shared_parcels intention
+			if (belief.getPalCurrentIntention() != "recover_shared_parcels") {
+				// This means that I have to fail the intention too
+				belief.releaseCoop();
+				this.stop();
+				throw ["pal failed the recover"]; // if stopped then quit
+			}
 		}
 
 		if (this.stopped) {
@@ -274,6 +282,14 @@ class RecoverSharedParcels extends Plan {
 			// Check if the pal is in his accorded position
 			if (belief.isPalHerePrecise(yourPosX, yourPosY)) {
 				palOK = true;
+			}
+
+			// If the pal failed the share_parcels intention
+			if (belief.getPalCurrentIntention() != "share_parcels") {
+				// This means that I have to fail the intention too
+				belief.releaseCoop();
+				this.stop();
+				throw ["pal failed the share"]; // if stopped then quit
 			}
 		}
 
