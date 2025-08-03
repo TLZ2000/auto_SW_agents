@@ -4,14 +4,13 @@
 }{
     \section{Introduction}
 }
-    This document contains the final report for the Autonomous Software Agents project, where one or more agents have to play in the Deliveroo.js game. Agents developed in this project must implement the BDI (\textit{Beliefs, Desires, Intentions}) architecture (Fig. \ref{BDI_architecture}) where the agent is able to sense the environment defining an internal belief, generate a set of possible intentions, and commit to one or multiple of them via a plan-based system while performing a constant revision of both intentions and beliefs.
+    This document contains the final report for the Autonomous Software Agents project, in which one or more agents are required to play the Deliveroo.js game. Agents developed for this project must implement the BDI (\textit{Beliefs, Desires, Intentions}) architecture (Fig. \ref{BDI_architecture}), where each agent senses the environment to form internal beliefs, generates a set of possible intentions, and commits to one or more of them via a plan-based system, while continuously revising both intentions and beliefs.
     \captionedImage{46}{BDI_architecture}{BDI architecture diagram used during the agent development}
-    The project is composed by a single agent part and a multi agent part. The first part should include a single agent implementing the basic functions necessary to him to work correctly. In particular, the agent should represents and mange beliefs from sensing data activate intentions and act on the environment and use predefined plans to achieve its intentions. All of this, while performing a constant revision of beliefs and intentions to allow him to stop, hold or invalid the current running intention. This permits the agent to act accordingly in a rapid evolving environment. Once these functions have been achieved, the agent should interact with an automated planning utility to get the plan of actions to perform.
+    The project is composed of a single-agent part and a multi-agent part. The first part involves a single agent implementing the basic functions necessary for correct operation. Specifically, the agent must represent and manage beliefs derived from sensing data, activate intentions, act on the environment, and use predefined plans to achieve its intentions. This occurs while continuously revising beliefs and intentions, allowing the agent to stop, hold, or invalidate the currently running intention. This enables the agent to respond appropriately in a rapidly evolving environment. Once these functions are implemented, the agent should interact with an automated planning utility to obtain the sequence of actions to perform
+    \medskip\\      
+    The second part introduces a second agent capable of cooperating with the first one, and vice versa, to achieve the goal. Specifically, the two agents must be able to communicate, exchange beliefs, coordinate, and negotiate possible solutions to reach the goal, which may be unattainable by a single agent.
     \medskip\\
-    The second part should introduce a second agent able to cooperate with the first one, and viceversa, to achieve the goal. In particular, the two agents should be able to communicate, exchange beliefs, coordinate and negotiate possible solutions to achieve the goal, which may not be achievable by a single agent.
-    \medskip\\
-    Furthermore, both should be able to operate in different scenarios, involving other competitive agents and rapidly evolving environments.
-
+    Furthermore, both agents must operate effectively in different scenarios involving other competitive agents and rapidly evolving environments.
 \ifthenelse{\value{cols}=1}{
     \end{multicols}
 }{
