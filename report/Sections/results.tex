@@ -4,21 +4,24 @@
 }{
     \section{Conclusion}
 }
-    In this chapter, we report some final observations about our agent, including results obtained on various challenge maps after extensive testing under tournament conditions, along with a potential direction for future improvements.
+
+    This section presents final observations on the agent, including results obtained from various challenge maps tested extensively under tournament conditions, and a potential direction for future improvements.
 
     \subsection{Results}
-        We conducted a series of tests on selected maps from both challenges, chosen to evaluate the key components of the single-agent and multi-agent systems. Multiple agent instances were executed in parallel to simulate competitive real-world conditions.
+        A series of tests was conducted on selected maps from both challenges, chosen to evaluate key components of the single-agent and multi-agent systems. Multiple agent instances were executed in parallel to simulate competitive real-world conditions.
         \medskip\\
-        For the single-agent tests, we evaluated four maps from the first challenge using two modes: no planning (NP) and planning with 50\% probability (5P). In the planning tests, we enabled the \textit{-w} parameter to block new option generation during action execution. Previous tests conducted without this parameter, allowing the \textit{option generation} process to run and potentially override the current action, generally yielded slightly worse results.
+        For the single-agent tests, four maps from the first challenge were evaluated using two modes: no planning (NP) and planning with 50\% probability (5P). In the planning tests, the \textit{-w} parameter was enabled to block new option generation during action execution. Prior tests conducted without this parameter, allowing the \textit{option generation} process to run and potentially override the current action, generally yielded slightly worse results.
         \medskip\\
-        As shown in Table \ref{tab:table_1}, comparing cumulative scores across the same map with and without planning, the use of planning degraded performance. This effect was especially pronounced in smaller maps with narrow corridors or limited spawning tiles.
+        As shown in Table \ref{tab:table_1}, cumulative score comparisons across the same map with and without planning indicate that planning degraded performance. The effect was most pronounced on smaller maps with narrow corridors or limited spawning tiles.
         \medskip\\
-        For the multi-agent tests, we evaluated four maps from the second challenge, along with the hallway map. Results are reported in Table \ref{tab:table_2}. In these cases, no major anomalies were observed: the agents operated effectively and were able to exchange parcels when required.
+        For the multi-agent tests, four maps from the second challenge and the hallway map were evaluated. Results are reported in Table \ref{tab:table_2}. No major anomalies were observed: the agents operated effectively and exchanged parcels as required.
     
     \subsection{Possible Improvements}
-        We observed that the agent does not actively perform sensing at will, instead, the server automatically sends updated information. While this behavior is appropriate in most situations, the server only sends updates when changes occur. As a result, internal predictions are necessary to maintain accurate beliefs. One case involves parcel expiration: the server does not notify agents when a parcel expires, so the agent must infer this internally. Another case concerns other moving agents: if an agent observes another agent in motion, the server promptly sends updates. However, if the observing agent moves and loses visual contact, no further updates are sent. The agent must then infer that the unseen agent has likely moved away and should be removed from memory.
+
+        The agent does not perform sensing autonomously, instead, updated information is automatically sent by the server. This behavior is sufficient in most cases, but updates occur only when changes are detected. Consequently, internal predictions are required to maintain accurate beliefs. One example involves parcel expiration: the server does not notify agents when a parcel expires, requiring internal inference. Another involves other moving agents: when an agent observes another in motion, the server sends updates promptly. However, if the observing agent moves and loses visual contact, no further updates are sent. The agent must then infer that the other has likely moved and remove it from memory.
         \medskip\\
-        Both systems were implemented using a time-window approach (Section \ref{memoryRevision}). This method works effectively for parcels. However, in the case of agents, a specific issue arises: if another agent remains stationary, the server sends only a single update upon entering the sensing range. With no subsequent updates, the time window eventually expires, and the agent is erroneously removed from memory. While not critical, since agents typically remain in motion, this limitation represents a possible area for future improvement.
+        Both systems use a time-window approach (Section \ref{memoryRevision}). This method is effective for parcels, however, for agents, a specific issue arises: if another agent remains stationary, the server sends a single update upon entering the sensing range. Without further updates, the time window expires and the agent is incorrectly removed from memory. While not critical, since agents typically remain in motion, this limitation suggests a possible area for improvement.
+
 \ifthenelse{\value{cols}=1}{
     \end{multicols}
 }{
@@ -43,7 +46,7 @@
         25c1\_8 (5P)   & 5   & 258   & 214   & 161   & 901  & 28.6\% \\
         \hline
     \end{tabular}
-    \caption{Testing results for the single-agent. In order, we report the map name (presence of planning), the number of competing teams, first place score, second place score, third place score, total cumulative score of all teams and percentage of the first place score with respect to the total score}
+    \caption{Testing results for the single-agent. In order, are reported the map name (presence of planning), the number of competing teams, first place score, second place score, third place score, total cumulative score of all teams and percentage of the first place score with respect to the total score}
     \label{tab:table_1}
 \end{table}
 
@@ -60,6 +63,6 @@
         25c2\_hallway   & 1  & 1471   & -     & -     & 1471   & 100\% \\
         \hline
     \end{tabular}
-    \caption{Testing results for the multi-agent. In order, we report the map name, the number of competing teams, first place score, second place score, third place score, total cumulative score of all teams and percentage of the first place score with respect to the total score}
+    \caption{Testing results for the multi-agent. In order, are reported the map name, the number of competing teams, first place score, second place score, third place score, total cumulative score of all teams and percentage of the first place score with respect to the total score}
     \label{tab:table_2}
 \end{table}
