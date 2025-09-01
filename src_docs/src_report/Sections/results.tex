@@ -5,12 +5,12 @@
     \section{Conclusion}
 }
 
-    This section presents final observations on the agent, including results obtained from various challenge maps tested extensively under tournament conditions, and a potential direction for future improvements.
+    This section presents final observations on the agent, including results obtained from various challenge maps, tested extensively under tournament conditions, and a potential direction for future improvements.
 
     \subsection{Results}
         A series of tests was conducted on selected maps from both challenges, chosen to evaluate key components of the single-agent and multi-agent systems. Multiple agent instances were executed in parallel to simulate competitive real-world conditions.
         \medskip\\
-        For the single-agent tests, four maps from the first challenge were evaluated using two modes: no planning (NP) and planning with 50\% probability (5P). In the planning tests, the \textit{-w} parameter was enabled to block new option generation during action execution. Prior tests conducted without this parameter, allowing the \textit{option generation} process to run and potentially override the current action, generally yielded slightly worse results.
+        For the single-agent tests, four maps from the first challenge were evaluated using two modes: no planning (NP) and planning with 50\% probability (5P). In the planning tests, the "\textit{-w}" parameter was enabled to block new option generation during action execution. Prior tests conducted without this parameter, allowing the "\textit{option generation}" process to run and potentially override the current action, generally yielded slightly worse results.
         \medskip\\
         As shown in Table \ref{tab:table_1}, cumulative score comparisons across the same map with and without planning indicate that planning degraded performance. The effect was most pronounced on smaller maps with narrow corridors or limited spawning tiles.
         \medskip\\
@@ -18,9 +18,9 @@
     
     \subsection{Possible Improvements}
 
-        The agent does not perform sensing autonomously, instead, updated information is automatically sent by the server. This behavior is sufficient in most cases, but updates occur only when changes are detected. Consequently, internal predictions are required to maintain accurate beliefs. One example involves parcel expiration: the server does not notify agents when a parcel expires, requiring internal inference. Another involves other moving agents: when an agent observes another in motion, the server sends updates promptly. However, if the observing agent moves and loses visual contact, no further updates are sent. The agent must then infer that the other has likely moved and remove it from memory.
+        The agent does not perform sensing autonomously, instead, updated information is automatically sent by the server. This behavior is sufficient in most cases, but updates occur only when changes are detected. Consequently, internal predictions are required to maintain accurate beliefs. One example involves parcel expiration: the server does not notify agents when a parcel expires, requiring internal inference. Another involves other moving agents: when the agent observes another moving agent, the server sends updates promptly. However, if the observing agent moves and loses visual contact, no further updates are sent. The agent must then infer that the other agent has likely moved and remove it from memory.
         \medskip\\
-        Both systems use a time-window approach (Section \ref{memoryRevision}). This method is effective for parcels, however, for agents, a specific issue arises: if another agent remains stationary, the server sends a single update upon entering the sensing range. Without further updates, the time window expires and the agent is incorrectly removed from memory. While not critical, since agents typically remain in motion, this limitation suggests a possible area for improvement.
+        Both systems use a \textit{time-window based approach} (Section \ref{memoryRevision}). This method is effective for parcels, however, for agents, a specific issue arises: if another agent remains stationary, the server sends a single update upon entering the sensing range. Without further updates, the time window expires and the agent is incorrectly removed from memory. While not critical, since agents typically remain in motion, this limitation suggests a possible area for improvement.
 
 \ifthenelse{\value{cols}=1}{
     \end{multicols}
