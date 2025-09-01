@@ -4,7 +4,7 @@ To run our agent you need to execute the following command:
 node agent.js <PARAMETERS>
 ```
 
-inside this folder. Note also that a _Deliveroo.js_ server instance must be active and listening on the address specified at the beginning of the file _agent.js_. Follows a rapid description of the possible parameters of the script.
+inside the folder _project_code/code/_. Note also that a _Deliveroo.js_ server instance must be active and listening on the address specified at the beginning of the file _agent.js_. Follows a rapid description of the possible parameters of the script.
 
 | <div style="width:120px">Parameter</div> | Description                                                                                                                                                                                                                                                                                                                                                                           |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
