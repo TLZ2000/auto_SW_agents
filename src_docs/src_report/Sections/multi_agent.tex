@@ -1,9 +1,4 @@
-\ifthenelse{\value{cols}=1}{
-    \setlength{\columnsep}{20pt} % Spacing tra le colonne
-    \begin{multicols}{2}[\section{Multi Agent}]
-}{
-    \section{Multi Agent}
-}
+\section{Multi Agent}
     This second part concerns the development of the multi-agent system, specifically the addition of a second agent (\textit{pal}) capable of operating in the \textit{Deliveroo.js} environment. The two agents must be able to communicate, update their internal beliefs with shared information, coordinate and negotiate common solutions (e.g., deciding who should pick up a specific parcel or collaborating to achieve goals).
     \medskip\\ 
     As previously stated, the multi-agent script is the same as the single-agent one, with the multi-agent mode enabled through a parameter when launching the agent's script.
@@ -54,9 +49,3 @@
             
         \subsubsection{RecoverSharedParcels Plan}
             To handle the "\textit{recover\_shared\_parcels}" intention, a new "\textit{RecoverSharedParcels}" plan has been introduced. Unlike the previous case, the agent already knows the three exchange positions. If a delivery is required (as determined by the message handler), it is completed first. The agent then moves to the "\textit{wait position}" and waits for the \textit{pal} to reach the "\textit{exchange position}", drop the parcels, and move to the "\textit{support position}". As in the "\textit{ShareParcels}" plan, if the \textit{pal} changes its current intention, indicating a failed share intention, the agent's intention also fails. Otherwise, the agent proceeds to the "\textit{exchange position}", picks up the parcels, and successfully completes the intention.
-
-\ifthenelse{\value{cols}=1}{
-    \end{multicols}
-}{
-    % Pass
-}

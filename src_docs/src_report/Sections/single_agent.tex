@@ -1,9 +1,5 @@
-\ifthenelse{\value{cols}=1}{
-    \setlength{\columnsep}{20pt} % Spacing tra le colonne
-    \begin{multicols}{2}[\section{Single Agent}]
-}{
-    \section{Single Agent}
-}
+
+\section{Single Agent}
     This section regards the development of a simple single-agent capable of performing the basic functions required to operate in the \textit{Deliveroo.js} environment. Specifically, the agent must represent and manage an internal belief system constructed from sensory data received from the server, with the capacity to revise outdated or no longer valid beliefs. Based on these beliefs, the agent should be able to define and activate intentions, revise older intentions, and act in the environment to achieve them using a set of predefined plans or interacting with a planner utility to execute the appropriate actions.
     \medskip\\    
     In particular, the single-agent operates using the same script as the multi-agent configuration, which is designed to be resilient to the absence of a second agent. In the single-agent setup, the agent avoids sending messages to the non-existent companion, and, in situations requiring information about the companion, such as its position or its carried parcels, the agent treats the companion as null, assuming no location and no parcels.
@@ -128,9 +124,3 @@
             Another issue concerns the main strategy: rather than adapting the "\textit{current intention}" to the changed context, a new intention is generated to replace it. This is problematic because by the time the new plan is ready, the environment has significantly changed. As a result, the option generation process selects a new intention based on the updated state, thus the agent repeatedly generates plans that are never executed. To address this, a dedicated parameter ("\textit{-w}"), which can be set during the agent's script execution, was introduced. If set, this parameter extends the effect of the previous flag to the entire "\textit{Move}" plan, forcing the agent to complete the "\textit{go\_to}" intention before generating new ones.
             \medskip\\
             Generic automated planning, by its nature, remains unsuitable for this setting. Multiple planners were tested, even on local machines, but the plan generation time remains excessive. As a result, most plans are obsolete by the time they are produced due to environmental changes. The current planning infrastructure is retained as proof of concept, demonstrating that planning is possible in autonomous agent contexts and, with an adequate structure and domain-specific heuristics, automated planning can be effective in different situations.
-
-\ifthenelse{\value{cols}=1}{
-    \end{multicols}
-}{
-    % Pass
-}
